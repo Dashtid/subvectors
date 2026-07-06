@@ -8,7 +8,25 @@ shipping an overlapping feature must ADD a consumer of this corpus, never obsole
 **Cadence discipline:** every slice is weeknight-sized and independently shippable. Ship the
 slice, update this file, stop.
 
+## How we measure success (read before adding vectors)
+
+The corpus is the ENGINE, not the deliverable. Wycheproof matters because it found real bugs in
+real crypto libraries, not because it is a tidy collection. Same scoreboard here:
+
+- **Primary metric: bugs found and upstream PRs merged in shipping tools.** Each consumer's
+  matching semantics we encode is a differential-testing oracle to run real tools against; a
+  disagreement is a genuine defect in a security tool people trust. Slice 1 already has two
+  (Checkov's regex accepts `org/*`, rejects the immutable `@id` format).
+- **Secondary metric: adoption** — a tool consuming the vectors, or a citation of the corpus.
+- **Vectors added is an INPUT, not the score.** Curation for its own sake is the failure mode
+  (the "librarian" trap). A tranche that surfaces no bug and no adoption is a signal, not progress.
+
+If, after v0.1, finding and landing real bugs in real tools is not energizing, that is the pivot
+trigger (see rethink triggers) — not a cue to keep cataloguing. The corpus then becomes the
+substrate for the deferred offensive project, or is donated to a neutral home.
+
 ## v0.1 — GitHub-to-AWS tranche + the two feeder PRs (first month)
+*Goal: land the first merged bug-fix PR (Checkov) and stand up the oracle that generated it.*
 
 - [ ] **Slice 1 — Checkov `oidc_utils.py` fix (upstream, deadline-bound: before 2026-07-15).**
       One PR: `gh_repo_regex` currently accepts `org/*` wildcard repos (false negative) and

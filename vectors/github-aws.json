@@ -1,0 +1,141 @@
+{
+  "suite": "github-aws",
+  "version": "0.1.0",
+  "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break.",
+  "vectors": [
+    {
+      "id": "gh-aws-exact-branch-stringequals",
+      "description": "Subject pinned to one branch of one repo, matched with StringEquals. The tight baseline.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "condition": { "consumer": "aws-stringequals", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "Exact match on a single protected branch of a single repo.", "patterns": ["exact-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services"
+      ]
+    },
+    {
+      "id": "gh-aws-exact-branch-stringlike",
+      "description": "Same tight subject, but written with StringLike and no wildcard: StringLike degrades to exact.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "No wildcard present, so StringLike matches the exact subject only.", "patterns": ["exact-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-repo-wide-wildcard-suffix",
+      "description": "Trailing * after the repo admits any ref, tag, environment, or pull_request of that repo.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:*" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Repo-wide: every ref, tag, environment, and pull_request of this repo satisfies the condition.", "patterns": ["wildcard-suffix"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+      ]
+    },
+    {
+      "id": "gh-aws-org-wide-wildcard-repo",
+      "description": "Wildcard in the repo position lets ANY repository in the org assume the role. IAM * is not path-aware, so it spans the '/' and ':' delimiters.",
+      "issuer": "github",
+      "subject": "repo:octo-org/unrelated-repo:ref:refs/heads/main",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/*" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "Org-wide trust: any repository under octo-org, including one created by anyone with repo-create rights, can assume the role. This is the pattern Checkov CKV_AZURE_249's repo regex passes.", "patterns": ["wildcard-repo", "org-wide"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+      ]
+    },
+    {
+      "id": "gh-aws-pull-request-subject",
+      "description": "A pull_request-triggered token matched by a repo-wide wildcard. Fork PR code can mint this subject.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:pull_request",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:*" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "The condition admits the pull_request subject, so code from a pull request (potentially from a fork) can assume the role.", "patterns": ["pull-request", "wildcard-suffix"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services"
+      ]
+    },
+    {
+      "id": "gh-aws-other-branch-rejected",
+      "description": "A different branch of the same repo is correctly rejected by an exact StringEquals condition.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/feature-x",
+      "condition": { "consumer": "aws-stringequals", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main" },
+      "expect": "no-match",
+      "judgment": { "grade": "safe", "reason": "Only the pinned branch matches; other branches are denied.", "patterns": ["exact-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-immutable-exact-match",
+      "description": "Immutable subject (embedded owner/repo IDs) matched by a condition written in the same immutable form.",
+      "issuer": "github",
+      "subject": "repo:octo-org@123456/octo-repo@7891011:ref:refs/heads/main",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org@123456/octo-repo@7891011:ref:refs/heads/main" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "Exact match on an immutable subject; the embedded IDs pin the identity across renames.", "patterns": ["exact-ref", "immutable"] },
+      "status": "documented",
+      "sources": [
+        "https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services"
+      ]
+    },
+    {
+      "id": "gh-aws-immutable-subject-classic-pattern",
+      "description": "The July 15 breakage from the cloud side: a repo created after the immutable cutover mints an immutable subject, but the trust policy still carries the classic (no-@id) pattern. It stops matching. This is silent deployment breakage, not just a lint nit.",
+      "issuer": "github",
+      "subject": "repo:octo-org@123456/octo-repo@7891011:ref:refs/heads/main",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-single-char-wildcard",
+      "description": "The ? wildcard matches exactly one character. Demonstrates StringLike's second, less-known metacharacter.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/mai?" },
+      "expect": "match",
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-stringequals-treats-star-literally",
+      "description": "Under StringEquals, * is a literal character, not a wildcard. A StringEquals condition of 'repo:octo-org/*' matches only the literal string, never a real subject. The operator, not the string, decides.",
+      "issuer": "github",
+      "subject": "repo:octo-org/unrelated-repo:ref:refs/heads/main",
+      "condition": { "consumer": "aws-stringequals", "claim": "sub", "pattern": "repo:octo-org/*" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    }
+  ]
+}

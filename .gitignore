@@ -1,0 +1,30 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+dist/
+build/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Secrets / real cloud data — never commit live trust policies, tokens, or account data
+.env
+.env*.local
+*.pem
+credentials*
+real-*/        # keep only sanitized fixtures under fixtures/; real org exports go here, ignored
+
+# OS / editor
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/
+
+# Private Claude Code build-session context — kept in-repo, not published
+CLAUDE.md
+.claude/

@@ -10,13 +10,17 @@ in each vector's ``judgment`` block, backed by a citation, and this matcher neve
 reads it. Keeping the two apart is the point: the match is mechanically
 falsifiable; the safety grade is a documented claim.
 
-Scope (v0.1): the AWS consumers. Azure FIC and GCP CEL are declared in the vector
-schema and land in later tranches; an unsupported consumer raises rather than
-silently returning False, so a vector can never pass by being unmatched.
+Scope: the AWS consumers (StringLike / StringEquals) and classic Azure FIC (exact
+match). The preview "flexible FIC" expression language (azure-fic-flexible) and GCP
+CEL are declared in the vector schema and land in later tranches; an unsupported
+consumer raises rather than silently returning False, so a vector can never pass by
+being unmatched.
 
 Sources:
 - AWS IAM condition operators (StringEquals / StringLike, wildcard semantics):
   https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html
+- Azure FIC subject matching (exact, no wildcards, silent failure on mismatch):
+  https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations
 """
 
 from __future__ import annotations
@@ -63,9 +67,20 @@ def _aws_stringequals(subject: str, pattern: str) -> bool:
     return subject == pattern
 
 
+def _azure_fic_exact(subject: str, pattern: str) -> bool:
+    # Classic Azure federated identity credentials compare the configured
+    # subject to the token's sub with an EXACT string match. Wildcards are not
+    # supported in any FIC property value -- "*" is a literal character, so a
+    # subject like "repo:org/*" matches no real token and the exchange fails
+    # SILENTLY, with no error. (Wildcard/expression matching is a separate,
+    # preview-only "flexible FIC" consumer -- azure-fic-flexible, not yet here.)
+    return subject == pattern
+
+
 _CONSUMERS: dict[str, Callable[[str, str], bool]] = {
     "aws-stringlike": _aws_stringlike,
     "aws-stringequals": _aws_stringequals,
+    "azure-fic-exact": _azure_fic_exact,
 }
 
 SUPPORTED_CONSUMERS = frozenset(_CONSUMERS)

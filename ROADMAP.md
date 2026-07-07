@@ -43,10 +43,18 @@ substrate for the deferred offensive project, or is donated to a neutral home.
       producing an unconditioned federated edge. Minimal additive proposal (sub/aud as edge
       properties, no new node types). Issue-first is correct here: it is a genuine schema-design
       question. 1 evening.
-- [ ] **Slice 4 — Azure FIC tranche (the depth wedge).** ~20 vectors: exact-match
-      case-sensitivity, the AADSTS700213 no-diagnostics failure mode, name-based vs immutable-ID
-      subjects, flexible-FIC expressions marked preview-versioned. Then the CKV_AZURE_249
-      deepening PR generated from those vectors. 2-3 evenings.
+- [~] **Slice 4 — Azure FIC tranche (the depth wedge).**
+      - [x] Classic FIC `azure-fic-exact` consumer in the matcher + 10 cited vectors
+            (`vectors/github-azure.json`): case-sensitivity, the silent no-error mismatch, the
+            wildcard-as-literal trap (opposite of AWS StringLike — `repo:org/*` matches nothing on
+            Azure), tag/environment scoping, the `pull_request` over-permission CKV_AZURE_249
+            passes, and the classic-vs-immutable silent break.
+      - [ ] Flexible-FIC tranche (`claimsMatchingExpression`: `matches`/`eq`/`and`, `*`/`?`
+            wildcards) — Preview, Graph/portal-only, version-stamped. Its own consumer + slice
+            (moving target; not exposed via Terraform/CLI yet).
+      - [ ] CKV_AZURE_249 deepening PR generated from the pull_request/tag/environment vectors.
+      (Correction to earlier note: a subject mismatch is a SILENT no-error rejection; AADSTS70021
+      is the separate propagation-delay error, not a mismatch diagnostic.)
 
 ## v0.2 — breadth and consumers
 

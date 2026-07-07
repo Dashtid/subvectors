@@ -1,0 +1,138 @@
+{
+  "suite": "github-azure",
+  "version": "0.1.0",
+  "description": "GitHub Actions OIDC subjects against classic Azure federated-identity-credential (FIC) subjects. Classic FIC is an EXACT, wildcard-free string match; a mismatch fails the token exchange silently with no error. Seed tranche: exact match, case-sensitivity, the pull_request over-permission CKV_AZURE_249 passes, the wildcard-as-literal trap (opposite of AWS), tag/environment scoping, and the classic-vs-immutable silent break.",
+  "vectors": [
+    {
+      "id": "az-fic-exact-branch-match",
+      "description": "FIC subject exactly equals the token sub for one branch of one repo. The tight baseline.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "Exact match on a single branch of a single repo.", "patterns": ["exact-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+      ]
+    },
+    {
+      "id": "az-fic-case-sensitive-mismatch",
+      "description": "Classic FIC requires the subject to exactly match the token sub. A case difference in the owner (here 'Octo-Org' vs 'octo-org') does not match, and the exchange fails silently with no error.",
+      "issuer": "github",
+      "subject": "repo:Octo-Org/octo-repo:ref:refs/heads/main",
+      "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations"
+      ]
+    },
+    {
+      "id": "az-fic-pull-request-danger",
+      "description": "A FIC whose subject is exactly the pull_request subject matches pull_request-triggered tokens. CKV_AZURE_249 PASSES this configuration; it admits code from pull requests (potentially forks).",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:pull_request",
+      "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "repo:octo-org/octo-repo:pull_request" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "The FIC admits the pull_request subject, so pull-request code (potentially from a fork) can assume this identity. Checkov CKV_AZURE_249 does not flag it.", "patterns": ["pull-request"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+      ]
+    },
+    {
+      "id": "az-fic-wildcard-is-literal-no-match",
+      "description": "The wildcard trap, opposite to AWS. An admin writes 'repo:octo-org/*' as a FIC subject expecting org-wide access as they would get from an AWS StringLike condition. Classic FIC does not support wildcards, so '*' is a literal character: this subject matches NO real token and the credential silently never authenticates. Fails closed (not over-permissive) but is a portability and correctness trap.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "repo:octo-org/*" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations"
+      ]
+    },
+    {
+      "id": "az-fic-environment-match",
+      "description": "FIC subject scoped to a named deployment environment. Matches only that environment's tokens.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:environment:Production",
+      "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "repo:octo-org/octo-repo:environment:Production" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Environment scoping is only as strong as the environment's protection rules; safe if the environment has required reviewers/branch restrictions, weaker otherwise.", "patterns": ["environment-scoped"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+      ]
+    },
+    {
+      "id": "az-fic-immutable-exact-match",
+      "description": "Immutable subject (embedded owner/repo IDs) matched by a FIC configured in the same immutable form.",
+      "issuer": "github",
+      "subject": "repo:octo-org@123456/octo-repo@456789:ref:refs/heads/main",
+      "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "repo:octo-org@123456/octo-repo@456789:ref:refs/heads/main" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "Exact match on an immutable subject; the embedded IDs pin the identity across renames.", "patterns": ["exact-ref", "immutable"] },
+      "status": "documented",
+      "sources": [
+        "https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/",
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations"
+      ]
+    },
+    {
+      "id": "az-fic-immutable-subject-classic-fic",
+      "description": "The July 15 break, Azure side, and nastier than AWS because it is silent. A repo created after the immutable cutover mints an immutable subject, but the FIC still carries the classic (no-@id) subject. Exact match fails, and per Microsoft the exchange fails with NO error -- deployments simply stop authenticating with no diagnostic.",
+      "issuer": "github",
+      "subject": "repo:octo-org@123456/octo-repo@456789:ref:refs/heads/main",
+      "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/",
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations"
+      ]
+    },
+    {
+      "id": "az-fic-other-branch-mismatch",
+      "description": "A different branch of the same repo does not match an exact FIC subject.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/feature-x",
+      "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations"
+      ]
+    },
+    {
+      "id": "az-fic-tag-ref-match",
+      "description": "FIC subject scoped to a tag ref. Matches the tag token, but tags are movable and unprotected by default.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/tags/v1.0",
+      "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/tags/v1.0" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Tag refs are movable and, unless tag protection rules are configured, a maintainer or compromised token can repoint the tag to attacker-controlled code.", "patterns": ["tag-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+      ]
+    },
+    {
+      "id": "az-fic-trailing-space-mismatch",
+      "description": "Exact match is byte-for-byte: a trailing space in the FIC subject means it never matches the token sub. Another silent-failure footgun.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main " },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations"
+      ]
+    }
+  ]
+}

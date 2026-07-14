@@ -1,0 +1,10 @@
+# Normalize line endings to LF in the repo (kills the CRLF churn on Windows).
+* text=auto eol=lf
+
+# Explicitly text
+*.py    text eol=lf
+*.json  text eol=lf
+*.toml  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf

@@ -86,5 +86,10 @@ Writing a falsifiable, cited test case about a trust rule forces genuinely under
 
 ## License
 
-TBD — planned: CC0 (or equivalent) for the vector data to maximize adoptability; MIT or Apache-2.0
-for the reference matcher.
+Dual-licensed to maximize adoptability:
+
+- **Vector data (`vectors/`) — CC0-1.0** (public-domain dedication). Embed the vectors in your
+  tool's test suite with zero attribution or licensing friction — that frictionlessness is the
+  point. See [`vectors/LICENSE`](vectors/LICENSE).
+- **Everything else** (the reference matcher, schema, docs) **— Apache-2.0**. See
+  [`LICENSE`](LICENSE).

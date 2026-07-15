@@ -1,0 +1,186 @@
+{
+  "suite": "github-gcp",
+  "version": "0.1.0",
+  "description": "GitHub Actions OIDC tokens against GCP Workload Identity Federation provider attribute_condition CEL expressions. GCP is not a single-string subject match: the condition is a CEL expression evaluated over the whole token claim set (assertion.*), and the credential is accepted iff it evaluates true. v1 evaluates assertion.* directly and defers attribute_mapping / google.subject / attribute.* (the downstream principalSet IAM-binding layer) to a later tranche.",
+  "vectors": [
+    {
+      "id": "gh-gcp-owner-repo-ref-safe",
+      "description": "Repo+branch pin. Tight, but name-based (see gh-gcp-immutable-id-pin-safe for the rename-proof form).",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": { "sub": "repo:octo-org/octo-repo:ref:refs/heads/main", "repository": "octo-org/octo-repo", "repository_owner": "octo-org", "repository_id": "260064828", "repository_owner_id": "1342004", "ref": "refs/heads/main", "event_name": "push" },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.repository == 'octo-org/octo-repo' && assertion.ref == 'refs/heads/main'" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "Scoped to one branch of one repo. Name-based, so add repository_id/repository_owner_id pins to survive rename/cybersquat.", "patterns": ["exact-repo", "exact-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+      ]
+    },
+    {
+      "id": "gh-gcp-owner-only-org-wide-danger",
+      "description": "Owner-only condition (Google's minimal example). Any repo under the org satisfies it. GCP analogue of the AWS repo:org/* wildcard.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": { "sub": "repo:octo-org/octo-repo:ref:refs/heads/main", "repository": "octo-org/octo-repo", "repository_owner": "octo-org", "repository_id": "260064828", "repository_owner_id": "1342004", "ref": "refs/heads/main", "event_name": "push" },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.repository_owner == 'octo-org'" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "Org-wide: every repository under octo-org, including newly created ones, is admitted. Name-based, so also cybersquat-exposed.", "patterns": ["org-wide", "name-based"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines",
+        "https://github.com/google-github-actions/auth/blob/main/docs/SECURITY_CONSIDERATIONS.md"
+      ]
+    },
+    {
+      "id": "gh-gcp-trivial-condition-any-repo-danger",
+      "description": "A tautology condition: repository_owner_id is always present, so this admits EVERY github.com repository (confused-deputy). The condition is the only admission gate, so a trivial one is the classic WIF misconfiguration.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": { "sub": "repo:octo-org/octo-repo:ref:refs/heads/main", "repository": "octo-org/octo-repo", "repository_owner": "octo-org", "repository_id": "260064828", "repository_owner_id": "1342004", "ref": "refs/heads/main", "event_name": "push" },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.repository_owner_id != ''" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "Tautology: any GitHub Actions token from any org/repo satisfies it. The attribute_condition is GCP's whole admission gate, so a non-scoping condition trusts all of github.com.", "patterns": ["no-repo-scope", "confused-deputy"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation",
+        "https://github.com/google-github-actions/auth/blob/main/docs/SECURITY_CONSIDERATIONS.md"
+      ]
+    },
+    {
+      "id": "gh-gcp-immutable-id-pin-safe",
+      "description": "Google-recommended immutable pin: numeric owner id + repo id. Rename/transfer/cybersquat-proof and unaffected by the July-15 sub-format cutover.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": { "sub": "repo:octo-org/octo-repo:ref:refs/heads/main", "repository": "octo-org/octo-repo", "repository_owner": "octo-org", "repository_id": "260064828", "repository_owner_id": "1342004", "ref": "refs/heads/main", "event_name": "push" },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.repository_owner_id == '1342004' && assertion.repository_id == '260064828'" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "Pins immutable numeric IDs, which never change on rename/transfer and can't be recycled. Repo-wide across refs, so add a ref pin for branch scoping.", "patterns": ["immutable-id"] },
+      "status": "documented",
+      "sources": [
+        "https://github.com/google-github-actions/auth/blob/main/docs/SECURITY_CONSIDERATIONS.md",
+        "https://github.blog/changelog/2023-01-10-github-actions-openid-connect-token-now-supports-more-claims-for-configuring-granular-cloud-access/"
+      ]
+    },
+    {
+      "id": "gh-gcp-immutable-id-survives-rename",
+      "description": "Positive control for rename-proofing: after the repo is renamed, repository/sub change but repository_id/repository_owner_id do not, so the immutable-ID condition still matches.",
+      "issuer": "github",
+      "subject": "repo:octo-org/renamed-repo:ref:refs/heads/main",
+      "claims": { "sub": "repo:octo-org/renamed-repo:ref:refs/heads/main", "repository": "octo-org/renamed-repo", "repository_owner": "octo-org", "repository_id": "260064828", "repository_owner_id": "1342004", "ref": "refs/heads/main", "event_name": "push" },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.repository_owner_id == '1342004' && assertion.repository_id == '260064828'" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "The numeric IDs are stable across rename, so the immutable-ID pin keeps authenticating where a name-based pin would silently break.", "patterns": ["immutable-id", "rename-proof"] },
+      "status": "documented",
+      "sources": [
+        "https://github.com/google-github-actions/auth/blob/main/docs/SECURITY_CONSIDERATIONS.md",
+        "https://github.blog/changelog/2023-01-10-github-actions-openid-connect-token-now-supports-more-claims-for-configuring-granular-cloud-access/"
+      ]
+    },
+    {
+      "id": "gh-gcp-name-pin-breaks-on-rename",
+      "description": "Negative twin: same renamed token, but a name-based condition. repository is now octo-org/renamed-repo, so the condition is false and the credential is silently rejected - deployments stop authenticating with no error.",
+      "issuer": "github",
+      "subject": "repo:octo-org/renamed-repo:ref:refs/heads/main",
+      "claims": { "sub": "repo:octo-org/renamed-repo:ref:refs/heads/main", "repository": "octo-org/renamed-repo", "repository_owner": "octo-org", "repository_id": "260064828", "repository_owner_id": "1342004", "ref": "refs/heads/main", "event_name": "push" },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.repository == 'octo-org/octo-repo'" },
+      "expect": "no-match",
+      "judgment": { "grade": "caution", "reason": "Silent break after rename. Availability footgun, and the freed name becomes a cybersquat vector (see gh-gcp-name-recycle-danger).", "patterns": ["name-based", "rename-break"] },
+      "status": "documented",
+      "sources": [
+        "https://github.com/google-github-actions/auth/blob/main/docs/SECURITY_CONSIDERATIONS.md"
+      ]
+    },
+    {
+      "id": "gh-gcp-name-recycle-danger",
+      "description": "Cybersquat: after octo-org/octo-repo is deleted, an attacker registers the freed name and creates the repo. Their token carries repository=octo-org/octo-repo but NEW numeric IDs; a name-based condition admits it, an immutable-ID pin (gh-gcp-immutable-id-pin-safe) would reject it.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": { "sub": "repo:octo-org/octo-repo:ref:refs/heads/main", "repository": "octo-org/octo-repo", "repository_owner": "octo-org", "repository_id": "888800001", "repository_owner_id": "5550001", "ref": "refs/heads/main", "event_name": "push" },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.repository == 'octo-org/octo-repo'" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "Name recycled by an attacker satisfies the name-based condition even though the numeric IDs differ. Exactly the typosquatting/cybersquatting risk Google's SECURITY_CONSIDERATIONS warns about.", "patterns": ["name-based", "cybersquat"] },
+      "status": "documented",
+      "sources": [
+        "https://github.com/google-github-actions/auth/blob/main/docs/SECURITY_CONSIDERATIONS.md"
+      ]
+    },
+    {
+      "id": "gh-gcp-pull-request-danger",
+      "description": "A repo-scoped condition with no event guard admits pull_request-triggered tokens (potentially fork code). The sub for a pull_request event is repo:OWNER/REPO:pull_request. Fix: AND assertion.event_name == 'push'.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:pull_request",
+      "claims": { "sub": "repo:octo-org/octo-repo:pull_request", "repository": "octo-org/octo-repo", "repository_owner": "octo-org", "repository_id": "260064828", "repository_owner_id": "1342004", "ref": "refs/pull/42/merge", "event_name": "pull_request" },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.repository == 'octo-org/octo-repo'" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "No event_name=='push' guard, so a pull_request token (fork PR code) assumes the identity. Add assertion.event_name == 'push' and/or a branch pin.", "patterns": ["pull-request", "no-event-guard"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect",
+        "https://github.com/google-github-actions/auth/blob/main/docs/SECURITY_CONSIDERATIONS.md"
+      ]
+    },
+    {
+      "id": "gh-gcp-branch-prefix-startswith",
+      "description": "Exercises startsWith. Admits ANY branch of the repo (feature-x included), not one protected branch.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/feature-x",
+      "claims": { "sub": "repo:octo-org/octo-repo:ref:refs/heads/feature-x", "repository": "octo-org/octo-repo", "repository_owner": "octo-org", "repository_id": "260064828", "repository_owner_id": "1342004", "ref": "refs/heads/feature-x", "event_name": "push" },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.repository == 'octo-org/octo-repo' && assertion.ref.startsWith('refs/heads/')" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Any-branch scope: a feature branch also authenticates. Safe only if every branch is trusted; pin the branch otherwise.", "patterns": ["any-branch", "prefix-match"] },
+      "status": "documented",
+      "sources": [
+        "https://github.com/google/cel-spec/blob/master/doc/langdef.md#list-of-standard-definitions",
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines"
+      ]
+    },
+    {
+      "id": "gh-gcp-matches-tag-regex",
+      "description": "Exercises matches() (RE2, substring: the leading ^ is required to anchor). Immutable repo scoped to version tags.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/tags/v1",
+      "claims": { "sub": "repo:octo-org/octo-repo:ref:refs/tags/v1", "repository": "octo-org/octo-repo", "repository_owner": "octo-org", "repository_id": "260064828", "repository_owner_id": "1342004", "ref": "refs/tags/v1", "ref_type": "tag", "event_name": "push" },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.repository_id == '260064828' && assertion.ref.matches('^refs/tags/v[0-9]+')" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Tag refs are movable and unprotected by default; a repointed or maliciously created tag matching the pattern authenticates. matches() is unanchored RE2, so ^ is load-bearing.", "patterns": ["tag-ref", "regex"] },
+      "status": "documented",
+      "sources": [
+        "https://github.com/google/cel-spec/blob/master/doc/langdef.md#list-of-standard-definitions",
+        "https://github.com/google/re2/wiki/Syntax",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+      ]
+    },
+    {
+      "id": "gh-gcp-in-list-multi-org",
+      "description": "Exercises the in operator over a list literal. Allowlists two orgs by immutable owner id.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": { "sub": "repo:octo-org/octo-repo:ref:refs/heads/main", "repository": "octo-org/octo-repo", "repository_owner": "octo-org", "repository_id": "260064828", "repository_owner_id": "1342004", "ref": "refs/heads/main", "event_name": "push" },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.repository_owner_id in ['1342004', '9999999']" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Immutable-ID allowlist (good) but org-wide within each listed org (any repo). Tighten with repository_id and a ref/event guard.", "patterns": ["in-list", "org-wide"] },
+      "status": "documented",
+      "sources": [
+        "https://github.com/google/cel-spec/blob/master/doc/langdef.md#list-of-standard-definitions",
+        "https://github.com/google-github-actions/auth/blob/main/docs/SECURITY_CONSIDERATIONS.md"
+      ]
+    },
+    {
+      "id": "gh-gcp-classic-sub-immutable-break",
+      "description": "The July-15 break, GCP side, and the CKV_GCP_125 trap. A repo created/renamed after 2026-07-15 mints the immutable @-format sub, so a condition pinned on the classic sub is false -> credential silently rejected. This is also the exact sub shape CKV_GCP_125's sub regex parses.",
+      "issuer": "github",
+      "subject": "repo:octo-org@123456/octo-repo@456789:ref:refs/heads/main",
+      "claims": { "sub": "repo:octo-org@123456/octo-repo@456789:ref:refs/heads/main", "repository": "octo-org/octo-repo", "repository_owner": "octo-org", "repository_id": "456789", "repository_owner_id": "123456", "ref": "refs/heads/main", "event_name": "push" },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.sub == 'repo:octo-org/octo-repo:ref:refs/heads/main'" },
+      "expect": "no-match",
+      "judgment": { "grade": "caution", "reason": "Classic-format sub pin silently denies once the token carries the immutable @-format sub - an availability break like Azure classic FIC. Pinning assertion.repository_id sidesteps it; this sub shape is also what CKV_GCP_125 parses.", "patterns": ["classic-sub", "immutable-break"] },
+      "status": "documented",
+      "sources": [
+        "https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/",
+        "https://github.com/bridgecrewio/checkov/blob/main/checkov/terraform/checks/resource/gcp/GithubActionsOIDCTrustPolicy.py"
+      ]
+    }
+  ]
+}

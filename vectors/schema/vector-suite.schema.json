@@ -45,6 +45,13 @@
           "minLength": 1,
           "description": "A concrete OIDC token subject claim value (no wildcards)."
         },
+        "claims": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": { "pattern": "^[a-z0-9_]+$" },
+          "additionalProperties": { "type": "string" },
+          "description": "The full OIDC token claim set the condition is evaluated against (used by gcp-cel, addressable as assertion.<name>). Optional: AWS/Azure vectors omit it and match on 'subject' alone. When present, claims.sub MUST equal 'subject'."
+        },
         "condition": { "$ref": "#/$defs/condition" },
         "expect": {
           "enum": ["match", "no-match"],

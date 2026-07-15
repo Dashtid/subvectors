@@ -65,10 +65,21 @@ def test_matcher_reproduces_expected_result(name: str, vector: dict) -> None:
     if consumer not in SUPPORTED_CONSUMERS:
         pytest.skip(f"consumer {consumer!r} not implemented in the reference matcher yet")
 
-    got = satisfies(vector["subject"], vector["condition"])
+    got = satisfies(vector["subject"], vector["condition"], claims=vector.get("claims"))
     expected = vector["expect"] == "match"
     assert got is expected, (
         f"{vector['id']} ({name}): matcher returned {got}, vector declares "
         f"expect={vector['expect']!r}\n  subject:   {vector['subject']!r}\n"
         f"  condition: {vector['condition']}"
     )
+
+
+def test_claims_sub_matches_subject_when_present() -> None:
+    # 'subject' is the canonical single-claim view; when a vector also carries the full
+    # 'claims' set (GCP), its 'sub' must agree with 'subject'.
+    for name, vector in _VECTOR_CASES:
+        claims = vector.get("claims")
+        if claims and "sub" in claims:
+            assert claims["sub"] == vector["subject"], (
+                f"{vector['id']} ({name}): claims['sub'] must equal 'subject'"
+            )

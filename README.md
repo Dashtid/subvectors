@@ -1,9 +1,8 @@
-# oidc-subject-conformance
+# subvectors
 
-*(working name — repo scaffolded as `oidc-reach`; pick the final name before first publish)*
-
-**The answer key for CI/CD OIDC trust decisions: a cited, versioned test-vector suite answering
-"does subject S satisfy trust condition C — and is C safe?"**
+**Conformance vectors for OIDC trust subjects — the answer key for CI/CD OIDC trust decisions: a
+cited, versioned test-vector suite answering "does subject S satisfy trust condition C, and is C
+safe?"**
 
 When a CI pipeline authenticates to a cloud via OIDC (GitHub Actions to AWS/Azure/GCP today), the
 entire security boundary is a string comparison: the token's `sub` claim versus an admin-written

@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://github.com/Dashtid/oidc-subject-conformance/vectors/schema/vector-suite.schema.json",
+  "$id": "https://raw.githubusercontent.com/Dashtid/subvectors/main/vectors/schema/vector-suite.schema.json",
   "title": "OIDC CI/CD trust-condition conformance vector suite",
   "description": "A file of test vectors, each answering: does subject S satisfy trust condition C, and is C safe?",
   "type": "object",

@@ -14,7 +14,7 @@ from pathlib import Path
 import jsonschema
 import pytest
 
-from oidc_conformance.matcher import SUPPORTED_CONSUMERS, satisfies
+from subvectors.matcher import SUPPORTED_CONSUMERS, satisfies
 
 VECTORS_DIR = Path(__file__).resolve().parents[1] / "vectors"
 SCHEMA_PATH = VECTORS_DIR / "schema" / "vector-suite.schema.json"

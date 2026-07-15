@@ -17,9 +17,11 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 
 ## Next up — this repo, independent of the upstream PRs
 
-- `[ ]` **GCP CEL consumer + vector tranche.** `google_iam_workload_identity_pool_provider`
-  `attribute_condition` uses CEL; a real expression matcher (bigger lift than exact/glob). The
-  third major cloud consumer.
+- `[x]` **GCP CEL consumer + vector tranche.** Shipped: `src/subvectors/cel.py` (a minimal CEL
+  evaluator -- ==/!=/&&/||/!/in, startsWith/endsWith/contains/matches with RE2 substring
+  semantics), the `gcp-cel` consumer, 12 cited vectors (`vectors/github-gcp.json`), and the
+  additive `claims` schema object. Deferred: the `attribute_mapping` / `google.subject` /
+  `attribute.*` + principalSet IAM-binding layer (a separate downstream gate) -- its own tranche.
 - `[ ]` **Expand the AWS tranche** beyond the 10 seed vectors: multiple `sub` conditions, `aud`
   pinning (`sts.amazonaws.com`), `job_workflow_ref` subjects, StringLike edge cases.
 - `[ ]` **Non-GitHub issuers.** GitLab, Bitbucket, CircleCI, Terraform Cloud subject dialects —
@@ -42,6 +44,12 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 
 - `[ ]` **CKV_AZURE_249 deepening PR.** After the first Checkov PR lands. Driven by the
   `pull_request`/tag/environment Azure vectors — the check passes patterns it should flag.
+- `[ ]` **CKV_GCP_125 scoping question / PR.** The check only reasons about `assertion.sub ==`
+  conditions, so it is blind to the `assertion.repository_id`/`repository_owner_id` immutable pins
+  Google officially recommends — it cannot distinguish the safest config from a missing one. Frame
+  as the open question already in issue #7005 (not a unilateral bug). Vectors
+  `gh-gcp-immutable-id-pin-safe` + `gh-gcp-classic-sub-immutable-break` demonstrate the divergence.
+  `git log -S "assertion.sub"` in a fresh clone first (confirm still sub-only post-#7610).
 - `[ ]` **Cartography scoping issue + failing fixture** (Slice 3). `intel/aws/iam.py`
   "# TODO support conditions"; minimal additive proposal (sub/aud as edge properties). Issue-first.
 - `[ ]` **Consumer-adoption outreach.** Where a tool's matching diverges from the suite (zizmor,

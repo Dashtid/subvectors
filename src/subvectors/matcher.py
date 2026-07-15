@@ -10,23 +10,26 @@ in each vector's ``judgment`` block, backed by a citation, and this matcher neve
 reads it. Keeping the two apart is the point: the match is mechanically
 falsifiable; the safety grade is a documented claim.
 
-Scope: the AWS consumers (StringLike / StringEquals) and classic Azure FIC (exact
-match). The preview "flexible FIC" expression language (azure-fic-flexible) and GCP
-CEL are declared in the vector schema and land in later tranches; an unsupported
-consumer raises rather than silently returning False, so a vector can never pass by
-being unmatched.
+Scope: the AWS consumers (StringLike / StringEquals), classic Azure FIC (exact match),
+and GCP Workload Identity Federation (CEL attribute_condition, evaluated by cel.py). The
+preview "flexible FIC" expression language (azure-fic-flexible) is declared in the vector
+schema and lands in a later tranche; an unsupported consumer raises rather than silently
+returning False, so a vector can never pass by being unmatched.
 
 Sources:
 - AWS IAM condition operators (StringEquals / StringLike, wildcard semantics):
   https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html
 - Azure FIC subject matching (exact, no wildcards, silent failure on mismatch):
   https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations
+- GCP WIF attribute_condition (CEL accept/reject gate): see src/subvectors/cel.py
 """
 
 from __future__ import annotations
 
 import re
 from typing import Callable
+
+from . import cel
 
 __all__ = ["satisfies", "UnsupportedConsumer", "SUPPORTED_CONSUMERS"]
 
@@ -83,18 +86,27 @@ _CONSUMERS: dict[str, Callable[[str, str], bool]] = {
     "azure-fic-exact": _azure_fic_exact,
 }
 
-SUPPORTED_CONSUMERS = frozenset(_CONSUMERS)
+# gcp-cel is handled separately (it needs the full claim set, not just the subject).
+SUPPORTED_CONSUMERS = frozenset(_CONSUMERS) | {"gcp-cel"}
 
 
-def satisfies(subject: str, condition: dict) -> bool:
+def satisfies(subject: str, condition: dict, claims: dict | None = None) -> bool:
     """Return True iff ``subject`` satisfies ``condition``.
 
     ``condition`` is a vector's condition block: at minimum a ``consumer`` key
-    (which matching semantics to apply) and a ``pattern`` (the admin-written
-    rule). The optional ``claim`` key records which token claim the condition
-    targets (default ``sub``) and does not affect matching in v0.1.
+    (which matching semantics to apply) and a ``pattern`` (the admin-written rule).
+
+    Subject-based consumers (AWS, Azure) match the single ``subject`` string. The
+    ``gcp-cel`` consumer evaluates ``pattern`` as a CEL attribute_condition over the
+    token's full claim set: pass ``claims`` (raw claim name -> string value). When
+    ``claims`` is omitted it defaults to ``{"sub": subject}``, so subject-based
+    consumers and existing callers are unaffected.
     """
     consumer = condition["consumer"]
+    if claims is None:
+        claims = {"sub": subject}
+    if consumer == "gcp-cel":
+        return cel.evaluate(condition["pattern"], claims)
     try:
         match_fn = _CONSUMERS[consumer]
     except KeyError as exc:

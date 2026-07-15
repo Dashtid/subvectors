@@ -24,8 +24,15 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   `attribute.*` + principalSet IAM-binding layer (a separate downstream gate) -- its own tranche.
 - `[ ]` **Expand the AWS tranche** beyond the 10 seed vectors: multiple `sub` conditions, `aud`
   pinning (`sts.amazonaws.com`), `job_workflow_ref` subjects, StringLike edge cases.
-- `[ ]` **Non-GitHub issuers.** GitLab, Bitbucket, CircleCI, Terraform Cloud subject dialects —
-  grammar + vectors. Breadth across CI systems (an area incumbents cover poorly).
+- `[~]` **Non-GitHub issuers (breadth — incumbents cover this poorly).**
+  - `[x]` GitLab → AWS: `src/subvectors/gitlab.py` grammar (default `project_path:` + immutable
+    `project_id:` forms) + 10 cited vectors (`vectors/gitlab-aws.json`). Covers group-wide/subgroup
+    wildcards, ref_type confusion, the no-merge_request-marker MR admission, and path-reuse.
+  - `[ ]` GitLab → Azure FIC and GitLab → GCP tranches (reuse azure-fic-exact / gcp-cel).
+  - `[ ]` Bitbucket, CircleCI, Terraform Cloud issuer grammars + vectors.
+  - `[ ]` Multi-key AWS consumer (`aws-stringequals-all` over a claims map) so name-based GitLab
+    pins can encode `ref_protected` / `project_id` as EVALUATED keys, not just judgment prose —
+    would upgrade several caution vectors. Schema/consumer extension.
 
 ## Corpus / product depth
 

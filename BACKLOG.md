@@ -56,8 +56,10 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 - `[x]` `.gitattributes` (LF normalization).
 - `[ ]` **CONTRIBUTING.md** — how to add a vector: schema fields, primary-source citation,
   `documented` vs `observed`, reference matcher must reproduce `expect`.
-- `[ ]` **Final name decision.** Working name `oidc-subject-conformance`; repo dir still
-  `oidc-reach`. Rename dir + remote before first public push.
+- `[x]` **Name decided: `subvectors`.** GitHub repo created
+  (github.com/Dashtid/subvectors); package + docs renamed. Remaining: the local working dir is
+  still `c:\code-two\oidc-reach` — rename it to `subvectors` outside a live session (it is the
+  session CWD).
 - `[ ]` **Vector coverage summary** in the README (counts by issuer x consumer), ideally generated.
 - `[ ]` **Publish decision** — PyPI for the matcher, or repo-only. Likely repo-only for now.
 

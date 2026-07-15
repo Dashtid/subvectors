@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import pytest
 
-from oidc_conformance.matcher import SUPPORTED_CONSUMERS, UnsupportedConsumer, satisfies
+from subvectors.matcher import SUPPORTED_CONSUMERS, UnsupportedConsumer, satisfies
 
 
 def _cond(consumer: str, pattern: str) -> dict:

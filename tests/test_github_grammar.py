@@ -7,7 +7,7 @@ parser silently drops.
 
 from __future__ import annotations
 
-from oidc_conformance.github import parse_repo_segment
+from subvectors.github import parse_repo_segment
 
 
 def test_parses_classic_subject() -> None:

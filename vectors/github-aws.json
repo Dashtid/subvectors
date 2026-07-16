@@ -1,7 +1,7 @@
 {
   "suite": "github-aws",
-  "version": "0.1.0",
-  "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break.",
+  "version": "0.2.0",
+  "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., trust-policy-only), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns.",
   "vectors": [
     {
       "id": "gh-aws-exact-branch-stringequals",
@@ -135,6 +135,291 @@
       "status": "documented",
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-multivalue-two-repos-or",
+      "description": "Multiple values for one condition key are evaluated with logical OR ('If a single condition operator includes multiple values for a context key, those values are evaluated using a logical OR'): a subject matching the second listed value satisfies the condition.",
+      "issuer": "github",
+      "subject": "repo:octo-org/repo-b:ref:refs/heads/main",
+      "condition": {
+        "consumer": "aws-stringequals",
+        "claim": "sub",
+        "pattern": [
+          "repo:octo-org/repo-a:ref:refs/heads/main",
+          "repo:octo-org/repo-b:ref:refs/heads/main"
+        ]
+      },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "An explicit allow-list of two exact branch pins; each value is as tight as a single exact pin.", "patterns": ["exact-ref", "multivalue-or"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-multivalue-unlisted-rejected",
+      "description": "The complement of the OR semantics: a subject matching NONE of the listed values is rejected.",
+      "issuer": "github",
+      "subject": "repo:octo-org/repo-c:ref:refs/heads/main",
+      "condition": {
+        "consumer": "aws-stringequals",
+        "claim": "sub",
+        "pattern": [
+          "repo:octo-org/repo-a:ref:refs/heads/main",
+          "repo:octo-org/repo-b:ref:refs/heads/main"
+        ]
+      },
+      "expect": "no-match",
+      "judgment": { "grade": "safe", "reason": "Only the enumerated subjects are admitted; anything unlisted is denied.", "patterns": ["exact-ref", "multivalue-or"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html"
+      ]
+    },
+    {
+      "id": "gh-aws-multivalue-loose-value-poisons-list",
+      "description": "Because listed values are ORed, ONE over-permissive value sets the effective trust boundary for the whole list: a pull_request subject from an unrelated repo sails through the org-wide wildcard, and the tight exact pin next to it is irrelevant. Reviewing only the first value of a list is a real audit failure mode.",
+      "issuer": "github",
+      "subject": "repo:octo-org/anything:pull_request",
+      "condition": {
+        "consumer": "aws-stringlike",
+        "claim": "sub",
+        "pattern": [
+          "repo:octo-org/octo-repo:ref:refs/heads/main",
+          "repo:octo-org/*"
+        ]
+      },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "The second value is org-wide, so the list admits any repository in the org (including pull_request subjects) regardless of the tight first value: OR semantics mean the loosest value wins.", "patterns": ["multivalue-or", "wildcard-repo", "org-wide", "pull-request"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-aud-pinned-official-action",
+      "description": "The aud condition key pinned to sts.amazonaws.com, the audience GitHub's AWS guide specifies for the official action ('Use sts.amazonaws.com if you are using the official action') and the default of aws-actions/configure-aws-credentials. AWS's documented GitHub trust policies pin aud with StringEquals alongside the sub condition.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:ref:refs/heads/main",
+        "aud": "sts.amazonaws.com"
+      },
+      "condition": { "consumer": "aws-stringequals", "claim": "aud", "pattern": "sts.amazonaws.com" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "Pinning aud ensures the token was minted for AWS credential exchange rather than for some other relying party. IAM separately enforces (at trust-policy write time) that a GitHub-IdP role also conditions on sub, so aud is a second key ANDed with the subject pin, not a substitute for it.", "patterns": ["aud-pinned"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services",
+        "https://github.com/aws-actions/configure-aws-credentials",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-idp_oidc.html#idp_oidc_Create_GitHub",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif"
+      ]
+    },
+    {
+      "id": "gh-aws-aud-default-owner-url-rejected",
+      "description": "A token requested WITHOUT an explicit audience carries GitHub's default aud -- 'the URL of the repository owner, such as the organization that owns the repository' -- not sts.amazonaws.com. The aud pin correctly rejects it: sts.amazonaws.com only appears in tokens because the requesting action asks for it, and workflows can request arbitrary audiences (the audience query parameter / core.getIDToken(audience)), so this mismatch is a realistic token, not a hypothetical.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:ref:refs/heads/main",
+        "aud": "https://github.com/octo-org"
+      },
+      "condition": { "consumer": "aws-stringequals", "claim": "aud", "pattern": "sts.amazonaws.com" },
+      "expect": "no-match",
+      "judgment": { "grade": "safe", "reason": "The pin works as intended: tokens not minted for AWS credential exchange are refused.", "patterns": ["aud-pinned"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/reference/security/oidc",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-environment-key-absent-claim-rejected",
+      "description": "Absent-context-key semantics: the trust policy conditions on the GitHub-specific 'environment' key (available since AWS's Feb 2026 select-claims change), but this token was minted by a job that references no environment (its sub carries the branch form, which GitHub documents as appearing 'only if the job doesn't reference an environment'), so the claim is absent. AWS: 'A context key that is not present in the request is considered a mismatch' -- the condition fails closed rather than passing vacuously.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:ref:refs/heads/main"
+      },
+      "condition": { "consumer": "aws-stringequals", "claim": "environment", "pattern": "prod" },
+      "expect": "no-match",
+      "judgment": { "grade": "safe", "reason": "An environment pin correctly rejects jobs not running in that environment; the absent key is a mismatch for positive operators (the ...IfExists and ForAllValues variants are the documented exceptions that would NOT fail closed).", "patterns": ["environment-scoped", "absent-key"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://docs.github.com/en/actions/reference/security/oidc"
+      ]
+    },
+    {
+      "id": "gh-aws-jwr-condition-key-sha-pin",
+      "description": "Direct trust-policy condition on the GitHub-specific job_workflow_ref key, pinned to a full commit SHA -- the reusable-workflow filter GitHub's hardening doc demonstrates, expressed through the condition keys AWS STS added Feb 2026 (What's New posted 2026-02-02; URL slug 2026/01). Available in the role trust policy only ('Available in session: No'). GitHub's AWS how-to still carries the pre-change note 'Support for custom claims for OIDC is unavailable in AWS' -- the docs contradict each other, and tools that assume sub is the only pinnable claim are now auditing yesterday's AWS.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:ref:refs/heads/main",
+        "job_workflow_ref": "octo-org/octo-automation/.github/workflows/deployment.yml@10040c56a8c0253d69db7c1f26a0d227275512e2"
+      },
+      "condition": { "consumer": "aws-stringequals", "claim": "job_workflow_ref", "pattern": "octo-org/octo-automation/.github/workflows/deployment.yml@10040c56a8c0253d69db7c1f26a0d227275512e2" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "Pins the exact reusable workflow at an immutable ref: 'Pinning an action to a full-length commit SHA is currently the only way to use an action as an immutable release', and GitHub extends the same principle to reusable workflows.", "patterns": ["reusable-workflow-pin", "sha-pinned"] },
+      "status": "documented",
+      "sources": [
+        "https://aws.amazon.com/about-aws/whats-new/2026/01/aws-sts-supports-validation-identity-provider-claims/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-with-reusable-workflows",
+        "https://docs.github.com/en/actions/reference/security/secure-use"
+      ]
+    },
+    {
+      "id": "gh-aws-jwr-condition-key-tag-pin-mutable",
+      "description": "The same job_workflow_ref condition key pinned to a tag instead of a SHA. The string matches -- but refs/tags/v1 is a mutable ref: 'a tag can be moved or deleted if a bad actor gains access to the repository', and for reusable-workflow refs 'Using the commit SHA is the safest option for stability and security'. The pin names a workflow location, not workflow content. (Ref value constructed from the documented owner/repo/.github/workflows/file.yml@ref shape, where '{ref} can be a SHA, a release tag, or a branch name'.)",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:ref:refs/heads/main",
+        "job_workflow_ref": "octo-org/octo-automation/.github/workflows/oidc.yml@refs/tags/v1"
+      },
+      "condition": { "consumer": "aws-stringequals", "claim": "job_workflow_ref", "pattern": "octo-org/octo-automation/.github/workflows/oidc.yml@refs/tags/v1" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Anyone who can move the v1 tag in the automation repo can change what workflow content satisfies this condition; only a full-length commit SHA is immutable.", "patterns": ["reusable-workflow-pin", "mutable-ref-pin", "tag-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/reference/security/secure-use",
+        "https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif"
+      ]
+    },
+    {
+      "id": "gh-aws-repository-id-immutable-pin",
+      "description": "Rename-proof pinning WITHOUT the immutable sub format: the repository_id condition key (GitHub-specific, added by AWS Feb 2026, trust-policy-only) pins the numeric repository ID even while the sub stays classic name-based. Contrast with the sub-format route (gh-aws-immutable-exact-match): same immutability goal, different mechanism -- and invisible to any tool that only inspects the sub condition.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:ref:refs/heads/main",
+        "repository_id": "7891011"
+      },
+      "condition": { "consumer": "aws-stringequals", "claim": "repository_id", "pattern": "7891011" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "The numeric ID is permanently tied to the repository, so the pin survives renames and blocks name-recycling -- the attack immutable subjects were introduced to stop.", "patterns": ["immutable"] },
+      "status": "documented",
+      "sources": [
+        "https://aws.amazon.com/about-aws/whats-new/2026/01/aws-sts-supports-validation-identity-provider-claims/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/"
+      ]
+    },
+    {
+      "id": "gh-aws-custom-sub-jwr-exact",
+      "description": "The sub-customization route to reusable-workflow pinning, for consumers (or pre-Feb-2026 AWS) without custom-claim condition keys: include_claim_keys ['job_workflow_ref'] makes the sub the literal key name, a colon, then the claim value. Subject and pin are GitHub's documented example strings verbatim.",
+      "issuer": "github",
+      "subject": "job_workflow_ref:octo-org/octo-automation/.github/workflows/oidc.yml@refs/heads/main",
+      "condition": { "consumer": "aws-stringequals", "claim": "sub", "pattern": "job_workflow_ref:octo-org/octo-automation/.github/workflows/oidc.yml@refs/heads/main" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Pins the exact reusable workflow path -- but at refs/heads/main, a mutable ref: whoever can push to the automation repo's main controls the trusted workflow content. GitHub's own hardened example pins a full commit SHA instead.", "patterns": ["reusable-workflow-pin", "custom-sub", "mutable-ref-pin"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/reference/security/oidc",
+        "https://docs.github.com/en/actions/how-tos/secure-your-work/security-harden-deployments/oidc-with-reusable-workflows"
+      ]
+    },
+    {
+      "id": "gh-aws-custom-sub-combined-environment-jwr",
+      "description": "The documented combined customization include_claim_keys ['repo','context','job_workflow_ref']: 'requires that the sub uses the following format: repo:ORG-NAME/REPO-NAME:environment:ENVIRONMENT-NAME:job_workflow_ref:REUSABLE-WORKFLOW-PATH' (the 'context' key surfaces as environment:NAME when the job references an environment). Subject is GitHub's documented example value verbatim; the pin binds repo, environment, and reusable workflow in one exact string.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:environment:prod:job_workflow_ref:octo-org/octo-automation/.github/workflows/oidc.yml@refs/heads/main",
+      "condition": { "consumer": "aws-stringequals", "claim": "sub", "pattern": "repo:octo-org/octo-repo:environment:prod:job_workflow_ref:octo-org/octo-automation/.github/workflows/oidc.yml@refs/heads/main" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "Triple pin: one repo, one protected-deployable environment (environments can require reviewer approval and restrict deploying branches), one reusable workflow path. The environment protection compensates for the workflow ref being a mutable branch.", "patterns": ["environment-scoped", "reusable-workflow-pin", "custom-sub"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/reference/security/oidc",
+        "https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments"
+      ]
+    },
+    {
+      "id": "gh-aws-custom-sub-breaks-default-pattern",
+      "description": "Enabling sub customization silently invalidates trust conditions written for the DEFAULT sub format: the jwr-only customized sub no longer starts with 'repo:', so even a repo-wide wildcard stops matching. Fail-closed deployment breakage, same failure shape as the classic-vs-immutable cutover (gh-aws-immutable-subject-classic-pattern) but self-inflicted via the customization API.",
+      "issuer": "github",
+      "subject": "job_workflow_ref:octo-org/octo-automation/.github/workflows/oidc.yml@refs/heads/main",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:*" },
+      "expect": "no-match",
+      "judgment": { "grade": "caution", "reason": "Repo-wide wildcard (every ref, tag, environment, and pull_request of the repo) -- and it does not even match once the sub template is customized, so the trust boundary and the deployment both silently depend on the customization setting.", "patterns": ["wildcard-suffix", "custom-sub"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/reference/security/oidc",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-branch-prefix-collision",
+      "description": "A branch-prefix wildcard admits SIBLING branches: refs/heads/main* also matches refs/heads/main-hotfix (and main2, main-anything). Direct consequence of StringLike's * being a multi-character wildcard usable 'anywhere in the string' with no segment awareness; neither AWS nor GitHub docs explicitly warn about the collision, which is why it keeps shipping.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main-hotfix",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main*" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Intended as 'the main branch', but any branch whose name merely starts with 'main' satisfies it -- and branch protection on main does not protect main-hotfix.", "patterns": ["wildcard-suffix", "branch-prefix-collision", "unprotected-branch"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services"
+      ]
+    },
+    {
+      "id": "gh-aws-branch-wildcard-zero-width",
+      "description": "The same main* pattern also matches refs/heads/main itself: * matches the empty string. Wording caveat, encoded deliberately: AWS describes * only as a 'multi-character match wildcard' ('any combination of characters' in the resource-ARN wildcard doc) and never says 'zero or more' verbatim -- zero-width matching is the standard reading of 'any combination', and the reason main* appears to work when tested only against main.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main*" },
+      "expect": "match",
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_resource.html"
+      ]
+    },
+    {
+      "id": "gh-aws-ref-wildcard-spans-nested-branch",
+      "description": "refs/heads/* admits branches with '/' in the name: git branch names 'can include slash / for hierarchical (directory) grouping', and StringLike's * is not path-aware (AWS's own evaluation table shows * consuming a slash-containing suffix). refs/heads/* therefore means EVERY branch, including feature/x and anything an attacker with branch-create rights names.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/feature/x",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/*" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Every branch of the repo -- protected or not, nested or not -- satisfies the condition; the trust boundary is anyone who can create a branch.", "patterns": ["wildcard-suffix", "unprotected-branch"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
+        "https://git-scm.com/docs/git-check-ref-format"
+      ]
+    },
+    {
+      "id": "gh-aws-case-mismatch-rejected",
+      "description": "StringEquals is 'Exact matching, case sensitive' (StringLike is likewise case-sensitive; StringEqualsIgnoreCase is a distinct operator), so a subject differing from the pattern only in case is rejected. Framed purely as AWS operator semantics: GitHub does not document what case org/repo names take inside sub, so no GitHub casing behavior is asserted here.",
+      "issuer": "github",
+      "subject": "repo:Octo-Org/octo-repo:ref:refs/heads/main",
+      "condition": { "consumer": "aws-stringequals", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-environment-subject-exact",
+      "description": "The environment subject form: 'The subject claim includes the environment name when the job references an environment' -- repo:ORG-NAME/REPO-NAME:environment:ENVIRONMENT-NAME, documented example value verbatim. An exact pin on it is the strong default-format condition, because environments enforce protection rules ('A job that references an environment must follow any protection rules for the environment before running or accessing the environment's secrets'): required reviewers and deploy-branch restrictions.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:environment:Production",
+      "condition": { "consumer": "aws-stringequals", "claim": "sub", "pattern": "repo:octo-org/octo-repo:environment:Production" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "Scoped to one environment of one repo, with GitHub-side enforcement (reviewer approval, branch restrictions) gating who can mint the subject -- stronger than a bare branch-name filter, which any run on that branch satisfies.", "patterns": ["environment-scoped", "exact-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/reference/security/oidc",
+        "https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments"
       ]
     }
   ]

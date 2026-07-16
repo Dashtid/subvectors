@@ -83,3 +83,18 @@ def test_claims_sub_matches_subject_when_present() -> None:
             assert claims["sub"] == vector["subject"], (
                 f"{vector['id']} ({name}): claims['sub'] must equal 'subject'"
             )
+
+
+def test_non_sub_conditions_carry_a_claims_map() -> None:
+    # A condition targeting a claim other than 'sub' (e.g. 'aud') resolves its value
+    # from the vector's claims map. The map must be present so the token's claim set
+    # is explicit; the targeted claim may be deliberately ABSENT from it (that is the
+    # AWS absent-context-key vector: a positive operator on a missing key is a
+    # mismatch), but a vector with no claims at all would no-match by accident.
+    for name, vector in _VECTOR_CASES:
+        claim = vector["condition"].get("claim", "sub")
+        if claim != "sub":
+            assert vector.get("claims"), (
+                f"{vector['id']} ({name}): condition targets claim {claim!r} but the "
+                f"vector carries no claims map to evaluate it against"
+            )

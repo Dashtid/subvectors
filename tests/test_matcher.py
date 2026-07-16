@@ -100,3 +100,28 @@ def test_list_pattern_raises_for_non_aws_consumers() -> None:
         satisfies("repo:o/r:ref:refs/heads/main", _cond("azure-fic-exact", ["a", "b"]))
     with pytest.raises(ValueError):
         satisfies("repo:o/r:ref:refs/heads/main", _cond("gcp-cel", ["a", "b"]))
+
+
+def test_list_pattern_raises_even_when_targeted_claim_is_absent() -> None:
+    # The loud failure must not be masked by the absent-claim short circuit:
+    # pattern-shape validation happens before claim resolution.
+    condition = {"consumer": "azure-fic-exact", "claim": "aud", "pattern": ["a", "b"]}
+    with pytest.raises(ValueError):
+        satisfies("repo:o/r:ref:refs/heads/main", condition)
+
+
+def test_gcp_cel_rejects_claim_targeting() -> None:
+    # A CEL condition addresses claims inside the expression (assertion.<name>);
+    # a 'claim' key on it would be silently meaningless, so it must raise.
+    condition = {"consumer": "gcp-cel", "claim": "aud", "pattern": "assertion.sub == 'x'"}
+    with pytest.raises(ValueError):
+        satisfies("x", condition, claims={"sub": "x", "aud": "y"})
+
+
+def test_claims_without_sub_is_seeded_from_subject() -> None:
+    # A claims map lacking 'sub' must not shadow the subject argument: the
+    # default sub condition still matches against 'subject'.
+    condition = {"consumer": "aws-stringequals", "pattern": "repo:o/r:ref:refs/heads/main"}
+    assert satisfies(
+        "repo:o/r:ref:refs/heads/main", condition, claims={"aud": "sts.amazonaws.com"}
+    ) is True

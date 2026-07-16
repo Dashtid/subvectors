@@ -60,3 +60,43 @@ def test_unsupported_consumer_raises_not_returns_false() -> None:
     assert "azure-fic-flexible" not in SUPPORTED_CONSUMERS
     with pytest.raises(UnsupportedConsumer):
         satisfies("anything", _cond("azure-fic-flexible", "anything"))
+
+
+def test_aws_multivalue_pattern_is_logical_or() -> None:
+    # Multiple values for one condition key: the request value must match ANY one.
+    values = [
+        "repo:octo-org/repo-a:ref:refs/heads/main",
+        "repo:octo-org/repo-b:ref:refs/heads/main",
+    ]
+    assert satisfies("repo:octo-org/repo-b:ref:refs/heads/main", _cond("aws-stringequals", values)) is True
+    assert satisfies("repo:octo-org/repo-c:ref:refs/heads/main", _cond("aws-stringequals", values)) is False
+
+
+def test_aws_multivalue_one_loose_value_poisons_the_list() -> None:
+    # OR semantics mean the loosest value sets the effective trust boundary.
+    values = ["repo:octo-org/repo-a:ref:refs/heads/main", "repo:octo-org/*"]
+    assert satisfies("repo:octo-org/anything:pull_request", _cond("aws-stringlike", values)) is True
+
+
+def test_condition_claim_resolves_from_claims_map() -> None:
+    condition = {"consumer": "aws-stringequals", "claim": "aud", "pattern": "sts.amazonaws.com"}
+    claims = {"sub": "repo:o/r:ref:refs/heads/main", "aud": "sts.amazonaws.com"}
+    assert satisfies("repo:o/r:ref:refs/heads/main", condition, claims=claims) is True
+    claims_wrong_aud = {"sub": "repo:o/r:ref:refs/heads/main", "aud": "https://example.test"}
+    assert satisfies("repo:o/r:ref:refs/heads/main", condition, claims=claims_wrong_aud) is False
+
+
+def test_condition_on_absent_claim_does_not_match() -> None:
+    # AWS: a positive operator (no ...IfExists) on a context key missing from the
+    # request evaluates to false -- it must not raise and must not match.
+    condition = {"consumer": "aws-stringequals", "claim": "aud", "pattern": "sts.amazonaws.com"}
+    assert satisfies("repo:o/r:ref:refs/heads/main", condition) is False
+
+
+def test_list_pattern_raises_for_non_aws_consumers() -> None:
+    # Only AWS documents multi-value conditions; a list on Azure or GCP is a
+    # vector-authoring error and must fail loudly, never silently mis-match.
+    with pytest.raises(ValueError):
+        satisfies("repo:o/r:ref:refs/heads/main", _cond("azure-fic-exact", ["a", "b"]))
+    with pytest.raises(ValueError):
+        satisfies("repo:o/r:ref:refs/heads/main", _cond("gcp-cel", ["a", "b"]))

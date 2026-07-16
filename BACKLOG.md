@@ -22,8 +22,23 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   semantics), the `gcp-cel` consumer, 12 cited vectors (`vectors/github-gcp.json`), and the
   additive `claims` schema object. Deferred: the `attribute_mapping` / `google.subject` /
   `attribute.*` + principalSet IAM-binding layer (a separate downstream gate) -- its own tranche.
-- `[ ]` **Expand the AWS tranche** beyond the 10 seed vectors: multiple `sub` conditions, `aud`
-  pinning (`sts.amazonaws.com`), `job_workflow_ref` subjects, StringLike edge cases.
+- `[x]` **Expand the AWS tranche** (github-aws 0.2.0, 10 -> 27 vectors): multi-value conditions
+  (logical OR; one loose value poisons the list), `aud` pinning + default-owner-URL mismatch,
+  absent-context-key semantics, `job_workflow_ref`/`repository_id`/`environment` pins via the
+  GitHub-specific condition keys AWS STS added Feb 2026, customized-sub reusable-workflow pins
+  (documented example strings verbatim), and StringLike branch footguns (prefix collision,
+  zero-width `*`, nested-branch spanning, case sensitivity). Matcher/schema additions: list
+  patterns (AWS-only, OR) and claim-targeted conditions resolved from the `claims` map.
+- `[ ]` **Feeder angle from the Feb 2026 AWS change** (AWS What's New posted 2026-02-02, slug
+  2026/01): STS now validates SELECT GitHub/GitLab/CircleCI/Google/OCI claims as trust-policy
+  condition keys (GitHub: actor, actor_id, job_workflow_ref, repository, repository_id,
+  repository_owner_id, workflow, ref, environment, enterprise_id -- trust-policy-only). Checkov's
+  AWS OIDC checks reason only about `sub`; GitHub's own AWS how-to still says custom claims are
+  unavailable in AWS (docs contradiction). Both are vector-backed upstream opportunities.
+- `[ ]` **GitLab path-reuse follow-up:** the AWS WIF condition-keys page documents GitLab.com
+  keys (namespace_id, project_id, user_id, ref_protected, ...) AND notes GitLab blocks new CI ID
+  tokens for previously-used deleted project paths as of 2026-06-01 -- check whether the
+  gitlab-aws path-reuse vector's description/sources should carry that mitigation.
 - `[~]` **Non-GitHub issuers (breadth — incumbents cover this poorly).**
   - `[x]` GitLab → AWS: `src/subvectors/gitlab.py` grammar (default `project_path:` + immutable
     `project_id:` forms) + 10 cited vectors (`vectors/gitlab-aws.json`). Covers group-wide/subgroup
@@ -32,7 +47,9 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   - `[ ]` Bitbucket, CircleCI, Terraform Cloud issuer grammars + vectors.
   - `[ ]` Multi-key AWS consumer (`aws-stringequals-all` over a claims map) so name-based GitLab
     pins can encode `ref_protected` / `project_id` as EVALUATED keys, not just judgment prose —
-    would upgrade several caution vectors. Schema/consumer extension.
+    would upgrade several caution vectors. Remaining scope after the 0.2.0 tranche: only the
+    AND-composition across keys (single-key claim targeting via `condition.claim` + `claims`
+    already shipped); note GitLab keys are now also real AWS condition keys (see Feb 2026 item).
 
 ## Corpus / product depth
 
@@ -45,7 +62,10 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 - `[ ]` **Immutable-format completeness.** Rename/transfer trigger vectors; `job_workflow_ref`
   grammar (stays mutable, not `@id`-suffixed); custom subject-claim templates.
 - `[ ]` **Promote key vectors `documented` -> `observed`** by confirming against a real issuer/
-  cloud once (optional, low-priority live check).
+  cloud once (optional, low-priority live check). Priority candidate:
+  `gh-aws-branch-wildcard-zero-width` -- AWS never says `*` matches "zero or more" verbatim
+  (only "multi-character match wildcard" / "any combination of characters"), so the zero-width
+  match rests on interpretation until observed via the IAM policy simulator or live STS.
 
 ## Upstream feeder PRs — each in its own target-repo session, tracked in oss-contributions
 

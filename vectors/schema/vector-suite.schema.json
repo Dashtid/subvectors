@@ -50,7 +50,7 @@
           "minProperties": 1,
           "propertyNames": { "pattern": "^[a-z0-9_]+$" },
           "additionalProperties": { "type": "string" },
-          "description": "The full OIDC token claim set the condition is evaluated against (used by gcp-cel, addressable as assertion.<name>). Optional: AWS/Azure vectors omit it and match on 'subject' alone. When present, claims.sub MUST equal 'subject'."
+          "description": "The full OIDC token claim set the condition is evaluated against (gcp-cel addresses it as assertion.<name>; an AWS condition with claim != 'sub', e.g. 'aud', resolves its value here). Optional: vectors whose condition targets 'sub' may omit it and match on 'subject' alone. When present, claims.sub MUST equal 'subject'."
         },
         "condition": { "$ref": "#/$defs/condition" },
         "expect": {
@@ -81,11 +81,24 @@
         },
         "claim": {
           "type": "string",
-          "description": "Token claim the condition targets (default 'sub')."
+          "description": "Token claim the condition targets (default 'sub'). When not 'sub', the vector MUST carry a 'claims' object containing that claim."
         },
         "pattern": {
-          "type": "string",
-          "description": "The admin-written trust rule (may contain wildcards, per consumer)."
+          "oneOf": [
+            { "type": "string" },
+            { "type": "array", "minItems": 2, "items": { "type": "string" } }
+          ],
+          "description": "The admin-written trust rule (may contain wildcards, per consumer). An array models an AWS multi-value condition (one key, several values, logical OR) and is only valid for the aws-* consumers; a single value is written as a plain string."
+        }
+      },
+      "if": {
+        "properties": {
+          "consumer": { "enum": ["azure-fic-exact", "azure-fic-flexible", "gcp-cel"] }
+        }
+      },
+      "then": {
+        "properties": {
+          "pattern": { "type": "string" }
         }
       }
     },

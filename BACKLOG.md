@@ -72,9 +72,8 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 - `[ ]` **CONTRIBUTING.md** — how to add a vector: schema fields, primary-source citation,
   `documented` vs `observed`, reference matcher must reproduce `expect`.
 - `[x]` **Name decided: `subvectors`.** GitHub repo created
-  (github.com/Dashtid/subvectors); package + docs renamed. Remaining: the local working dir is
-  still `c:\code-two\oidc-reach` — rename it to `subvectors` outside a live session (it is the
-  session CWD).
+  (github.com/Dashtid/subvectors); package + docs renamed; local working dir renamed to
+  `c:\code-two\subvectors` (2026-07-16). Fully closed.
 - `[ ]` **Vector coverage summary** in the README (counts by issuer x consumer), ideally generated.
 - `[ ]` **Publish decision** — PyPI for the matcher, or repo-only. Likely repo-only for now.
 

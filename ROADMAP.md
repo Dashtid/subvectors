@@ -33,11 +33,12 @@ substrate for the deferred offensive project, or is donated to a neutral home.
       rejects the immutable `owner@123/name@456` format that becomes mandatory for new repos on
       2026-07-15 (false positive). Parametrized tests across CKV_AWS_358 / CKV_AZURE_249 /
       CKV_GCP_125; GitHub changelog citation in the PR body. 1-2 evenings.
-- [ ] **Slice 2 — suite skeleton.** JSON Schema for vectors; GitHub issuer grammar (classic AND
+- [x] **Slice 2 — suite skeleton.** JSON Schema for vectors; GitHub issuer grammar (classic AND
       immutable formats); ~20 AWS StringLike/StringEquals match/no-match vectors including
       wildcard-vs-immutable-ID footguns; ~100-line Python reference matcher passing pytest.
       Vector layout shaped so Checkov-style parametrized tests can be regenerated from it (the
-      adoption hook). 2-3 evenings.
+      adoption hook). Done: skeleton shipped, github-aws now 27 vectors (0.2.0 tranche
+      2026-07-16, adversarially source-verified); Azure/GCP/GitLab tranches landed alongside.
 - [ ] **Slice 3 — Cartography scoping issue (upstream).** Issue against `intel/aws/iam.py`
       ("# TODO support conditions") with a failing fixture: a GitHub-OIDC StringLike trust policy
       producing an unconditioned federated edge. Minimal additive proposal (sub/aud as edge

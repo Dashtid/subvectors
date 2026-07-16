@@ -74,12 +74,16 @@ def test_matcher_reproduces_expected_result(name: str, vector: dict) -> None:
     )
 
 
-def test_claims_sub_matches_subject_when_present() -> None:
-    # 'subject' is the canonical single-claim view; when a vector also carries the full
-    # 'claims' set (GCP), its 'sub' must agree with 'subject'.
+def test_claims_carry_sub_equal_to_subject_when_present() -> None:
+    # 'subject' is the canonical single-claim view; a vector that carries the full
+    # 'claims' set must include 'sub' and it must agree with 'subject' -- a claims
+    # map without 'sub' would shadow the subject and no-match for the wrong reason.
     for name, vector in _VECTOR_CASES:
         claims = vector.get("claims")
-        if claims and "sub" in claims:
+        if claims:
+            assert "sub" in claims, (
+                f"{vector['id']} ({name}): a claims map must include 'sub'"
+            )
             assert claims["sub"] == vector["subject"], (
                 f"{vector['id']} ({name}): claims['sub'] must equal 'subject'"
             )

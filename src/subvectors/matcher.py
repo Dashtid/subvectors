@@ -132,10 +132,21 @@ def satisfies(subject: str, condition: dict, claims: dict | None = None) -> bool
     over the full ``claims`` set.
     """
     consumer = condition["consumer"]
+    claim = condition.get("claim", "sub")
+    pattern = condition["pattern"]
     if claims is None:
         claims = {"sub": subject}
-    pattern = condition["pattern"]
+    elif "sub" not in claims:
+        # 'subject' is the canonical sub. A claims map without it would silently
+        # shadow the subject argument and every sub condition would no-match for
+        # the wrong reason (absent key, not mismatched value).
+        claims = {"sub": subject, **claims}
     if consumer == "gcp-cel":
+        if claim != "sub":
+            raise ValueError(
+                "consumer 'gcp-cel' evaluates the full claim set; address claims "
+                "inside the CEL expression (assertion.<name>), not via 'claim'"
+            )
         if not isinstance(pattern, str):
             raise ValueError(
                 f"consumer {consumer!r} takes a single CEL expression string, "
@@ -149,14 +160,16 @@ def satisfies(subject: str, condition: dict, claims: dict | None = None) -> bool
             f"consumer {consumer!r} is declared in the schema but not yet "
             f"implemented; supported: {sorted(SUPPORTED_CONSUMERS)}"
         ) from exc
-    value = claims.get(condition.get("claim", "sub"))
-    if value is None:
-        return False
-    if isinstance(pattern, str):
-        return match_fn(value, pattern)
-    if consumer not in _LIST_PATTERN_CONSUMERS:
+    # Validate the pattern shape BEFORE resolving the claim value: an absent
+    # claim must not mask a list pattern on a consumer that has no list semantics.
+    if not isinstance(pattern, str) and consumer not in _LIST_PATTERN_CONSUMERS:
         raise ValueError(
             f"consumer {consumer!r} matches a single string; list patterns are "
             f"only defined for AWS conditions (logical OR)"
         )
+    value = claims.get(claim)
+    if value is None:
+        return False
+    if isinstance(pattern, str):
+        return match_fn(value, pattern)
     return any(match_fn(value, p) for p in pattern)

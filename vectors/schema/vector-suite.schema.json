@@ -81,7 +81,8 @@
         },
         "claim": {
           "type": "string",
-          "description": "Token claim the condition targets (default 'sub'). When not 'sub', the vector MUST carry a 'claims' object containing that claim."
+          "pattern": "^[a-z0-9_]+$",
+          "description": "Token claim the condition targets (default 'sub'), same shape as claims-map keys. When not 'sub', the vector MUST carry a 'claims' object (the targeted claim may be deliberately absent from it to encode absent-key semantics)."
         },
         "pattern": {
           "oneOf": [
@@ -91,16 +92,34 @@
           "description": "The admin-written trust rule (may contain wildcards, per consumer). An array models an AWS multi-value condition (one key, several values, logical OR) and is only valid for the aws-* consumers; a single value is written as a plain string."
         }
       },
-      "if": {
-        "properties": {
-          "consumer": { "enum": ["azure-fic-exact", "azure-fic-flexible", "gcp-cel"] }
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "consumer": { "enum": ["azure-fic-exact", "azure-fic-flexible", "gcp-cel"] }
+            },
+            "required": ["consumer"]
+          },
+          "then": {
+            "properties": {
+              "pattern": { "type": "string" }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "consumer": { "const": "gcp-cel" }
+            },
+            "required": ["consumer"]
+          },
+          "then": {
+            "properties": {
+              "claim": { "const": "sub" }
+            }
+          }
         }
-      },
-      "then": {
-        "properties": {
-          "pattern": { "type": "string" }
-        }
-      }
+      ]
     },
     "judgment": {
       "type": "object",

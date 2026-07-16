@@ -32,7 +32,8 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 - `[ ]` **Feeder angle from the Feb 2026 AWS change** (AWS What's New posted 2026-02-02, slug
   2026/01): STS now validates SELECT GitHub/GitLab/CircleCI/Google/OCI claims as trust-policy
   condition keys (GitHub: actor, actor_id, job_workflow_ref, repository, repository_id,
-  repository_owner_id, workflow, ref, environment, enterprise_id -- trust-policy-only). Checkov's
+  repository_owner_id, workflow, ref, environment, enterprise_id -- not available in session;
+  the announcement also names resource control policies). Checkov's
   AWS OIDC checks reason only about `sub`; GitHub's own AWS how-to still says custom claims are
   unavailable in AWS (docs contradiction). Both are vector-backed upstream opportunities.
 - `[ ]` **GitLab path-reuse follow-up:** the AWS WIF condition-keys page documents GitLab.com

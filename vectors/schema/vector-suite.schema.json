@@ -73,11 +73,11 @@
     "condition": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["consumer", "pattern"],
+      "required": ["consumer"],
       "properties": {
         "consumer": {
-          "enum": ["aws-stringlike", "aws-stringequals", "azure-fic-exact", "azure-fic-flexible", "gcp-cel"],
-          "description": "Which cloud consumer's matching semantics apply."
+          "enum": ["aws-stringlike", "aws-stringequals", "aws-all", "azure-fic-exact", "azure-fic-flexible", "gcp-cel"],
+          "description": "Which cloud consumer's matching semantics apply. 'aws-all' models a full IAM Condition block: an AND of AWS string sub-conditions in 'of'."
         },
         "claim": {
           "type": "string",
@@ -90,9 +90,45 @@
             { "type": "array", "minItems": 2, "items": { "type": "string" } }
           ],
           "description": "The admin-written trust rule (may contain wildcards, per consumer). An array models an AWS multi-value condition (one key, several values, logical OR) and is only valid for the aws-* consumers; a single value is written as a plain string."
+        },
+        "of": {
+          "type": "array",
+          "minItems": 2,
+          "items": {
+            "allOf": [
+              { "$ref": "#/$defs/condition" },
+              {
+                "properties": {
+                  "consumer": { "enum": ["aws-stringlike", "aws-stringequals"] }
+                }
+              }
+            ]
+          },
+          "description": "aws-all only: the ANDed sub-conditions of one IAM Condition block ('All context keys in a condition element block must resolve to true'). Each entry is an AWS string condition -- operators may differ per entry (StringEquals aud + StringLike sub) and each may use claim targeting and value lists."
         }
       },
       "allOf": [
+        {
+          "if": {
+            "properties": {
+              "consumer": { "const": "aws-all" }
+            },
+            "required": ["consumer"]
+          },
+          "then": {
+            "required": ["of"],
+            "properties": {
+              "pattern": false,
+              "claim": false
+            }
+          },
+          "else": {
+            "required": ["pattern"],
+            "properties": {
+              "of": false
+            }
+          }
+        },
         {
           "if": {
             "properties": {

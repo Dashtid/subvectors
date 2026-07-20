@@ -1,6 +1,6 @@
 {
   "suite": "gitlab-aws",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "GitLab CI/CD OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Second issuer. GitLab sub default = project_path:{group}/{project}:ref_type:{branch|tag}:ref:{short_ref}; the immutable form (project_id-led) requires reconfiguring ci_id_token_sub_claim_components. AWS condition key is gitlab.com:sub; the matcher is host-agnostic and matches the raw sub string, so claim stays 'sub'. GitLab immutable ids (project_id) and ref_protected are SEPARATE claims, not in the sub, so single-key sub matching cannot express a multi-key StringEquals AND-block; those cases are noted in judgment.reason.",
   "vectors": [
     {
@@ -129,16 +129,23 @@
     },
     {
       "id": "gitlab-aws-path-reuse-no-projectid",
-      "description": "Looks tight (exact StringEquals on a name-based sub) but pins no immutable id. If mygroup/myproject is renamed/transferred/deleted, the freed path can be reclaimed by a different project that mints an identical sub. The GitLab cybersquat/path-reuse analogue of the GitHub rename vector.",
+      "description": "The reclaimed-path token evaluated against the victim's stale trust policy: the claims model a DIFFERENT project (project_id 999) now occupying mygroup/myproject and minting a byte-identical path-based sub, which the exact StringEquals condition cannot distinguish from the original. Mitigated upstream, not fixed in the policy: 'As of June 1, 2026, GitLab has deployed a platform-side update that prevents new CI ID tokens from being issued for project paths that previously issued tokens' (AWS WIF condition-keys note, GitLab.com tab). In GitLab's source the burn covers every path-vacating flow -- delete, rename, AND transfer (commit f7335ef7e 'Block CI ID token issuance on reclaimed namespace paths'; original project exempt; path-based subs only) -- but it is NOT retroactive for paths vacated before the rollout, and GitLab's own user docs do not describe the blocking. The GitLab cybersquat/path-reuse analogue of the GitHub rename vector.",
       "issuer": "gitlab",
       "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "claims": {
+        "sub": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+        "project_id": "999"
+      },
       "condition": { "consumer": "aws-stringequals", "claim": "sub", "pattern": "project_path:mygroup/myproject:ref_type:branch:ref:main" },
       "expect": "match",
-      "judgment": { "grade": "dangerous", "reason": "project_path is mutable and paths are reusable after rename/transfer/delete, so a different project reclaiming the path mints an identical subject and assumes the role. A single-key sub condition cannot pin the immutable project_id; add a gitlab.com:project_id (and/or namespace_id) condition key, or move to the project_id-led sub (see gitlab-aws-immutable-projectid-sub-stringequals).", "patterns": ["path-only", "no-id-pin", "path-reuse"] },
+      "judgment": { "grade": "dangerous", "reason": "project_path is mutable and paths are reusable after rename/transfer/delete, so a different project's token (project_id 999 here) satisfies the condition. GitLab's platform-side burn closes the common reclaim path going forward, but it is non-retroactive, absent on self-managed instances that predate the change, and invisible to the policy: the trust policy itself still pins nothing immutable. Add a gitlab.com:project_id (and/or namespace_id) condition key -- 'AWS and GitLab recommend including conditions on stable, unique identifiers' -- or move to the project_id-led sub (see gitlab-aws-immutable-projectid-sub-stringequals).", "patterns": ["path-only", "no-id-pin", "path-reuse"] },
       "status": "documented",
       "sources": [
         "https://docs.gitlab.com/ci/cloud_services/",
-        "https://docs.gitlab.com/ci/secrets/id_token_authentication/"
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://gitlab.com/gitlab-org/gitlab/-/commit/f7335ef7ea0f5d6955c24ee4847d4bb00ac0c5ee",
+        "https://docs.gitlab.com/ci/cloud_services/aws/"
       ]
     }
   ]

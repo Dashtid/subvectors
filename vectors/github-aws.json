@@ -1,7 +1,7 @@
 {
   "suite": "github-aws",
-  "version": "0.2.0",
-  "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., not available in session), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns.",
+  "version": "0.3.0",
+  "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., not available in session), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns. 0.3.0 tranche: aws-all composite vectors modeling full IAM Condition blocks (keys ANDed, values ORed, operators mixed) including AWS's and GitHub's own documented trust-policy shapes.",
   "vectors": [
     {
       "id": "gh-aws-exact-branch-stringequals",
@@ -61,12 +61,12 @@
     },
     {
       "id": "gh-aws-pull-request-subject",
-      "description": "A pull_request-triggered token matched by a repo-wide wildcard. Fork PR code can mint this subject.",
+      "description": "A pull_request-triggered token matched by a repo-wide wildcard. Code merely proposed in a pull request -- not yet reviewed onto any branch -- can mint this subject.",
       "issuer": "github",
       "subject": "repo:octo-org/octo-repo:pull_request",
       "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:*" },
       "expect": "match",
-      "judgment": { "grade": "dangerous", "reason": "The condition admits the pull_request subject, so code from a pull request (potentially from a fork) can assume the role.", "patterns": ["pull-request", "wildcard-suffix"] },
+      "judgment": { "grade": "dangerous", "reason": "The condition admits the pull_request subject, so unreviewed code proposed in a pull request can assume the role before it lands on any protected branch.", "patterns": ["pull-request", "wildcard-suffix"] },
       "status": "documented",
       "sources": [
         "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect",
@@ -427,6 +427,137 @@
       "sources": [
         "https://docs.github.com/en/actions/reference/security/oidc",
         "https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments"
+      ]
+    },
+    {
+      "id": "gh-aws-all-documented-aud-sub-policy",
+      "description": "GitHub's documented example trust policy as an EVALUATED condition block: StringEquals pinning both aud (sts.amazonaws.com) and sub (repo:octo-org/octo-repo:ref:refs/heads/octo-branch), values verbatim from GitHub's AWS guide. One StringEquals operator with two context keys is modeled here as two ANDed sub-conditions -- semantically identical, since 'If your policy statement has multiple context keys attached to a single condition operator, the context keys are evaluated using a logical AND.'",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/octo-branch",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:ref:refs/heads/octo-branch",
+        "aud": "sts.amazonaws.com"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "aud", "pattern": "sts.amazonaws.com" },
+          { "consumer": "aws-stringequals", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/octo-branch" }
+        ]
+      },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "The documented baseline done right: audience pinned to the AWS credential-exchange value AND subject pinned to one branch of one repo, both under exact matching.", "patterns": ["multi-key-and", "aud-pinned", "exact-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-all-wrong-aud-rejected",
+      "description": "The AND enforced: same two-key condition block, but the token carries GitHub's default aud ('the URL of the repository owner') instead of sts.amazonaws.com. The sub key matches exactly and it does not help: 'All context keys in a condition element block must resolve to true to invoke the desired Allow or Deny effect.'",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/octo-branch",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:ref:refs/heads/octo-branch",
+        "aud": "https://github.com/octo-org"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "aud", "pattern": "sts.amazonaws.com" },
+          { "consumer": "aws-stringequals", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/octo-branch" }
+        ]
+      },
+      "expect": "no-match",
+      "judgment": { "grade": "safe", "reason": "The block behaves as designed: a matching subject cannot compensate for a wrong audience, because keys in a condition block are ANDed.", "patterns": ["multi-key-and", "aud-pinned", "exact-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
+        "https://docs.github.com/en/actions/reference/security/oidc"
+      ]
+    },
+    {
+      "id": "gh-aws-all-aws-branch-wildcard-example",
+      "description": "AWS's own branch-wildcard example as an evaluated block, instantiated from its placeholders ('repo:{{GitHubOrg}}/{{GitHubRepo}}:{{*}}' with StringLike, StringEquals aud alongside): mixed operators in one Condition element ('If your policy statement has multiple condition operators, the condition operators are evaluated using a logical AND'). The aud pin holds -- and does nothing to narrow the sub wildcard, which admits every subject of the repo, including this pull_request one (minted when a workflow is triggered by a pull_request event and the job references no environment).",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:pull_request",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:pull_request",
+        "aud": "sts.amazonaws.com"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "aud", "pattern": "sts.amazonaws.com" },
+          { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:*" }
+        ]
+      },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "The correctly-pinned audience creates a false sense of rigor while the repo-wide sub wildcard admits pull_request subjects -- code merely proposed in a pull request, not yet reviewed onto any protected branch, assumes the role. An aud condition scopes WHAT the token is for, never WHO minted it; only the sub key does that.", "patterns": ["multi-key-and", "aud-pinned", "wildcard-suffix", "pull-request"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/id_roles_create_for-idp_oidc.html#idp_oidc_Create_GitHub",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
+        "https://docs.github.com/en/actions/reference/security/oidc"
+      ]
+    },
+    {
+      "id": "gh-aws-all-repository-id-plus-sub",
+      "description": "The pairing gh-aws-repository-id-immutable-pin's caution calls for: the numeric repository_id key (rename-proof) ANDed with an exact branch-scoped sub. Rename immunity from the ID, ref scoping from the sub -- neither key alone provides both.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:ref:refs/heads/main",
+        "repository_id": "7891011"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "repository_id", "pattern": "7891011" },
+          { "consumer": "aws-stringequals", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main" }
+        ]
+      },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "Branch-scoped AND permanently tied to the repository's numeric identity: a rename or name-recycle changes neither the admitted branch nor the pinned ID, and the classic name-based sub still provides the ref scoping.", "patterns": ["multi-key-and", "immutable", "exact-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://aws.amazon.com/about-aws/whats-new/2026/01/aws-sts-supports-validation-identity-provider-claims/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
+        "https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/"
+      ]
+    },
+    {
+      "id": "gh-aws-all-multivalue-inside-block",
+      "description": "Both evaluation rules composed in one block: values for one key are ORed ('If a single condition operator includes multiple values for a context key, those values are evaluated using a logical OR') while keys are ANDed -- modeled here as the shape of a multi-repo deploy role: one pinned audience, several enumerated branch subjects.",
+      "issuer": "github",
+      "subject": "repo:octo-org/repo-b:ref:refs/heads/main",
+      "claims": {
+        "sub": "repo:octo-org/repo-b:ref:refs/heads/main",
+        "aud": "sts.amazonaws.com"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "aud", "pattern": "sts.amazonaws.com" },
+          {
+            "consumer": "aws-stringequals",
+            "claim": "sub",
+            "pattern": [
+              "repo:octo-org/repo-a:ref:refs/heads/main",
+              "repo:octo-org/repo-b:ref:refs/heads/main"
+            ]
+          }
+        ]
+      },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "An enumerated allow-list of exact branch pins behind a pinned audience: the OR spans only listed exact values, and the AND still requires the audience to hold.", "patterns": ["multi-key-and", "multivalue-or", "aud-pinned", "exact-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services"
       ]
     }
   ]

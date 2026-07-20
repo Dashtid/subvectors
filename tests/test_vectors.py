@@ -89,6 +89,17 @@ def test_claims_carry_sub_equal_to_subject_when_present() -> None:
             )
 
 
+def _targeted_claims(condition: dict) -> set[str]:
+    # The claims a condition evaluates: its own 'claim' (default sub), or for the
+    # aws-all composite, the union across its sub-conditions.
+    if condition.get("consumer") == "aws-all":
+        targeted: set[str] = set()
+        for sub_condition in condition.get("of", []):
+            targeted |= _targeted_claims(sub_condition)
+        return targeted
+    return {condition.get("claim", "sub")}
+
+
 def test_non_sub_conditions_carry_a_claims_map() -> None:
     # A condition targeting a claim other than 'sub' (e.g. 'aud') resolves its value
     # from the vector's claims map. The map must be present so the token's claim set
@@ -96,9 +107,9 @@ def test_non_sub_conditions_carry_a_claims_map() -> None:
     # AWS absent-context-key vector: a positive operator on a missing key is a
     # mismatch), but a vector with no claims at all would no-match by accident.
     for name, vector in _VECTOR_CASES:
-        claim = vector["condition"].get("claim", "sub")
-        if claim != "sub":
+        non_sub = _targeted_claims(vector["condition"]) - {"sub"}
+        if non_sub:
             assert vector.get("claims"), (
-                f"{vector['id']} ({name}): condition targets claim {claim!r} but the "
-                f"vector carries no claims map to evaluate it against"
+                f"{vector['id']} ({name}): condition targets claims {sorted(non_sub)} "
+                f"but the vector carries no claims map to evaluate them against"
             )

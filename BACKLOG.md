@@ -36,21 +36,29 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   the announcement also names resource control policies). Checkov's
   AWS OIDC checks reason only about `sub`; GitHub's own AWS how-to still says custom claims are
   unavailable in AWS (docs contradiction). Both are vector-backed upstream opportunities.
-- `[ ]` **GitLab path-reuse follow-up:** the AWS WIF condition-keys page documents GitLab.com
-  keys (namespace_id, project_id, user_id, ref_protected, ...) AND notes GitLab blocks new CI ID
-  tokens for previously-used deleted project paths as of 2026-06-01 -- check whether the
-  gitlab-aws path-reuse vector's description/sources should carry that mitigation.
+- `[x]` **GitLab path-reuse follow-up:** verified from primary sources and folded into
+  `gitlab-aws-path-reuse-no-projectid` (0.1.1). The burn is broader than AWS's note says --
+  GitLab's route-model callbacks burn EVERY path-vacating flow (delete, rename, transfer;
+  commit f7335ef7e, milestone 19.1) -- but non-retroactive, path-based subs only, original
+  project exempt, and undocumented in GitLab's own user docs (AWS's WIF page is the only prose
+  source). Grade stays dangerous: the mitigation is platform-side; the policy still pins
+  nothing immutable.
 - `[~]` **Non-GitHub issuers (breadth — incumbents cover this poorly).**
   - `[x]` GitLab → AWS: `src/subvectors/gitlab.py` grammar (default `project_path:` + immutable
     `project_id:` forms) + 10 cited vectors (`vectors/gitlab-aws.json`). Covers group-wide/subgroup
     wildcards, ref_type confusion, the no-merge_request-marker MR admission, and path-reuse.
   - `[ ]` GitLab → Azure FIC and GitLab → GCP tranches (reuse azure-fic-exact / gcp-cel).
   - `[ ]` Bitbucket, CircleCI, Terraform Cloud issuer grammars + vectors.
-  - `[ ]` Multi-key AWS consumer (`aws-stringequals-all` over a claims map) so name-based GitLab
-    pins can encode `ref_protected` / `project_id` as EVALUATED keys, not just judgment prose —
-    would upgrade several caution vectors. Remaining scope after the 0.2.0 tranche: only the
-    AND-composition across keys (single-key claim targeting via `condition.claim` + `claims`
-    already shipped); note GitLab keys are now also real AWS condition keys (see Feb 2026 item).
+  - `[x]` Multi-key AWS consumer -- shipped as **`aws-all`** (github-aws 0.3.0), a composite
+    modeling a full IAM Condition block instead of the sketched `aws-stringequals-all`: `of`
+    lists ANDed AWS string sub-conditions, so operators can MIX (StringEquals aud + StringLike
+    sub, the documented AWS shape) and each key keeps claim targeting + values-OR lists. 5
+    vectors including GitHub's documented aud+sub policy and AWS's branch-wildcard example as
+    evaluated blocks.
+  - `[ ]` **Upgrade GitLab caution vectors to evaluated multi-key pins** (unblocked by
+    `aws-all`): encode `ref_protected` / `project_id` / `namespace_id` as evaluated keys in
+    gitlab-aws vectors -- GitLab keys are real AWS condition keys (see Feb 2026 item). Verify
+    each claim's exact string form (e.g. ref_protected "true") against GitLab docs first.
 
 ## Corpus / product depth
 

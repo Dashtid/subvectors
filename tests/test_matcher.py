@@ -125,3 +125,75 @@ def test_claims_without_sub_is_seeded_from_subject() -> None:
     assert satisfies(
         "repo:o/r:ref:refs/heads/main", condition, claims={"aud": "sts.amazonaws.com"}
     ) is True
+
+
+def _aud_and_sub(sub_pattern: str, sub_consumer: str = "aws-stringequals") -> dict:
+    return {
+        "consumer": "aws-all",
+        "of": [
+            {"consumer": "aws-stringequals", "claim": "aud", "pattern": "sts.amazonaws.com"},
+            {"consumer": sub_consumer, "claim": "sub", "pattern": sub_pattern},
+        ],
+    }
+
+
+def test_aws_all_requires_every_subcondition() -> None:
+    # A Condition block is an AND: all context keys must resolve to true.
+    subject = "repo:o/r:ref:refs/heads/main"
+    condition = _aud_and_sub(subject)
+    assert satisfies(subject, condition, claims={"sub": subject, "aud": "sts.amazonaws.com"}) is True
+    # Right sub, wrong aud -> the block fails.
+    assert satisfies(subject, condition, claims={"sub": subject, "aud": "https://github.com/o"}) is False
+    # Right aud, wrong sub -> the block fails.
+    assert satisfies(
+        "repo:o/other:ref:refs/heads/main",
+        condition,
+        claims={"sub": "repo:o/other:ref:refs/heads/main", "aud": "sts.amazonaws.com"},
+    ) is False
+
+
+def test_aws_all_mixes_operators_and_value_lists() -> None:
+    # StringEquals for aud alongside StringLike for sub (the documented AWS shape),
+    # with values-OR list semantics still available inside the block.
+    subject = "repo:o/r:pull_request"
+    condition = _aud_and_sub("repo:o/r:*", sub_consumer="aws-stringlike")
+    assert satisfies(subject, condition, claims={"sub": subject, "aud": "sts.amazonaws.com"}) is True
+    listed = {
+        "consumer": "aws-all",
+        "of": [
+            {"consumer": "aws-stringequals", "claim": "aud", "pattern": "sts.amazonaws.com"},
+            {"consumer": "aws-stringequals", "claim": "sub", "pattern": ["repo:o/a:ref:refs/heads/main", "repo:o/b:ref:refs/heads/main"]},
+        ],
+    }
+    assert satisfies(
+        "repo:o/b:ref:refs/heads/main",
+        listed,
+        claims={"sub": "repo:o/b:ref:refs/heads/main", "aud": "sts.amazonaws.com"},
+    ) is True
+
+
+def test_aws_all_rejects_non_aws_subconditions() -> None:
+    condition = {
+        "consumer": "aws-all",
+        "of": [
+            {"consumer": "aws-stringequals", "claim": "sub", "pattern": "x"},
+            {"consumer": "azure-fic-exact", "claim": "sub", "pattern": "x"},
+        ],
+    }
+    with pytest.raises(ValueError):
+        satisfies("x", condition)
+
+
+def test_aws_all_rejects_non_aws_even_after_a_failing_subcondition() -> None:
+    # The guard must validate the WHOLE block before evaluating any of it: a
+    # failing first entry must not short-circuit past the invalid azure entry
+    # (all() would return False and silently mask the authoring error).
+    condition = {
+        "consumer": "aws-all",
+        "of": [
+            {"consumer": "aws-stringequals", "claim": "sub", "pattern": "NOT-x"},
+            {"consumer": "azure-fic-exact", "claim": "sub", "pattern": "x"},
+        ],
+    }
+    with pytest.raises(ValueError):
+        satisfies("x", condition)

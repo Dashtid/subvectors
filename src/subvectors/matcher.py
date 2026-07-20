@@ -22,6 +22,12 @@ with logical OR, and a condition on a context key absent from the request does n
 (for positive operators without ``...IfExists``). Both behaviors are AWS-specific; the Azure
 and GCP consumers reject list patterns rather than guessing semantics.
 
+The ``aws-all`` consumer models a full IAM Condition block: an AND of AWS string
+sub-conditions ("All context keys in a condition element block must resolve to true"),
+each of which may use a different operator (StringEquals for ``aud`` alongside StringLike
+for ``sub`` -- the shape of AWS's own documented GitHub trust policies) and the values-OR
+list semantics above. Only the two AWS string consumers may appear inside it.
+
 Sources:
 - AWS IAM condition operators (StringEquals / StringLike, wildcard semantics):
   https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html
@@ -106,15 +112,17 @@ _CONSUMERS: dict[str, Callable[[str, str], bool]] = {
 # pattern on any other consumer is a vector-authoring error and must fail loudly.
 _LIST_PATTERN_CONSUMERS = frozenset({"aws-stringlike", "aws-stringequals"})
 
-# gcp-cel is handled separately (it needs the full claim set, not just the subject).
-SUPPORTED_CONSUMERS = frozenset(_CONSUMERS) | {"gcp-cel"}
+# gcp-cel is handled separately (it needs the full claim set, not just the subject);
+# aws-all composes the AWS string consumers into an ANDed condition block.
+SUPPORTED_CONSUMERS = frozenset(_CONSUMERS) | {"gcp-cel", "aws-all"}
 
 
 def satisfies(subject: str, condition: dict, claims: dict | None = None) -> bool:
     """Return True iff ``subject`` satisfies ``condition``.
 
-    ``condition`` is a vector's condition block: at minimum a ``consumer`` key
-    (which matching semantics to apply) and a ``pattern`` (the admin-written rule).
+    ``condition`` is a vector's condition block: a ``consumer`` key (which
+    matching semantics to apply) plus a ``pattern`` (the admin-written rule) --
+    or, for ``aws-all``, an ``of`` list of AWS sub-conditions that must ALL hold.
 
     String consumers (AWS, Azure) match one claim value: ``condition["claim"]``
     names the targeted claim (default ``sub``), resolved from ``claims``. When
@@ -132,8 +140,6 @@ def satisfies(subject: str, condition: dict, claims: dict | None = None) -> bool
     over the full ``claims`` set.
     """
     consumer = condition["consumer"]
-    claim = condition.get("claim", "sub")
-    pattern = condition["pattern"]
     if claims is None:
         claims = {"sub": subject}
     elif "sub" not in claims:
@@ -141,6 +147,20 @@ def satisfies(subject: str, condition: dict, claims: dict | None = None) -> bool
         # shadow the subject argument and every sub condition would no-match for
         # the wrong reason (absent key, not mismatched value).
         claims = {"sub": subject, **claims}
+    if consumer == "aws-all":
+        # A full IAM Condition block: every sub-condition (context key + operator)
+        # must resolve to true. Only the AWS string consumers compose -- anything
+        # else inside the block is a vector-authoring error and fails loudly.
+        subconditions = condition["of"]
+        for sub_condition in subconditions:
+            if sub_condition.get("consumer") not in _LIST_PATTERN_CONSUMERS:
+                raise ValueError(
+                    "consumer 'aws-all' composes AWS string conditions only; "
+                    f"got {sub_condition.get('consumer')!r}"
+                )
+        return all(satisfies(subject, c, claims) for c in subconditions)
+    claim = condition.get("claim", "sub")
+    pattern = condition["pattern"]
     if consumer == "gcp-cel":
         if claim != "sub":
             raise ValueError(

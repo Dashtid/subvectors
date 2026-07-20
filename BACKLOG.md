@@ -55,10 +55,15 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
     sub, the documented AWS shape) and each key keeps claim targeting + values-OR lists. 5
     vectors including GitHub's documented aud+sub policy and AWS's branch-wildcard example as
     evaluated blocks.
-  - `[ ]` **Upgrade GitLab caution vectors to evaluated multi-key pins** (unblocked by
-    `aws-all`): encode `ref_protected` / `project_id` / `namespace_id` as evaluated keys in
-    gitlab-aws vectors -- GitLab keys are real AWS condition keys (see Feb 2026 item). Verify
-    each claim's exact string form (e.g. ref_protected "true") against GitLab docs first.
+  - `[x]` **Upgrade GitLab caution vectors to evaluated multi-key pins** (gitlab-aws 0.2.0,
+    6 aws-all vectors): GitLab's documented sub+namespace_id+project_id triple pin and AWS's
+    two-key example as evaluated blocks, the squatter rejected by the id keys, ref_protected
+    guard match/reject, and the pipeline_source MR gate (graded dangerous: it changes which
+    EVENT, not who -- developer branch pushes still sail through). Verified claim forms:
+    ref_protected/project_id/namespace_id/pipeline_source are all JSON STRINGS in the token
+    ("true", "20", "push"). Bonus doc finding recorded in the suite description: GitLab's two
+    doc pages contradict each other on Self-Managed condition-key support (sub only vs
+    sub+aud) -- a possible upstream GitLab docs issue.
 
 ## Corpus / product depth
 

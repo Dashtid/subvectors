@@ -1,7 +1,7 @@
 {
   "suite": "gitlab-aws",
-  "version": "0.1.1",
-  "description": "GitLab CI/CD OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Second issuer. GitLab sub default = project_path:{group}/{project}:ref_type:{branch|tag}:ref:{short_ref}; the immutable form (project_id-led) requires reconfiguring ci_id_token_sub_claim_components. AWS condition key is gitlab.com:sub; the matcher is host-agnostic and matches the raw sub string, so claim stays 'sub'. GitLab immutable ids (project_id) and ref_protected are SEPARATE claims, not in the sub, so single-key sub matching cannot express a multi-key StringEquals AND-block; those cases are noted in judgment.reason.",
+  "version": "0.2.0",
+  "description": "GitLab CI/CD OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Second issuer. GitLab sub default = project_path:{group}/{project}:ref_type:{branch|tag}:ref:{short_ref}; the immutable form (project_id-led) requires reconfiguring ci_id_token_sub_claim_components. AWS condition key is gitlab.com:sub; the matcher is host-agnostic and matches the raw sub string, so claim stays 'sub'. GitLab immutable ids (project_id), ref_protected, and pipeline_source are SEPARATE claims, not in the sub; the 0.2.0 aws-all tranche composes them with the sub into evaluated multi-key condition blocks, encoding the fixes the 0.1.x judgment prose could only recommend. All GitLab claim values used here are JSON STRINGS in the token (\"20\", \"true\", \"push\" -- the docs' example payload distinguishes them from bare numbers like runner_id: 1). The nine GitLab-specific AWS condition keys are GitLab.com-SaaS-only ('You cannot use these condition keys with GitLab Dedicated or GitLab Self-Managed instances'); GitLab's own docs disagree on what Self-Managed/Dedicated retain (id_token_authentication: sub only; cloud_services/aws: sub and aud).",
   "vectors": [
     {
       "id": "gitlab-aws-exact-branch-namebased-stringequals",
@@ -146,6 +146,161 @@
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
         "https://gitlab.com/gitlab-org/gitlab/-/commit/f7335ef7ea0f5d6955c24ee4847d4bb00ac0c5ee",
         "https://docs.gitlab.com/ci/cloud_services/aws/"
+      ]
+    },
+    {
+      "id": "gitlab-aws-all-docs-triple-pin",
+      "description": "GitLab's documented example trust policy as an evaluated block: 'The following example trust policy uses sub together with namespace_id and project_id to pin trust to a specific group, project, and branch on GitLab.com', condition values verbatim from the doc (all JSON strings). The doc notes project_id 'is globally unique and remains the same for the entire lifetime of the project, including across group renames, project renames, and project transfers', while namespace_id changes on transfer. Observational note: the doc's example carries no aud condition key.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "claims": {
+        "sub": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+        "namespace_id": "12345",
+        "project_id": "67890"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "sub", "pattern": "project_path:mygroup/myproject:ref_type:branch:ref:main" },
+          { "consumer": "aws-stringequals", "claim": "namespace_id", "pattern": "12345" },
+          { "consumer": "aws-stringequals", "claim": "project_id", "pattern": "67890" }
+        ]
+      },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "The full documented hardening: exact branch-scoped sub AND the immutable project_id AND the namespace_id, so neither a path rename/reuse nor a look-alike project in another group satisfies the block. This is the evaluated form of the fix the path-reuse vector recommends.", "patterns": ["multi-key-and", "exact-ref", "immutable", "project-id-pin"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.gitlab.com/ci/cloud_services/aws/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html"
+      ]
+    },
+    {
+      "id": "gitlab-aws-all-squatter-rejected-by-projectid",
+      "description": "The path-reuse attack against the HARDENED policy: the same squatter token that satisfies the sub-only condition in gitlab-aws-path-reuse-no-projectid (byte-identical path-based sub, different project ids) fails the documented triple pin, because the id keys are ANDed with the sub and the squatter cannot mint the original's project_id.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "claims": {
+        "sub": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+        "namespace_id": "888",
+        "project_id": "999"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "sub", "pattern": "project_path:mygroup/myproject:ref_type:branch:ref:main" },
+          { "consumer": "aws-stringequals", "claim": "namespace_id", "pattern": "12345" },
+          { "consumer": "aws-stringequals", "claim": "project_id", "pattern": "67890" }
+        ]
+      },
+      "expect": "no-match",
+      "judgment": { "grade": "safe", "reason": "The pin works policy-side, independent of GitLab's platform-side path burn: the reclaimed path reproduces the sub string but not the immutable ids, and 'All context keys in a condition element block must resolve to true to invoke the desired Allow or Deny effect.'", "patterns": ["multi-key-and", "immutable", "project-id-pin", "path-reuse"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.gitlab.com/ci/cloud_services/aws/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif"
+      ]
+    },
+    {
+      "id": "gitlab-aws-all-aws-example-namespace-pin",
+      "description": "AWS's documented GitLab example as an evaluated block: 'The following example trust policy uses the namespace_id claim together with sub to limit access to a specific GitLab.com project and branch', values verbatim (namespace_id is the JSON string '12345'). Two keys, not three: unlike GitLab's own example it does not pin project_id, which is the id that 'remains the same for the entire lifetime of the project' across transfers.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "claims": {
+        "sub": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+        "namespace_id": "12345"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "sub", "pattern": "project_path:mygroup/myproject:ref_type:branch:ref:main" },
+          { "consumer": "aws-stringequals", "claim": "namespace_id", "pattern": "12345" }
+        ]
+      },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Group pinned via namespace_id AND exact path-based sub -- materially stronger than the sub alone, but the project itself is still identified only by its mutable path: a path vacated and reclaimed WITHIN the same group keeps namespace_id 12345 and reproduces the sub (inference from the documented claim set). GitLab's fuller documented example additionally pins project_id, the identifier stable across renames and transfers; prefer the triple pin.", "patterns": ["multi-key-and", "exact-ref", "namespace-id-pin", "no-project-id-pin"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://docs.gitlab.com/ci/cloud_services/aws/"
+      ]
+    },
+    {
+      "id": "gitlab-aws-all-refprotected-guard-match",
+      "description": "The ref_protected guard the 0.1.x vectors could only recommend, evaluated: exact branch sub AND gitlab.com:ref_protected compared to the STRING 'true' ('The value is true if protected, false otherwise'; the token claim is a JSON string -- the docs' example payload shows \"ref_protected\": \"false\" in quotes, unlike the bare number runner_id: 1).",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "claims": {
+        "sub": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+        "ref_protected": "true"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "sub", "pattern": "project_path:mygroup/myproject:ref_type:branch:ref:main" },
+          { "consumer": "aws-stringequals", "claim": "ref_protected", "pattern": "true" }
+        ]
+      },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "The protection guard now holds mechanically -- only a run on a protected ref satisfies the block -- but the identity half is still the mutable project_path. Pair the guard with a project_id pin (see gitlab-aws-all-docs-triple-pin) to close the rename/path-reuse residual.", "patterns": ["multi-key-and", "exact-ref", "ref-protected", "name-based", "no-id-pin"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html"
+      ]
+    },
+    {
+      "id": "gitlab-aws-all-refprotected-rejects-unprotected",
+      "description": "Protection is STATE, not name: the same branch name mints ref_protected 'false' when its protection rule is absent or removed, and the guard catches what the sub string cannot -- the sub here is byte-identical to the matching sibling vector, only the protection claim differs ('false' is the docs' own example payload value).",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "claims": {
+        "sub": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+        "ref_protected": "false"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "sub", "pattern": "project_path:mygroup/myproject:ref_type:branch:ref:main" },
+          { "consumer": "aws-stringequals", "claim": "ref_protected", "pattern": "true" }
+        ]
+      },
+      "expect": "no-match",
+      "judgment": { "grade": "caution", "reason": "The guard fails closed -- a run on the right branch in the wrong protection state is refused, which a sub-only condition can never express -- but the condition being demonstrated is the same name-based block graded caution in gitlab-aws-all-refprotected-guard-match: the identity half is still the mutable project_path, so pair the guard with a project_id pin.", "patterns": ["multi-key-and", "ref-protected", "unprotected-ref", "name-based", "no-id-pin"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html"
+      ]
+    },
+    {
+      "id": "gitlab-aws-all-pipeline-source-gates-mr",
+      "description": "The pipeline_source gate for the no-merge_request-marker problem (gitlab-aws-merge-request-source-branch-admitted): GitLab's sub has no MR marker and an MR pipeline's sub carries the SOURCE branch ref ('In a merge request pipeline, this is the source branch ref'), so a ref wildcard admits MR runs -- but the separate pipeline_source claim (JSON string; 'push' for Git push pipelines, 'merge_request_event' for merge request pipelines) is pinnable via gitlab.com:pipeline_source, whose documented example values include push and merge_request_event.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:contributor-mr-branch",
+      "claims": {
+        "sub": "project_path:mygroup/myproject:ref_type:branch:ref:contributor-mr-branch",
+        "pipeline_source": "merge_request_event"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringlike", "claim": "sub", "pattern": "project_path:mygroup/myproject:ref_type:branch:ref:*" },
+          { "consumer": "aws-stringequals", "claim": "pipeline_source", "pattern": "push" }
+        ]
+      },
+      "expect": "no-match",
+      "judgment": { "grade": "dangerous", "reason": "The gate closes the MR event class -- the MR-triggered token fails the pipeline_source key even though its source-branch sub sails through the ref wildcard -- but every PUSH pipeline on every branch still satisfies the block, and a developer pushing a branch triggers exactly a push pipeline: the any-developer-branch breadth graded dangerous in gitlab-aws-any-branch-no-refprotected survives the gate untouched. Narrow the ref and add ref_protected; pipeline_source alone changes which event, not who.", "patterns": ["multi-key-and", "pipeline-source-gate", "merge-request", "wildcard-ref", "unprotected-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
+        "https://docs.gitlab.com/ci/jobs/job_rules/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
       ]
     }
   ]

@@ -47,13 +47,21 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   - `[x]` GitLab → AWS: `src/subvectors/gitlab.py` grammar (default `project_path:` + immutable
     `project_id:` forms) + 10 cited vectors (`vectors/gitlab-aws.json`). Covers group-wide/subgroup
     wildcards, ref_type confusion, the no-merge_request-marker MR admission, and path-reuse.
-  - `[~]` GitLab → Azure FIC and GitLab → GCP tranches (reuse azure-fic-exact / gcp-cel).
-    GCP side SEEDED (gitlab-gcp 0.1.0, 6 vectors): the JSON-string type trap -- CEL
-    heterogeneous equality makes `assertion.project_id == 20` always-false (fail-closed) and
-    `!= 20` always-true (fail-OPEN, a vacuous exclusion guard) because GitLab mints claim
-    values as strings; Google's own examples quote every value without saying why, and
-    neither vendor documents the trap. cel.py gained int literals + CEL-typed equality
-    (cross-type false, bool not numeric) to encode it. Remaining: GitLab → Azure FIC.
+  - `[x]` GitLab → Azure FIC and GitLab → GCP tranches (reuse azure-fic-exact / gcp-cel).
+    GCP (gitlab-gcp 0.1.0, 6 vectors): the JSON-string type trap -- CEL heterogeneous equality
+    makes `assertion.project_id == 20` always-false (fail-closed) and `!= 20` always-true
+    (fail-OPEN, a vacuous exclusion guard) because GitLab mints claim values as strings; cel.py
+    gained int literals + CEL-typed equality (cross-type false, bool not numeric) to encode it.
+    Azure (gitlab-azure 0.1.0, 6 vectors, ZERO matcher changes): classic FIC exact match forces
+    one credential per ref against Azure's hard cap of 20 FICs per identity (verified verbatim);
+    the AWS-StringLike wildcard habit is a silent literal; and because the default sub carries
+    only the mutable project_path (no project_id -- classic FIC references issuer+subject+audience
+    only), a path-reuse squatter mints a byte-identical sub the FIC cannot distinguish. The
+    project_id-led sub is the durable pin. GROUND-TRUTH note (an adversarial verifier wrongly
+    claimed "the sub must lead with project_path"): GitLab source `project_ci_cd_setting.rb`
+    defines `SUB_CLAIM_LEADING_COMPONENTS = %w[project_path project_id]`, so a `project_id:20:...`
+    sub IS producible -- this confirms both `gitlab-az-fic-immutable-projectid-exact-match` and the
+    shipped `gitlab-aws-immutable-projectid-sub-stringequals` + the `gitlab.py` grammar.
   - `[ ]` Bitbucket, CircleCI, Terraform Cloud issuer grammars + vectors.
   - `[x]` Multi-key AWS consumer -- shipped as **`aws-all`** (github-aws 0.3.0), a composite
     modeling a full IAM Condition block instead of the sketched `aws-stringequals-all`: `of`

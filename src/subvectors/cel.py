@@ -15,8 +15,17 @@ Semantics that are easy to get wrong, pinned to primary sources:
   https://docs.cloud.google.com/iam/docs/workload-identity-federation
 - ``matches(re)`` is RE2 and matches a SUBSTRING (unanchored) -- so it uses re.search, and a
   pattern must use ^ / $ to anchor. https://github.com/google/cel-spec/blob/master/doc/langdef.md
-- Values are strings (even numeric IDs like repository_id are quoted strings); comparisons are
-  byte-exact and case-sensitive.
+- Token claim values relevant here are strings (issuers mint even numeric IDs and protection
+  flags as quoted JSON strings, e.g. GitLab's "project_id": "20", "ref_protected": "false"),
+  and the CEL JSON mapping keeps a JSON string a CEL string
+  (langdef.md#json-data-conversion); comparisons are byte-exact and case-sensitive.
+- Equality across types is CEL "heterogeneous equality": numeric types compare
+  mathematically, and any other cross-type comparison is FALSE -- never an error
+  (langdef.md#equality, the ``: false`` branch of the spec's own pseudo-code). So
+  ``assertion.project_id == 20`` is false when the claim is the string "20", and the negation
+  ``!= 20`` is true for EVERY string value -- the type-level trap the gitlab-gcp vectors pin.
+  Python quirk guarded explicitly: bool is an int subclass in Python, but CEL bool is not a
+  numeric type, so ``true == 1`` must not fall through to Python's ``True == 1``.
 
 Honest scope cut: referencing a claim absent from ``claims`` raises CelError rather than
 evaluating to false, keeping the oracle honest (a vector can never pass by being un-evaluated).
@@ -25,8 +34,10 @@ Python short-circuit); vectors must supply every claim on an evaluated path.
 
 Not implemented (deliberately -- not used in these conditions, and building them would imply
 support we do not verify): ordering comparisons < <= > >=, ternary ?:, string concatenation,
-arithmetic, timestamps, macros (.all/.exists/.map/.filter), and the extract()/split() extensions
-that appear in attribute_MAPPING source expressions rather than admission conditions.
+arithmetic, timestamps, uint/double literals (int literals exist solely so the type-trap
+vectors can express the mistaken ``== 20`` form), macros (.all/.exists/.map/.filter), and the
+extract()/split() extensions that appear in attribute_MAPPING source expressions rather than
+admission conditions.
 """
 
 from __future__ import annotations
@@ -43,6 +54,7 @@ class CelError(ValueError):
 _TOKEN_RE = re.compile(
     r"(?P<ws>\s+)"
     r"|(?P<str>'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\")"
+    r"|(?P<num>\d+)"
     r"|(?P<op>==|!=|&&|\|\||!|\(|\)|\[|\]|,|\.)"
     r"|(?P<ident>[A-Za-z_][A-Za-z0-9_]*)"
 )
@@ -162,6 +174,14 @@ class _Parser:
         if k == "str":
             self._advance()
             return ("str", v)
+        if k == "num":
+            self._advance()
+            value = int(v)
+            # CEL int is 64-bit; real CEL rejects an out-of-range literal at
+            # parse time, so the oracle must not silently evaluate one.
+            if value > 2**63 - 1:
+                raise CelError(f"integer literal out of int64 range: {v}")
+            return ("int", value)
         if k == "ident" and v in ("true", "false"):
             self._advance()
             return ("bool", v == "true")
@@ -201,6 +221,25 @@ def _as_bool(value) -> bool:
     raise CelError(f"expected a boolean in a logical position, got {type(value).__name__}: {value!r}")
 
 
+def _cel_equal(a, b) -> bool:
+    """CEL runtime heterogeneous equality (langdef.md#equality).
+
+    Numeric types compare mathematically on a continuous number line (int is the
+    only numeric type implemented here); any other cross-type comparison is
+    false, never an error. bool is checked FIRST because Python's bool is an int
+    subclass, while CEL's bool is not numeric: ``true == 1`` is false in CEL but
+    ``True == 1`` is True in Python.
+    """
+    a_is_bool, b_is_bool = isinstance(a, bool), isinstance(b, bool)
+    if a_is_bool or b_is_bool:
+        return a_is_bool and b_is_bool and a is b
+    if isinstance(a, int) and isinstance(b, int):
+        return a == b
+    if type(a) is not type(b):
+        return False
+    return a == b
+
+
 def _method(name: str, receiver, arg) -> bool:
     if name not in _STRING_METHODS:
         raise CelError(f"unsupported function {name}()")
@@ -225,6 +264,8 @@ def _eval(node, claims: dict) -> object:
         return node[1]
     if kind == "bool":
         return node[1]
+    if kind == "int":
+        return node[1]
     if kind == "claim":
         name = node[1]
         if name not in claims:
@@ -239,11 +280,11 @@ def _eval(node, claims: dict) -> object:
     if kind == "or":
         return _as_bool(_eval(node[1], claims)) or _as_bool(_eval(node[2], claims))
     if kind in ("==", "!="):
-        equal = _eval(node[1], claims) == _eval(node[2], claims)
+        equal = _cel_equal(_eval(node[1], claims), _eval(node[2], claims))
         return equal if kind == "==" else not equal
     if kind == "in":
         needle = _eval(node[1], claims)
-        return needle in [_eval(item, claims) for item in node[2]]
+        return any(_cel_equal(needle, _eval(item, claims)) for item in node[2])
     if kind == "method":
         return _method(node[2], _eval(node[1], claims), _eval(node[3], claims))
     raise CelError(f"internal: unknown node {kind!r}")

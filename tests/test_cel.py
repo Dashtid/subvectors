@@ -29,6 +29,38 @@ def test_equality_and_inequality() -> None:
     assert evaluate("assertion.repository_owner != 'other'", CLAIMS) is True
 
 
+def test_heterogeneous_equality_cross_type_is_false_not_error() -> None:
+    # CEL runtime heterogeneous equality: comparing a string claim to an int or
+    # bool literal is false, never an error (langdef.md#equality). This is the
+    # type-level trap: repository_id is the STRING "260064828".
+    assert evaluate("assertion.repository_id == 260064828", CLAIMS) is False
+    assert evaluate("assertion.event_name == true", {"event_name": "true"}) is False
+
+
+def test_heterogeneous_inequality_is_always_true_for_cross_type() -> None:
+    # The dangerous dual of the trap: a != guard written with an int literal
+    # excludes nothing -- not even the exact value the author meant to exclude.
+    assert evaluate("assertion.repository_id != 260064828", CLAIMS) is True
+
+
+def test_int_equality_within_type_still_works() -> None:
+    assert evaluate("20 == 20", CLAIMS) is True
+    assert evaluate("20 != 21", CLAIMS) is True
+
+
+def test_bool_is_not_numeric_despite_python() -> None:
+    # Python: True == 1. CEL: true is not a numeric type, so true == 1 is false.
+    assert evaluate("true == 1", CLAIMS) is False
+    assert evaluate("true != 1", CLAIMS) is True
+
+
+def test_int_literal_out_of_int64_range_raises() -> None:
+    # CEL int is 64-bit; real CEL rejects the literal at parse time, so the
+    # oracle raises rather than rendering a verdict on an unconfigurable condition.
+    with pytest.raises(CelError):
+        evaluate("assertion.repository_id == 92233720368547758070", CLAIMS)
+
+
 def test_and_or_not_and_precedence() -> None:
     assert evaluate("assertion.ref == 'refs/heads/main' && assertion.event_name == 'push'", CLAIMS) is True
     assert evaluate("assertion.ref == 'refs/heads/dev' || assertion.event_name == 'push'", CLAIMS) is True

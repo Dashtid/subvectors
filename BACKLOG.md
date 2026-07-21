@@ -47,7 +47,13 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   - `[x]` GitLab → AWS: `src/subvectors/gitlab.py` grammar (default `project_path:` + immutable
     `project_id:` forms) + 10 cited vectors (`vectors/gitlab-aws.json`). Covers group-wide/subgroup
     wildcards, ref_type confusion, the no-merge_request-marker MR admission, and path-reuse.
-  - `[ ]` GitLab → Azure FIC and GitLab → GCP tranches (reuse azure-fic-exact / gcp-cel).
+  - `[~]` GitLab → Azure FIC and GitLab → GCP tranches (reuse azure-fic-exact / gcp-cel).
+    GCP side SEEDED (gitlab-gcp 0.1.0, 6 vectors): the JSON-string type trap -- CEL
+    heterogeneous equality makes `assertion.project_id == 20` always-false (fail-closed) and
+    `!= 20` always-true (fail-OPEN, a vacuous exclusion guard) because GitLab mints claim
+    values as strings; Google's own examples quote every value without saying why, and
+    neither vendor documents the trap. cel.py gained int literals + CEL-typed equality
+    (cross-type false, bool not numeric) to encode it. Remaining: GitLab → Azure FIC.
   - `[ ]` Bitbucket, CircleCI, Terraform Cloud issuer grammars + vectors.
   - `[x]` Multi-key AWS consumer -- shipped as **`aws-all`** (github-aws 0.3.0), a composite
     modeling a full IAM Condition block instead of the sketched `aws-stringequals-all`: `of`
@@ -82,6 +88,18 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   match rests on interpretation until observed via the IAM policy simulator or live STS.
 
 ## Upstream feeder PRs — each in its own target-repo session, tracked in oss-contributions
+
+- `[ ]` **GitLab docs MR (ready to post): align Self-Managed AWS condition-key claim list.**
+  Verified 2026-07-21: `doc/ci/secrets/id_token_authentication.md` line 191 says Self-Managed/
+  Dedicated support "only the `sub` claim" as an AWS condition key, contradicting
+  `doc/ci/cloud_services/aws/_index.md` line 55 ("only the `sub` and `aud` claims"), which was
+  corrected by community MR !243076 (fixes closed docs-feedback issue #442261) touching only
+  the AWS page. AWS's Default OIDC mapping (condition-keys reference) confirms `aud`+`sub` for
+  any registered provider, so the one-line fix is aligning line 191 to "`sub` and `aud`".
+  Direct docs MR per GitLab docs workflow (no issue-first); before posting, one authenticated
+  search of gitlab-org/gitlab issues/MRs for an in-flight fix (unauthenticated search is
+  401-limited). No gitlab.com credentials in this environment -- post from a session with
+  GitLab auth, then track in oss-contributions.
 
 - `[ ]` **CKV_AZURE_249 deepening PR.** After the first Checkov PR lands. Driven by the
   `pull_request`/tag/environment Azure vectors — the check passes patterns it should flag.

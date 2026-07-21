@@ -1,0 +1,119 @@
+{
+  "suite": "gitlab-gcp",
+  "version": "0.1.0",
+  "description": "GitLab CI/CD OIDC tokens against GCP Workload Identity Federation attribute conditions (gcp-cel). Third issuer-consumer pair; seed tranche = the type-level trap. GitLab mints its trust-relevant claim values as JSON STRINGS ('project_id': '20', 'namespace_id': '72', 'ref_protected': 'false' -- unlike bare numbers such as runner_id: 1 in the same documented payload); the CEL JSON mapping keeps a JSON string a CEL string, and CEL runtime equality across non-numeric types is FALSE, never an error (heterogeneous equality: 'type(x) == type(y) ? x == y : false'). So a condition comparing assertion.project_id to a bare integer silently never matches, and its NEGATION always matches. Google's own GitLab examples quote every value (assertion.namespace_id=='GROUP_ID') without explaining why; neither Google nor GitLab documents the trap. Context: GCP warns that GitLab.com shares one issuer URL across all groups and REQUIRES a group-restricting attribute condition against spoofing.",
+  "vectors": [
+    {
+      "id": "gitlab-gcp-namespace-condition-baseline",
+      "description": "Google's mandatory GitLab.com baseline, instantiated with the GitLab docs' example payload value ('namespace_id': '72'): 'GitHub, GitLab SaaS, and HCP Terraform use a single issuer URL across all organizations... To help protect against spoofing threats, you must use an attribute condition that restricts access to tokens issued by your... GitLab group.' Google's documented condition form is assertion.namespace_id=='GROUP_ID' -- the value inside CEL single quotes, a string comparison.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "claims": {
+        "sub": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+        "namespace_id": "72"
+      },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.namespace_id == '72'" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "The mandatory floor, not a ceiling: every project, ref, environment, and pipeline in group 72 satisfies it. Google frames it as spoofing protection for the shared issuer; scope further with project_id and a subject or ref restriction.", "patterns": ["namespace-id-pin", "org-wide"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines",
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/"
+      ]
+    },
+    {
+      "id": "gitlab-gcp-project-and-namespace-string-pin",
+      "description": "Project pinned by its immutable id, values as quoted strings matching the token's string claims. Google's extended GitLab mapping exposes exactly these ('attribute.project_id=assertion.project_id / attribute.namespace_id=assertion.namespace_id', for differentiating access by project or group); the condition here checks the raw assertion claims.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "claims": {
+        "sub": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+        "namespace_id": "72",
+        "project_id": "20"
+      },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.namespace_id == '72' && assertion.project_id == '20'" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Group and project pinned by immutable ids -- rename- and path-reuse-proof -- but nothing scopes the ref or environment: every job of every branch, tag, and pipeline of project 20 satisfies it. Repo-wide breadth; add a subject or ref restriction.", "patterns": ["project-id-pin", "namespace-id-pin", "immutable", "repo-wide"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/"
+      ]
+    },
+    {
+      "id": "gitlab-gcp-int-literal-never-matches",
+      "description": "THE TRAP: assertion.project_id == 20 with a bare integer literal. The token claim is the JSON string '20' (GitLab docs' example payload, contrast runner_id: 1), a JSON string is a CEL string, and CEL runtime heterogeneous equality makes a non-numeric cross-type comparison FALSE, never an error ('type(x) == type(y) ? x == y : false'). The condition is well-formed, deploys without complaint, and admits nothing -- including the exact project it names.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "claims": {
+        "sub": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+        "project_id": "20"
+      },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.project_id == 20" },
+      "expect": "no-match",
+      "judgment": { "grade": "caution", "reason": "Always-false: fail-closed breakage rather than exposure, discovered only when the exchange starts failing. The correct form quotes the value (assertion.project_id == '20'), which is how Google's own GitLab examples write every comparison.", "patterns": ["type-mismatch", "int-literal", "always-false"] },
+      "status": "documented",
+      "sources": [
+        "https://github.com/google/cel-spec/blob/master/doc/langdef.md",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines"
+      ]
+    },
+    {
+      "id": "gitlab-gcp-int-negation-always-true",
+      "description": "The dangerous dual of the int-literal trap: assertion.project_id != 20 as an exclusion guard. Cross-type equality is false, so its negation is TRUE for every string-valued project_id -- including '20' itself, the exact project the author meant to exclude, whose token is evaluated here. A != guard written with a bare integer excludes nothing.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "claims": {
+        "sub": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+        "project_id": "20"
+      },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.project_id != 20" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "An exclusion that excludes nothing: the type mismatch makes the inequality vacuously true for all tokens, so whatever the rest of the policy admits, the supposedly-banned project sails through too. Unlike the always-false == form, this one fails OPEN.", "patterns": ["type-mismatch", "int-literal", "always-true", "vacuous-guard"] },
+      "status": "documented",
+      "sources": [
+        "https://github.com/google/cel-spec/blob/master/doc/langdef.md",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/"
+      ]
+    },
+    {
+      "id": "gitlab-gcp-bool-literal-never-matches",
+      "description": "The boolean variant of the trap: assertion.ref_protected == true. GitLab mints ref_protected as the JSON STRING 'true'/'false' (the docs' example payload shows 'ref_protected': 'false' in quotes, alongside genuinely bare JSON numbers like runner_id: 1), and CEL's bool is a distinct type from string, so the comparison is false for every token -- a protection guard that never passes anything.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "claims": {
+        "sub": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+        "ref_protected": "true"
+      },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.ref_protected == true" },
+      "expect": "no-match",
+      "judgment": { "grade": "caution", "reason": "Always-false guard: even a genuinely protected ref (claim string 'true', as here) is refused, because the condition compares against the CEL boolean. Fail-closed breakage; the correct form is assertion.ref_protected == 'true'.", "patterns": ["type-mismatch", "bool-literal", "always-false", "ref-protected"] },
+      "status": "documented",
+      "sources": [
+        "https://github.com/google/cel-spec/blob/master/doc/langdef.md",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/"
+      ]
+    },
+    {
+      "id": "gitlab-gcp-refprotected-string-guard",
+      "description": "The correct string form of the protection guard, composed with Google's mandatory group restriction: assertion.namespace_id == '72' && assertion.ref_protected == 'true'. Both values quoted, matching the token's string claims byte-exactly.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "claims": {
+        "sub": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+        "namespace_id": "72",
+        "ref_protected": "true"
+      },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.namespace_id == '72' && assertion.ref_protected == 'true'" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Group-restricted and protection-gated -- meaningfully stronger than the namespace floor alone -- but no project or subject pin: any protected ref of ANY project in group 72 satisfies it.", "patterns": ["namespace-id-pin", "ref-protected", "org-wide"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/"
+      ]
+    }
+  ]
+}

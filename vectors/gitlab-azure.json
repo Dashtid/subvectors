@@ -1,0 +1,98 @@
+{
+  "suite": "gitlab-azure",
+  "version": "0.1.0",
+  "description": "GitLab CI/CD OIDC subjects against classic Azure federated-identity-credential (FIC) subjects (azure-fic-exact). Third consumer for the GitLab issuer. Classic FIC checks issuer + subject + audience by EXACT string comparison -- 'Wildcard characters aren't supported in any federated identity credential property value' -- and a subject mismatch fails the exchange with NO diagnostic ('You won't get an error, the exchange fails without error'). GitLab's default sub is path- and ref-scoped (project_path:{group}/{project}:ref_type:{branch|tag}:ref:{short_ref}); the immutable project_id/namespace_id are SEPARATE claims a classic FIC cannot reference. Three consequences pinned here: (1) exact match admits exactly one ref, so branch/tag/environment coverage multiplies FICs against Azure's hard cap ('A maximum of 20 federated identity credentials can be added to an application or user-assigned managed identity'), pushing admins toward broad subjects or the preview flexible-FIC expression language; (2) the AWS-StringLike habit of writing project_path:group/* is a literal that matches nothing (opposite of AWS, and silent); (3) because the default sub carries only the mutable path, a party who reclaims a deleted/renamed path mints a byte-identical subject the FIC cannot distinguish from the original -- mitigated platform-side by GitLab's June 2026 path-burn, but the FIC pins nothing immutable. The project_id-led sub is the policy-side fix.",
+  "vectors": [
+    {
+      "id": "gitlab-az-fic-branch-exact-match",
+      "description": "Default name-based GitLab sub pinned to one branch of one project, matched by an exact classic FIC subject. The tight baseline -- but on GitLab's mutable path, not an immutable id.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "project_path:mygroup/myproject:ref_type:branch:ref:main" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Scope is tight (one branch of one project), but the sub is the mutable project_path with no project_id anywhere in the FIC: a rename or transfer silently breaks it (fail-closed), and its safety against path reclamation rests entirely on GitLab's platform-side path-burn, since classic FIC cannot reference the immutable project_id claim. The project_id-led sub (see gitlab-az-fic-immutable-projectid-exact-match) is the durable pin.", "patterns": ["exact-ref", "name-based", "no-id-pin"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://gitlab.com/gitlab-org/gitlab/-/commit/f7335ef7ea0f5d6955c24ee4847d4bb00ac0c5ee"
+      ]
+    },
+    {
+      "id": "gitlab-az-fic-immutable-projectid-exact-match",
+      "description": "Rename-proof GitLab sub after configuring ci_id_token_sub_claim_components so the sub leads with project_id, matched by an exact FIC. No mutable path anywhere in the credential.",
+      "issuer": "gitlab",
+      "subject": "project_id:20:ref_type:branch:ref:main",
+      "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "project_id:20:ref_type:branch:ref:main" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "The sub leads with the immutable project_id -- which GitLab documents as 'globally unique and remains the same for the lifetime of the project' -- with no project_path anywhere in the credential, so an exact FIC match survives rename, transfer, and path-reuse while pinning one branch. Requires configuring ci_id_token_sub_claim_components so the sub leads with project_id: opt-in per project, not the default.", "patterns": ["exact-ref", "immutable", "project-id-sub"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
+        "https://docs.gitlab.com/api/projects/"
+      ]
+    },
+    {
+      "id": "gitlab-az-fic-wildcard-literal-no-match",
+      "description": "The wildcard trap in GitLab form, opposite to AWS and silent. An admin used to an AWS StringLike condition (where project_path:mygroup/* admits the whole group) writes the same string as a FIC subject. Classic FIC supports no wildcards in any property value, so '*' is a literal character: this subject matches NO real token and the credential silently authenticates nothing. Fails closed, but a correctness and portability trap that surfaces no error until the exchange fails.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "project_path:mygroup/*" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gitlab-az-fic-ref-type-tag-vs-branch-mismatch",
+      "description": "GitLab encodes ref_type (branch|tag) as its own sub segment, so a branch named v1.0 and a tag named v1.0 mint DIFFERENT subjects. A FIC pinned to the branch form here does not match the incoming TAG token, and the exchange fails silently. Under exact match this fails closed, but it is a GitLab-specific footgun absent from GitHub (whose sub fuses ref_type and ref into one refs/heads|refs/tags segment): the same short ref name is two distinct identities.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:tag:ref:v1.0",
+      "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "project_path:mygroup/myproject:ref_type:branch:ref:v1.0" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+      ]
+    },
+    {
+      "id": "gitlab-az-fic-other-branch-mismatch",
+      "description": "A different branch of the same project does not match an exact FIC subject -- the mechanical driver of FIC sprawl. Every branch and tag needs its own credential, against Azure's hard cap of 20 FICs per application or user-assigned managed identity. That ceiling is what pushes GitLab admins toward over-broad subjects or the preview flexible-FIC expression language, which trades classic FIC's exactness for a restricted match syntax.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:feature-x",
+      "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "project_path:mygroup/myproject:ref_type:branch:ref:main" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials"
+      ]
+    },
+    {
+      "id": "gitlab-az-fic-path-reuse-squatter",
+      "description": "The reclaimed-path token evaluated against the victim's stale FIC. The claims model a DIFFERENT project (project_id 999) now occupying mygroup/myproject and minting a byte-identical path-based sub; classic FIC matches only the string subject and has no way to reference project_id, so the squatter's token satisfies the credential. Mitigated upstream, not by the FIC: GitLab blocks new CI ID tokens for reclaimed project paths -- AWS's WIF note dates this platform-side change June 1, 2026, and GitLab commit f7335ef7e implements it (covering delete/rename/transfer; original project exempt; path-based subs only; non-retroactive; undocumented in GitLab's user docs). The GitLab path-reuse analogue of the GitHub-rename FIC break, and the Azure sibling of gitlab-aws-path-reuse-no-projectid.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "claims": {
+        "sub": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+        "project_id": "999"
+      },
+      "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "project_path:mygroup/myproject:ref_type:branch:ref:main" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "Classic FIC pins the mutable project_path and cannot see the immutable project_id (999 here, not the original project's id), so whoever reclaims the vacated path assumes the federated identity. GitLab's platform-side path-burn closes the common reclaim route going forward, but it is non-retroactive, absent on self-managed instances predating the change, and invisible to the credential -- the FIC itself pins nothing immutable. The policy-side fix is the project_id-led sub (see gitlab-az-fic-immutable-projectid-exact-match); classic FIC has no condition-key layer to add a separate project_id check the way an AWS trust policy can.", "patterns": ["path-based", "no-id-pin", "path-reuse"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://gitlab.com/gitlab-org/gitlab/-/commit/f7335ef7ea0f5d6955c24ee4847d4bb00ac0c5ee"
+      ]
+    }
+  ]
+}

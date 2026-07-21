@@ -1,0 +1,126 @@
+{
+  "suite": "github-azure-flexible",
+  "version": "0.1.0",
+  "description": "GitHub Actions OIDC tokens against Azure Entra FLEXIBLE federated-identity-credential expressions (azure-fic-flexible) -- PREVIEW (Microsoft Learn page updated 2026-06-15; languageVersion always 1; Microsoft Graph / Azure portal only; application objects only). Flexible FIC replaces classic FIC's exact `subject` string with a `claimsMatchingExpression` (the two are mutually exclusive -- setting one nulls the other), written in a restricted language: `claims['<name>'] <op> '<comparand>'` clauses joined by `and`, where `eq` is exact and `matches` is an anchored glob (`?` matches one character, `*` multiple, not path-aware -- spanning `/` and `:` like AWS StringLike). Its purpose is to defeat classic FIC's cap of 20 credentials per identity by collapsing many exact credentials into one wildcard rule -- which is exactly what makes it trap-rich: the same `repo:org/*` that classic FIC treats as an inert literal here admits the whole org. For GitHub it can reference `sub` and `job_workflow_ref` (enabling the documented reusable-workflow `and` pin); GitLab and Terraform Cloud flexible FIC support only `sub`. Because a rule lives in `claimsMatchingExpression` with `subject` null, a FIC check that inspects only the `subject` property is blind to it.",
+  "vectors": [
+    {
+      "id": "gh-flex-eq-exact-branch",
+      "description": "The exact-match baseline in flexible form: claims['sub'] eq '...ref:refs/heads/main'. `eq` is byte-exact, so this is the classic single-branch pin re-expressed as an expression -- one branch of one repo, with no wildcard breadth.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] eq 'repo:octo-org/octo-repo:ref:refs/heads/main'" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "eq is exact, case-sensitive equality, so the expression admits exactly the main branch of exactly this repo -- the same tight boundary as a classic FIC subject, with no wildcard to widen it. The sub is name-based (it embeds the repository path).", "patterns": ["exact-ref", "eq"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+      ]
+    },
+    {
+      "id": "gh-flex-matches-branch-wildcard",
+      "description": "The documented marquee use case -- claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/*' -- collapsing a fleet of per-branch classic FICs into one credential. The `*` admits EVERY branch of the repo, matched here by a feature branch.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/feature-x",
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/*'" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "Any branch of the repo satisfies the rule, so anyone who can push a branch -- not only a protected-branch maintainer -- runs a workflow that assumes this identity. The convenience that motivates flexible FIC (one rule for all branches) is the over-permission; scope the ref or add a second claim (job_workflow_ref or environment).", "patterns": ["wildcard-ref", "unprotected-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+      ]
+    },
+    {
+      "id": "gh-flex-matches-org-wide-wildcard",
+      "description": "The wildcard classic FIC could not express: claims['sub'] matches 'repo:octo-org/*'. Because `matches` `*` is not path-aware (it spans `/` and `:`, like AWS StringLike), it admits every repo in the org at any ref -- the exact string classic Azure FIC treats as an inert literal (contrast az-fic-wildcard-is-literal-no-match). Matched here by a DIFFERENT repo than any specific one.",
+      "issuer": "github",
+      "subject": "repo:octo-org/another-repo:ref:refs/heads/main",
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] matches 'repo:octo-org/*'" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "Org-wide trust: every repository under octo-org, at every ref, assumes the identity, and a newly created repo inherits it immediately. `*` spanning the path and ref separators is the same non-path-aware breadth as AWS StringLike -- the difference is that flexible FIC HONORS it where classic FIC ignored it. Pin the repository, and prefer a claim bearing an immutable id where the issuer offers one.", "patterns": ["wildcard-repo", "org-wide"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-flex-question-fixed-width-footgun",
+      "description": "The single-character wildcard's width trap: claims['sub'] matches '...ref:refs/heads/????'. `?` matches EXACTLY one character, so four of them match any four-character branch -- `main` here, but equally `test`, `temp`, or any attacker-pushed four-character branch -- while silently EXCLUDING the six-character `master` (see the sibling no-match gh-flex-question-width-excludes-longer).",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/????'" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "The width-counting `?` admits any four-character branch name -- not just the intended `main` but any `xxxx` branch an attacker can push -- while excluding longer intended branches. It encodes branch-name LENGTH, not identity: a footgun that reads as specificity. Match the ref name with eq, or a pattern anchored to the intended name.", "patterns": ["wildcard-question", "fixed-width", "unprotected-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+      ]
+    },
+    {
+      "id": "gh-flex-question-width-excludes-longer",
+      "description": "The exclusion side of the `????` width trap: the same four-`?` pattern does not match the six-character branch `master`. `?` is exactly one character with no zero-or-more flex, so a length mismatch fails closed -- surprising when the author believed `????` meant 'any branch name'.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/master",
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/????'" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials"
+      ]
+    },
+    {
+      "id": "gh-flex-and-reusable-workflow-pin",
+      "description": "The `and` combinator on GitHub's two supported flexible-FIC claims -- the documented reusable-workflow scenario. claims['sub'] eq '...main' and claims['job_workflow_ref'] matches 'octo-org/reusable/.github/workflows/*@refs/heads/main' pins the CALLER (exact branch) AND the reusable workflow's repo and ref, in one credential classic FIC could not express (it matches a single subject only). job_workflow_ref is a GitHub-only flexible-FIC claim.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:ref:refs/heads/main",
+        "job_workflow_ref": "octo-org/reusable/.github/workflows/deploy.yml@refs/heads/main"
+      },
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] eq 'repo:octo-org/octo-repo:ref:refs/heads/main' and claims['job_workflow_ref'] matches 'octo-org/reusable/.github/workflows/*@refs/heads/main'" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "A genuine improvement over classic FIC: two claims ANDed in one credential, pinning the caller branch and the reusable workflow's repo and ref. The residual is the `*` on the workflow FILENAME -- any workflow file under that path at refs/heads/main qualifies -- so a newly added or altered workflow in the reusable repo inherits trust. Pin the filename with eq if the set is closed.", "patterns": ["multi-claim-and", "job-workflow-ref", "reusable-workflow"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+      ]
+    },
+    {
+      "id": "gh-flex-and-jobworkflowref-ref-mismatch-rejects",
+      "description": "The `and` guard working: the same expression as gh-flex-and-reusable-workflow-pin, but the reusable workflow ran on a DIFFERENT ref (@refs/heads/dev, not @refs/heads/main). The second clause's `matches` fails, so the conjunction fails and the exchange is refused -- the branch-pinned second claim catching what the caller sub alone could not.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:ref:refs/heads/main",
+        "job_workflow_ref": "octo-org/reusable/.github/workflows/deploy.yml@refs/heads/dev"
+      },
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] eq 'repo:octo-org/octo-repo:ref:refs/heads/main' and claims['job_workflow_ref'] matches 'octo-org/reusable/.github/workflows/*@refs/heads/main'" },
+      "expect": "no-match",
+      "judgment": { "grade": "caution", "reason": "The conjunction fails closed on the second claim -- a reusable workflow invoked from the wrong ref cannot assume the identity even though the caller sub is exact. This is the value flexible FIC's `and` adds over classic single-subject FIC; the residual filename wildcard noted in the matching sibling still applies to workflows that DO run on the pinned ref.", "patterns": ["multi-claim-and", "job-workflow-ref", "reusable-workflow"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+      ]
+    },
+    {
+      "id": "gh-flex-eq-pull-request-scanner-blindspot",
+      "description": "The pull_request subject admitted via flexible FIC, plus a scanning blind spot. claims['sub'] eq 'repo:octo-org/octo-repo:pull_request' matches pull_request-triggered tokens (workflows running proposed changes before review/merge, not the protected default branch). Because flexible FIC sets the `subject` property to null and expresses matching in `claimsMatchingExpression` instead, any FIC check that inspects only the `subject` property cannot see this rule -- the over-permission is invisible to subject-based scanning.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:pull_request",
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] eq 'repo:octo-org/octo-repo:pull_request'" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "The rule trusts pull_request-triggered runs, a classic OIDC over-permission: a pull_request workflow runs for a proposed change, not the protected default branch. The compounding risk is detectability: a scanner reading the FIC `subject` finds nothing, because flexible FIC nulls `subject` and puts the match in claimsMatchingExpression. Do not trust the pull_request subject; scanners must parse claimsMatchingExpression to cover flexible FIC.", "patterns": ["pull-request", "scanner-blindspot"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+      ]
+    }
+  ]
+}

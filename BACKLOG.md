@@ -81,9 +81,17 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 
 ## Corpus / product depth
 
-- `[ ]` **Flexible FIC tranche** (`azure-fic-flexible` consumer): `claimsMatchingExpression` with
-  `matches`/`eq`/`and` and `*`/`?` wildcards. Preview — Graph/portal-only, no Terraform/CLI
-  surface; version-stamp every vector. Its own matcher (expression parse) and slice.
+- `[x]` **Flexible FIC tranche** (`azure-fic-flexible` consumer): shipped `src/subvectors/ffl.py`
+  (a minimal expression evaluator -- `claims['<name>'] <op> '<comparand>'` clauses joined by
+  `and`; `eq` exact, `matches` an anchored non-path-aware glob with `?`=one char / `*`=multi),
+  wired into the matcher, and `vectors/github-azure-flexible.json` (0.1.0, 8 vectors, GitHub
+  issuer). Pins: the org-wide `repo:org/*` that classic FIC treats as a literal but flexible FIC
+  HONORS; the `????` fixed-width `?` footgun (both directions); the documented reusable-workflow
+  `sub`+`job_workflow_ref` `and` pin; and the pull_request + subject-scanner blind spot (flexible
+  FIC nulls `subject`). PREVIEW, version-stamped (page updated 2026-06-15, languageVersion 1).
+  Adversarial pass: 8/8 clean, 0 blockers. Remaining: GitLab and Terraform Cloud flexible FIC
+  (both `sub`-only) as small follow-on tranches -- note GitLab flexible FIC STILL cannot reference
+  project_id, so the immutable-id gap persists from the classic tranche.
 - `[ ]` **Judgment catalog.** Write the graded over-permission patterns (`pull-request`,
   `wildcard-repo`, `org-wide`, `wildcard-suffix`, `tag-ref`, `environment-scoped`,
   unprotected-branch) as a citable reference page; consider stable pattern IDs.
@@ -111,6 +119,11 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 
 - `[ ]` **CKV_AZURE_249 deepening PR.** After the first Checkov PR lands. Driven by the
   `pull_request`/tag/environment Azure vectors — the check passes patterns it should flag.
+  Stronger angle now vectored: flexible FIC nulls the `subject` property and moves matching into
+  `claimsMatchingExpression`, so any subject-only check is BLIND to a flexible-FIC rule entirely
+  (`gh-flex-eq-pull-request-scanner-blindspot`). Confirm CKV_AZURE_249 reads only `subject`
+  (`git log -S "claimsMatchingExpression"` in a Checkov clone) before framing — if unhandled,
+  that is a coverage-gap finding, not just a shallow-pattern one.
 - `[ ]` **CKV_GCP_125 scoping question / PR.** The check only reasons about `assertion.sub ==`
   conditions, so it is blind to the `assertion.repository_id`/`repository_owner_id` immutable pins
   Google officially recommends — it cannot distinguish the safest config from a missing one. Frame

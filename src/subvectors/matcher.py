@@ -11,10 +11,10 @@ reads it. Keeping the two apart is the point: the match is mechanically
 falsifiable; the safety grade is a documented claim.
 
 Scope: the AWS consumers (StringLike / StringEquals), classic Azure FIC (exact match),
-and GCP Workload Identity Federation (CEL attribute_condition, evaluated by cel.py). The
-preview "flexible FIC" expression language (azure-fic-flexible) is declared in the vector
-schema and lands in a later tranche; an unsupported consumer raises rather than silently
-returning False, so a vector can never pass by being unmatched.
+GCP Workload Identity Federation (CEL attribute_condition, evaluated by cel.py), and the
+preview Azure "flexible FIC" expression language (azure-fic-flexible, evaluated by ffl.py).
+An unsupported consumer raises rather than silently returning False, so a vector can never
+pass by being unmatched.
 
 AWS conditions may target a claim other than ``sub`` (``condition["claim"]``, e.g. ``aud``)
 and may carry a LIST of pattern values: IAM evaluates multiple values for one condition key
@@ -46,7 +46,7 @@ from __future__ import annotations
 import re
 from typing import Callable
 
-from . import cel
+from . import cel, ffl
 
 __all__ = ["satisfies", "UnsupportedConsumer", "SUPPORTED_CONSUMERS"]
 
@@ -112,9 +112,10 @@ _CONSUMERS: dict[str, Callable[[str, str], bool]] = {
 # pattern on any other consumer is a vector-authoring error and must fail loudly.
 _LIST_PATTERN_CONSUMERS = frozenset({"aws-stringlike", "aws-stringequals"})
 
-# gcp-cel is handled separately (it needs the full claim set, not just the subject);
-# aws-all composes the AWS string consumers into an ANDed condition block.
-SUPPORTED_CONSUMERS = frozenset(_CONSUMERS) | {"gcp-cel", "aws-all"}
+# gcp-cel and azure-fic-flexible are handled separately (they evaluate an expression
+# over the full claim set, not just the subject); aws-all composes the AWS string
+# consumers into an ANDed condition block.
+SUPPORTED_CONSUMERS = frozenset(_CONSUMERS) | {"gcp-cel", "azure-fic-flexible", "aws-all"}
 
 
 def satisfies(subject: str, condition: dict, claims: dict | None = None) -> bool:
@@ -173,6 +174,18 @@ def satisfies(subject: str, condition: dict, claims: dict | None = None) -> bool
                 f"got {type(pattern).__name__}"
             )
         return cel.evaluate(pattern, claims)
+    if consumer == "azure-fic-flexible":
+        if claim != "sub":
+            raise ValueError(
+                "consumer 'azure-fic-flexible' evaluates the full claim set; address "
+                "claims inside the expression (claims['<name>']), not via 'claim'"
+            )
+        if not isinstance(pattern, str):
+            raise ValueError(
+                f"consumer {consumer!r} takes a single expression string, "
+                f"got {type(pattern).__name__}"
+            )
+        return ffl.evaluate(pattern, claims)
     try:
         match_fn = _CONSUMERS[consumer]
     except KeyError as exc:

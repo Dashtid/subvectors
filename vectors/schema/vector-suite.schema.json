@@ -145,7 +145,7 @@
         {
           "if": {
             "properties": {
-              "consumer": { "const": "gcp-cel" }
+              "consumer": { "enum": ["gcp-cel", "azure-fic-flexible"] }
             },
             "required": ["consumer"]
           },

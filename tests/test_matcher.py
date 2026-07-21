@@ -57,9 +57,63 @@ def test_azure_fic_exact_has_no_wildcards_unlike_aws() -> None:
 
 
 def test_unsupported_consumer_raises_not_returns_false() -> None:
-    assert "azure-fic-flexible" not in SUPPORTED_CONSUMERS
+    # A consumer the matcher doesn't implement must raise, never silently no-match.
+    assert "aws-notarealoperator" not in SUPPORTED_CONSUMERS
     with pytest.raises(UnsupportedConsumer):
-        satisfies("anything", _cond("azure-fic-flexible", "anything"))
+        satisfies("anything", _cond("aws-notarealoperator", "anything"))
+
+
+def test_azure_fic_flexible_eq_is_exact_and_matches_is_anchored_glob() -> None:
+    sub = "repo:octo-org/octo-repo:ref:refs/heads/main"
+    assert satisfies(sub, _cond("azure-fic-flexible", f"claims['sub'] eq '{sub}'")) is True
+    # matches is anchored: refs/heads/* admits any branch of this repo...
+    assert satisfies(
+        "repo:octo-org/octo-repo:ref:refs/heads/feature-x",
+        _cond("azure-fic-flexible", "claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/*'"),
+    ) is True
+    # ...but the literal prefix is anchored, so another repo does not match.
+    assert satisfies(
+        "repo:other-org/octo-repo:ref:refs/heads/main",
+        _cond("azure-fic-flexible", "claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/*'"),
+    ) is False
+
+
+def test_azure_fic_flexible_star_is_not_path_aware_like_aws() -> None:
+    # The same over-broad wildcard that AWS StringLike honors and classic FIC treats
+    # as a literal: flexible FIC's matches spans '/' and ':', so it is permissive.
+    star = "claims['sub'] matches 'repo:octo-org/*'"
+    assert satisfies("repo:octo-org/any-repo:ref:refs/heads/main", _cond("azure-fic-flexible", star)) is True
+
+
+def test_azure_fic_flexible_question_is_fixed_width_single_char() -> None:
+    pat = "claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/????'"
+    assert satisfies("repo:octo-org/octo-repo:ref:refs/heads/main", _cond("azure-fic-flexible", pat)) is True
+    # 'master' is six characters -- the four '?' cannot match it (fails closed).
+    assert satisfies("repo:octo-org/octo-repo:ref:refs/heads/master", _cond("azure-fic-flexible", pat)) is False
+
+
+def test_azure_fic_flexible_and_requires_every_clause() -> None:
+    sub = "repo:octo-org/octo-repo:ref:refs/heads/main"
+    expr = (
+        "claims['sub'] eq 'repo:octo-org/octo-repo:ref:refs/heads/main' "
+        "and claims['job_workflow_ref'] matches "
+        "'octo-org/reusable/.github/workflows/*@refs/heads/main'"
+    )
+    ok = {"sub": sub, "job_workflow_ref": "octo-org/reusable/.github/workflows/deploy.yml@refs/heads/main"}
+    assert satisfies(sub, _cond("azure-fic-flexible", expr), claims=ok) is True
+    # Same caller sub, but the reusable workflow ran on a different ref -> block fails.
+    wrong = {"sub": sub, "job_workflow_ref": "octo-org/reusable/.github/workflows/deploy.yml@refs/heads/dev"}
+    assert satisfies(sub, _cond("azure-fic-flexible", expr), claims=wrong) is False
+
+
+def test_azure_fic_flexible_rejects_claim_targeting_and_list_pattern() -> None:
+    # Claims are addressed inside the expression; a 'claim' key is meaningless, and
+    # a list pattern (an AWS multi-value shape) is not part of this language.
+    with pytest.raises(ValueError):
+        satisfies("x", {"consumer": "azure-fic-flexible", "claim": "aud", "pattern": "claims['sub'] eq 'x'"},
+                  claims={"sub": "x", "aud": "y"})
+    with pytest.raises(ValueError):
+        satisfies("x", {"consumer": "azure-fic-flexible", "pattern": ["a", "b"]})
 
 
 def test_aws_multivalue_pattern_is_logical_or() -> None:

@@ -89,9 +89,23 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   HONORS; the `????` fixed-width `?` footgun (both directions); the documented reusable-workflow
   `sub`+`job_workflow_ref` `and` pin; and the pull_request + subject-scanner blind spot (flexible
   FIC nulls `subject`). PREVIEW, version-stamped (page updated 2026-06-15, languageVersion 1).
-  Adversarial pass: 8/8 clean, 0 blockers. Remaining: GitLab and Terraform Cloud flexible FIC
-  (both `sub`-only) as small follow-on tranches -- note GitLab flexible FIC STILL cannot reference
-  project_id, so the immutable-id gap persists from the classic tranche.
+  Adversarial pass: 8/8 clean, 0 blockers. GitLab side ALSO shipped (`gitlab-azure-flexible.json`
+  0.1.0, 5 vectors): GitLab flexible FIC references ONLY `sub` (no job_workflow_ref, no
+  project_id), so unlike GitHub there is no second claim to `and` in -- encoded as the
+  path-reuse squatter that even an exact `eq` cannot exclude, and the project_id-led sub as the
+  ONLY immutable lever (bake the id into the sub, since it is not a separate matchable claim).
+  Adversarial pass: 5/5 mechanically clean; one attribution blocker fixed (immutability quote
+  re-sourced). Remaining: Terraform Cloud flexible FIC (sub-only, new issuer -- needs the TFC
+  `organization:...:workspace:...:run_phase:...` sub grammar researched first).
+- `[i]` **Citation map for GitLab project_id facts** (learned across two verify rounds, so future
+  vectors cite right the first time): the STRONG immutability wording -- "globally unique and
+  remains the same for the entire lifetime of the project, including across group renames, project
+  renames, and project transfers" -- is VERBATIM on `docs.gitlab.com/ci/cloud_services/aws/`; the
+  SHORTER "...for the lifetime of the project" is on `id_token_authentication`. project_id-led-sub
+  PRODUCIBILITY (project_id may be the first sub component) is documented in NO GitLab doc page --
+  only in source: `project_ci_cd_setting.rb` `SUB_CLAIM_LEADING_COMPONENTS = %w[project_path
+  project_id]`. Cite that file for producibility; a rendered-page fetch may miss the immutability
+  sentence, so prefer the cloud_services/aws source for it.
 - `[ ]` **Judgment catalog.** Write the graded over-permission patterns (`pull-request`,
   `wildcard-repo`, `org-wide`, `wildcard-suffix`, `tag-ref`, `environment-scoped`,
   unprotected-branch) as a citable reference page; consider stable pattern IDs.

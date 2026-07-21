@@ -1,0 +1,88 @@
+{
+  "suite": "gitlab-azure-flexible",
+  "version": "0.1.0",
+  "description": "GitLab CI/CD OIDC tokens against Azure Entra FLEXIBLE federated-identity-credential expressions (azure-fic-flexible) -- PREVIEW. Second issuer for flexible FIC (after github-azure-flexible), and the one where the language's limits bite: for GitLab the expression may reference ONLY the `sub` claim (the Microsoft Learn page lists `sub` with `eq`/`matches` and nothing else -- no `job_workflow_ref`, no `project_id`), so unlike GitHub there is no second claim to `and` in. Flexible `matches` HONORS the `project_path:group/*` wildcard that classic FIC treats as an inert literal, but it gives GitLab NO lever to pin the immutable project_id as a separate claim: the only way an immutable id enters the match is if the project bakes it into the sub itself via the project_id-led sub (ci_id_token_sub_claim_components). GitLab sub default = project_path:{group}/{project}:ref_type:{branch|tag}:ref:{short_ref}; matches semantics: `?` one character, `*` multiple, anchored, not path-aware (spans `/` and `:`).",
+  "vectors": [
+    {
+      "id": "gl-flex-eq-exact-branch",
+      "description": "Exact-match baseline in flexible form: claims['sub'] eq the default name-based GitLab sub for one branch. eq is byte-exact -- one branch of one project -- but on the mutable project_path, not an immutable id.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] eq 'project_path:mygroup/myproject:ref_type:branch:ref:main'" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "eq admits exactly this branch of this project, but the sub is the mutable project_path with no immutable id: a project rename changes the sub and the credential no longer matches, and GitLab flexible FIC cannot reference project_id as a separate claim to harden it. The project_id-led sub is the durable lever (see gl-flex-immutable-projectid-sub-any-branch).", "patterns": ["exact-ref", "name-based", "no-id-pin"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/"
+      ]
+    },
+    {
+      "id": "gl-flex-matches-group-wildcard",
+      "description": "The group-wide wildcard classic FIC could not express: claims['sub'] matches 'project_path:mygroup/*'. Flexible `matches` `*` is anchored but not path-aware (spans `/` and `:`), so it admits every project in the group at any ref -- the exact string classic Azure FIC treats as an inert literal (contrast az-fic-wildcard-is-literal-no-match). Matched here by another project in the group.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/otherproject:ref_type:branch:ref:main",
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] matches 'project_path:mygroup/*'" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "Every project under mygroup, at any subgroup depth and any ref, assumes the identity, and a newly created project inherits it immediately. `*` spanning the path and ref separators is the same non-path-aware breadth as AWS StringLike -- flexible FIC HONORS it where classic FIC ignored it. Pin the project; GitLab flexible FIC has no project_id claim to add, so use the project_id-led sub.", "patterns": ["wildcard-group", "subgroup-nesting", "org-wide"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gl-flex-matches-any-branch",
+      "description": "Project pinned by path, but ref wildcarded: claims['sub'] matches 'project_path:mygroup/myproject:ref_type:branch:ref:*' admits ANY branch of the project. GitLab's sub carries no protection or pipeline-source marker, and flexible FIC exposes no other GitLab claim, so a developer pushing any branch runs a pipeline that assumes the identity.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:feature-x",
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] matches 'project_path:mygroup/myproject:ref_type:branch:ref:*'" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "Any branch of the project satisfies the rule -- an attacker-pushed feature branch included -- and GitLab flexible FIC cannot add a ref_protected or pipeline_source guard, because only sub is a supported claim. Narrow the ref, or enforce protection in the pipeline.", "patterns": ["wildcard-ref", "unprotected-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/"
+      ]
+    },
+    {
+      "id": "gl-flex-eq-path-reuse-squatter-no-lever",
+      "description": "The reclaimed-path squatter against even the TIGHTEST flexible rule, and the GitLab-specific dead end. The claims model a different project (project_id 999) now occupying mygroup/myproject and minting a byte-identical path-based sub; an exact claims['sub'] eq '...' admits it, because eq sees only the sub string. For GitHub, flexible FIC could add `and claims['job_workflow_ref'] ...` as a second guard; for GitLab the Microsoft Learn page exposes ONLY the sub claim, so there is no second claim to pin the immutable project_id -- no flexible expression can exclude the squatter.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "claims": {
+        "sub": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+        "project_id": "999"
+      },
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] eq 'project_path:mygroup/myproject:ref_type:branch:ref:main'" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "Path-based sub with no immutable pin, and flexible FIC gives GitLab no lever to add one: the squatter's byte-identical sub satisfies even an exact eq rule, and project_id is not a referenceable claim. GitLab's platform-side path-burn (AWS's WIF note dates it June 1, 2026; commit f7335ef7e covers delete/rename/transfer, non-retroactive, original project exempt) is the only mitigation -- policy-side, the sole fix is the project_id-led sub (see gl-flex-immutable-projectid-sub-any-branch).", "patterns": ["path-based", "no-id-pin", "path-reuse", "immutable-gap"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://gitlab.com/gitlab-org/gitlab/-/commit/f7335ef7ea0f5d6955c24ee4847d4bb00ac0c5ee",
+        "https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/models/project_ci_cd_setting.rb"
+      ]
+    },
+    {
+      "id": "gl-flex-immutable-projectid-sub-any-branch",
+      "description": "The single immutable lever GitLab flexible FIC allows: bake project_id into the sub. With the project_id-led sub (ci_id_token_sub_claim_components), claims['sub'] matches 'project_id:20:ref_type:branch:ref:*' pins the immutable project across ALL its branches in one credential -- rename- and path-reuse-proof AND branch-flexible, the low-maintenance pin GitHub gets via a job_workflow_ref `and`. Since project_id is not a separate GitLab flexible-FIC claim, putting it IN the sub is the only way an immutable id enters the match.",
+      "issuer": "gitlab",
+      "subject": "project_id:20:ref_type:branch:ref:feature-x",
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] matches 'project_id:20:ref_type:branch:ref:*'" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "The project is pinned immutably -- 'project_id is globally unique and remains the same for the entire lifetime of the project, including across group renames, project renames, and project transfers' -- so no rename or path-reuse can satisfy the rule, and one flexible credential covers every branch. The residual is ref:*: any branch of project 20, including an unprotected or attacker-pushed one, still qualifies. Narrow or gate the ref.", "patterns": ["immutable", "project-id-sub", "wildcard-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
+        "https://docs.gitlab.com/api/projects/",
+        "https://docs.gitlab.com/ci/cloud_services/aws/",
+        "https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/models/project_ci_cd_setting.rb"
+      ]
+    }
+  ]
+}

@@ -70,6 +70,10 @@ kept consistent across the corpus:
 - **dangerous** — a real over-permission (org/repo wildcard, `pull_request` subject, any-branch
   admission, a path-reuse squatter with no immutable pin).
 
+Tag `judgment.patterns` with pattern IDs from the controlled vocabulary in
+[`docs/JUDGMENT-CATALOG.md`](docs/JUDGMENT-CATALOG.md) — a new tag must be filed there under a
+family, and `tests/test_judgment_catalog.py` fails if it isn't.
+
 ## Workflow
 
 ```bash

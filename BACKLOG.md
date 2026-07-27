@@ -106,9 +106,14 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   only in source: `project_ci_cd_setting.rb` `SUB_CLAIM_LEADING_COMPONENTS = %w[project_path
   project_id]`. Cite that file for producibility; a rendered-page fetch may miss the immutability
   sentence, so prefer the cloud_services/aws source for it.
-- `[ ]` **Judgment catalog.** Write the graded over-permission patterns (`pull-request`,
-  `wildcard-repo`, `org-wide`, `wildcard-suffix`, `tag-ref`, `environment-scoped`,
-  unprotected-branch) as a citable reference page; consider stable pattern IDs.
+- `[x]` **Judgment catalog.** Shipped `docs/JUDGMENT-CATALOG.md`: all 65 `judgment.patterns` tags
+  grouped into 10 canonical families (`scope-repo`, `scope-ref`, `scope-tag`, `event-trust`,
+  `mutable-identity`, `immutable-pin`, `composite`, `environment`, `type-trap`, `detection-gap`),
+  each with a definition, mechanism, typical grade, and example vector. Stable, citable pattern
+  IDs. `tests/test_judgment_catalog.py` guards both directions (every corpus tag documented; every
+  cited example id real), so the vocabulary can't sprawl silently. Follow-up parked in the file's
+  Vocabulary note: a consolidation pass could collapse the near-synonyms (`org-wide`/`wildcard-repo`,
+  `path-based`/`path-only`/`path-reuse`, `always-false`/`vacuous-guard`) into a smaller set.
 - `[ ]` **Immutable-format completeness.** Rename/transfer trigger vectors; `job_workflow_ref`
   grammar (stays mutable, not `@id`-suffixed); custom subject-claim templates.
 - `[ ]` **Promote key vectors `documented` -> `observed`** by confirming against a real issuer/

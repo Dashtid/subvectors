@@ -53,7 +53,9 @@ Three layers per vector:
 2. **Match semantics** — does it satisfy the consumer's condition (AWS `StringLike`/`StringEquals`
    globbing, Azure FIC exact match + flexible expressions, GCP CEL)?
 3. **Judgment** — is the condition safe? Graded findings for the patterns that matter:
-   `pull_request` subjects, unprotected refs, wildcarded repos/orgs, missing `aud` pinning.
+   `pull_request` subjects, unprotected refs, wildcarded repos/orgs, missing `aud` pinning. The
+   graded patterns are a stable, citable vocabulary — see
+   [`docs/JUDGMENT-CATALOG.md`](docs/JUDGMENT-CATALOG.md).
 
 Every vector carries a source citation and a `documented` vs `observed` status. A ~100-line
 reference matcher (Python, pytest) passes the suite — it is a correctness oracle, not a product.

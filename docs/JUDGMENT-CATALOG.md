@@ -42,6 +42,7 @@ narrow, non-org-spanning suffix is involved).
 | `repo-wide` | Repo pinned, but nothing narrower (any ref/env of it) | caution | `gh-aws-repository-id-immutable-pin` |
 | `no-repo-scope` | The condition never constrains the repo/owner at all | dangerous | `gh-gcp-trivial-condition-any-repo-danger` |
 | `confused-deputy` | A trivially-true condition trusts any repo (classic confused deputy) | dangerous | `gh-gcp-trivial-condition-any-repo-danger` |
+| `wildcard-workspace` | `*` at the TFC workspace segment; any workspace in the project | dangerous | `tfc-flex-workspace-wildcard-project-wide` |
 
 ### Ref / branch scope — `scope-ref`
 
@@ -80,6 +81,7 @@ Trusts *which event* ran, not *who* — usually admitting unreviewed or proposed
 | `merge-request` | GitLab MR pipeline admitted (no MR marker in the sub) | dangerous | `gitlab-aws-merge-request-source-branch-admitted` |
 | `no-event-guard` | No `pipeline_source`/event gate; any trigger qualifies | dangerous | `gh-gcp-pull-request-danger` |
 | `pipeline-source-gate` | Gates the event but not *who* (branch pushes still broad) | dangerous | `gitlab-aws-all-pipeline-source-gates-mr` |
+| `run-phase-wildcard` | TFC `run_phase:*` admits both plan and apply, collapsing the phase separation | dangerous | `tfc-flex-run-phase-wildcard-collapses-plan-apply` |
 
 ### Mutable identity (rename / path-reuse) — `mutable-identity`
 

@@ -1,0 +1,98 @@
+{
+  "suite": "terraform-azure-flexible",
+  "version": "0.1.0",
+  "description": "Terraform Cloud / HCP Terraform CI OIDC tokens against Azure Entra FLEXIBLE federated-identity-credential expressions (azure-fic-flexible) -- PREVIEW. Third and final issuer Microsoft supports for flexible FIC (after GitHub and GitLab); zero matcher changes. The TFC sub is a name-based path plus the run phase: organization:{org}:project:{project}:workspace:{workspace}:run_phase:{plan|apply}, minted by the issuer https://app.terraform.io. run_phase is the case flexible FIC exists for: because classic FIC is a direct string match, 'two federated identity credentials need to be created for each workspace using dynamic credentials: one that matches run_phase:plan and one that matches run_phase:apply' -- flexible FIC collapses that pair into one matches expression, which also collapses the plan/apply trust separation. Like GitLab, TFC flexible FIC references ONLY sub; the immutable terraform_organization_id / terraform_project_id / terraform_workspace_id are SEPARATE claims it cannot reference, and TFC exposes no sub customization, so -- unlike GitLab's project_id-led sub -- there is NO policy-side lever to pin an immutable id. matches semantics: ? one character, * multiple, anchored, not path-aware (spans ':').",
+  "vectors": [
+    {
+      "id": "tfc-flex-eq-apply-exact",
+      "description": "The tightest pin: claims['sub'] eq the fully-qualified workspace path at the apply phase. eq is exact, so it admits exactly one workspace's apply runs -- but on the mutable name path (organization/project/workspace names), with no immutable id available.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply",
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] eq 'organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply'" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "eq admits exactly this workspace's apply phase -- the correct scope for a write-capable role -- but the sub is entirely name-based (organization/project/workspace names), so a rename changes it and there is no immutable id to fall back on: TFC flexible FIC references only sub, and the immutable terraform_*_id claims are not addressable. Durable within a stable naming scheme; fragile across renames.", "patterns": ["exact-ref", "name-based", "no-id-pin"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens",
+        "https://developer.hashicorp.com/terraform/cloud-docs/dynamic-provider-credentials/azure-configuration"
+      ]
+    },
+    {
+      "id": "tfc-flex-run-phase-wildcard-collapses-plan-apply",
+      "description": "The marquee flexible-FIC case, and its trap. Classic FIC needs two credentials per workspace -- 'one that matches run_phase:plan and one that matches run_phase:apply' -- so admins reach for flexible FIC to collapse them into claims['sub'] matches '...:run_phase:*'. The same wildcard that removes the two-credential chore also removes the plan/apply separation: this credential is assumable during the PLAN phase (matched here by a run_phase:plan token), not just apply.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:plan",
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] matches 'organization:my-org:project:my-project:workspace:my-workspace:run_phase:*'" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "run_phase:* trusts both phases in one credential. HashiCorp keeps them as SEPARATE credentials precisely because they are distinct trust levels -- plan runs earlier in the run lifecycle than the approved apply -- so a write-capable role behind a run_phase:* credential becomes assumable during plan, which the per-phase split exists to prevent. Pin run_phase to apply with eq for write roles; use a plan-scoped, read-only role for plan.", "patterns": ["run-phase-wildcard", "wildcard-suffix"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://developer.hashicorp.com/terraform/cloud-docs/dynamic-provider-credentials/azure-configuration",
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens"
+      ]
+    },
+    {
+      "id": "tfc-flex-workspace-wildcard-project-wide",
+      "description": "A wildcard at the workspace segment: claims['sub'] matches 'organization:my-org:project:my-project:workspace:*:run_phase:apply' admits the apply phase of ANY workspace in the project (matched here by a different workspace). Wildcarding the workspace segment is how a TFC trust is broadened from one workspace to a whole project in a single credential -- the anchored matches * consumes the workspace name.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:my-project:workspace:other-workspace:run_phase:apply",
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] matches 'organization:my-org:project:my-project:workspace:*:run_phase:apply'" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "Every workspace in the project -- including workspaces created after the credential -- can assume the identity on apply. Convenient for a fleet, but it grants each workspace whatever this credential's role holds, defeating per-workspace isolation. Scope to the named workspace, or use per-workspace credentials.", "patterns": ["wildcard-workspace", "name-based"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://developer.hashicorp.com/terraform/cloud-docs/dynamic-provider-credentials",
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens"
+      ]
+    },
+    {
+      "id": "tfc-flex-org-wide-wildcard",
+      "description": "The broadest form: claims['sub'] matches 'organization:my-org:*' admits every project, workspace, and run phase in the organization, because matches `*` is not path-aware and spans the ':' separators. The exact string classic FIC would treat as an inert literal; flexible FIC HONORS it. Matched here by an apply run of an unrelated project/workspace.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:finance:workspace:prod-db:run_phase:apply",
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] matches 'organization:my-org:*'" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "Organization-wide trust: any project, any workspace, and BOTH run phases assume the identity, and new projects/workspaces inherit it immediately. This is the maximal collapse -- it drops the workspace, project, AND run_phase scoping at once. Pin at least the project and workspace, and the run phase.", "patterns": ["org-wide", "wildcard-suffix"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://developer.hashicorp.com/terraform/cloud-docs/dynamic-provider-credentials",
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens"
+      ]
+    },
+    {
+      "id": "tfc-flex-name-based-no-immutable-lever",
+      "description": "The TFC immutable-id dead end. The token carries immutable ids (terraform_workspace_id here, plus terraform_project_id / terraform_organization_id) as SEPARATE claims, but TFC flexible FIC references only sub, and the sub is name-based with no customization option. So a workspace deleted and recreated under the same organization/project/workspace name mints a byte-identical sub -- a different terraform_workspace_id the credential cannot see -- and an exact eq admits it. The sub is the only lever, and it carries no immutable id.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply",
+      "claims": {
+        "sub": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply",
+        "terraform_workspace_id": "ws-NEWWORKSPACEID"
+      },
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] eq 'organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply'" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "The sub is name-based and TFC exposes no id-based sub, so the immutable terraform_workspace_id (a fresh id on the recreated workspace here) is unreachable by a sub-only flexible-FIC expression -- there is no policy-side lever to pin it. Narrower than a public path-reuse (recreating a workspace under the same name needs organization/project create permission), but structurally unfixable at the trust policy: whoever can recreate the name inherits the trust, and a rename silently breaks it. Govern workspace naming/lifecycle as part of the trust boundary.", "patterns": ["name-based", "no-id-pin", "immutable-gap"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens"
+      ]
+    },
+    {
+      "id": "tfc-flex-eq-apply-excludes-plan",
+      "description": "The mechanical basis the run_phase:* trap rides on: an exact claims['sub'] eq '...:run_phase:apply' does NOT match a run_phase:plan token. plan and apply are distinct subject strings, which is exactly why classic FIC needs one credential per phase -- and why the run_phase:* wildcard (sibling tfc-flex-run-phase-wildcard-collapses-plan-apply) is a real widening, not a formality.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:plan",
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] eq 'organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply'" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://developer.hashicorp.com/terraform/cloud-docs/dynamic-provider-credentials/azure-configuration"
+      ]
+    }
+  ]
+}

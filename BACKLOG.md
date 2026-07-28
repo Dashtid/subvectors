@@ -62,7 +62,10 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
     defines `SUB_CLAIM_LEADING_COMPONENTS = %w[project_path project_id]`, so a `project_id:20:...`
     sub IS producible -- this confirms both `gitlab-az-fic-immutable-projectid-exact-match` and the
     shipped `gitlab-aws-immutable-projectid-sub-stringequals` + the `gitlab.py` grammar.
-  - `[ ]` Bitbucket, CircleCI, Terraform Cloud issuer grammars + vectors.
+  - `[~]` Bitbucket, CircleCI, Terraform Cloud issuer grammars + vectors. Terraform Cloud SEEDED
+    (via `terraform-azure-flexible`, 6 vectors) -- its `organization:...:run_phase:{plan|apply}`
+    sub is now cited/encoded. Remaining: Bitbucket + CircleCI issuers, and TFC -> AWS / GCP
+    tranches (the run_phase two-role pattern maps directly onto AWS StringLike / GCP CEL).
   - `[x]` Multi-key AWS consumer -- shipped as **`aws-all`** (github-aws 0.3.0), a composite
     modeling a full IAM Condition block instead of the sketched `aws-stringequals-all`: `of`
     lists ANDed AWS string sub-conditions, so operators can MIX (StringEquals aud + StringLike
@@ -95,8 +98,16 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   path-reuse squatter that even an exact `eq` cannot exclude, and the project_id-led sub as the
   ONLY immutable lever (bake the id into the sub, since it is not a separate matchable claim).
   Adversarial pass: 5/5 mechanically clean; one attribution blocker fixed (immutability quote
-  re-sourced). Remaining: Terraform Cloud flexible FIC (sub-only, new issuer -- needs the TFC
-  `organization:...:workspace:...:run_phase:...` sub grammar researched first).
+  re-sourced). Terraform Cloud side ALSO shipped (`terraform-azure-flexible.json` 0.1.0, 6
+  vectors, NEW issuer `terraform-cloud`): sub = `organization:{org}:project:{project}:workspace:
+  {workspace}:run_phase:{plan|apply}`, name-based. The marquee vector is `run_phase:*` -- classic
+  FIC needs "two federated identity credentials ... one that matches run_phase:plan and one that
+  matches run_phase:apply" (HashiCorp azure-configuration, verbatim), and the wildcard collapses
+  that plan/apply trust boundary. TFC is sub-only like GitLab but WORSE: no sub customization, so
+  no immutable-id lever exists at all (the terraform_*_id claims are unreachable). Adversarial
+  pass: 6/6 clean, 0 blockers. **Flexible FIC now covers all three issuers Microsoft supports
+  (GitHub, GitLab, Terraform Cloud) -- consumer complete.** Two new judgment-catalog tags added
+  (`run-phase-wildcard`, `wildcard-workspace`).
 - `[i]` **Citation map for GitLab project_id facts** (learned across two verify rounds, so future
   vectors cite right the first time): the STRONG immutability wording -- "globally unique and
   remains the same for the entire lifetime of the project, including across group renames, project

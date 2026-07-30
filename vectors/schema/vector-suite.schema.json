@@ -48,9 +48,9 @@
         "claims": {
           "type": "object",
           "minProperties": 1,
-          "propertyNames": { "pattern": "^[a-z0-9_]+$" },
+          "propertyNames": { "pattern": "^[a-z0-9](?:[a-z0-9._/-]*[a-z0-9])?$" },
           "additionalProperties": { "type": "string" },
-          "description": "The full OIDC token claim set the condition is evaluated against (gcp-cel addresses it as assertion.<name>; an AWS condition with claim != 'sub', e.g. 'aud', resolves its value here). Optional: vectors whose condition targets 'sub' may omit it and match on 'subject' alone. When present, claims.sub MUST equal 'subject'."
+          "description": "The full OIDC token claim set the condition is evaluated against (gcp-cel addresses it as assertion.<name>; an AWS condition with claim != 'sub', e.g. 'aud', resolves its value here). Claim names allow namespaced OIDC forms with dots/slashes/hyphens (e.g. CircleCI's 'oidc.circleci.com/project-id'), not just bare identifiers. Optional: vectors whose condition targets 'sub' may omit it and match on 'subject' alone. When present, claims.sub MUST equal 'subject'."
         },
         "condition": { "$ref": "#/$defs/condition" },
         "expect": {
@@ -81,8 +81,8 @@
         },
         "claim": {
           "type": "string",
-          "pattern": "^[a-z0-9_]+$",
-          "description": "Token claim the condition targets (default 'sub'), same shape as claims-map keys. When not 'sub', the vector MUST carry a 'claims' object (the targeted claim may be deliberately absent from it to encode absent-key semantics)."
+          "pattern": "^[a-z0-9](?:[a-z0-9._/-]*[a-z0-9])?$",
+          "description": "Token claim the condition targets (default 'sub'), same shape as claims-map keys (namespaced OIDC names like 'oidc.circleci.com/project-id' allowed). When not 'sub', the vector MUST carry a 'claims' object (the targeted claim may be deliberately absent from it to encode absent-key semantics)."
         },
         "pattern": {
           "oneOf": [

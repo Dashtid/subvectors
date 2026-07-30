@@ -44,6 +44,8 @@ narrow, non-org-spanning suffix is involved).
 | `confused-deputy` | A trivially-true condition trusts any repo (classic confused deputy) | dangerous | `gh-gcp-trivial-condition-any-repo-danger` |
 | `wildcard-workspace` | `*` at the TFC workspace segment; any workspace in the project | dangerous | `tfc-flex-workspace-wildcard-project-wide` |
 | `shared-issuer-spoof` | No org/tenant restriction on a shared issuer; another tenant's token satisfies it | dangerous | `tfc-gcp-workspace-name-shared-issuer-spoof` |
+| `wildcard-project` | `*` at the CircleCI project segment; any project in the org | dangerous | `circleci-aws-project-wildcard-org-wide` |
+| `wildcard-user` | `*` at the CircleCI user segment; any pipeline-triggering user | caution/dangerous | `circleci-aws-immutable-sub-user-wildcard` |
 
 ### Ref / branch scope — `scope-ref`
 
@@ -60,6 +62,7 @@ Over-broad scoping on the ref axis: any branch — including an attacker-pushabl
 | `ref-type-confusion` | Branch vs tag collapsed; a tag named like the branch matches | dangerous | `gitlab-aws-ref-type-confusion-wildcard` |
 | `branch-prefix-collision` | A prefix pattern collides with a longer branch name | caution | `gh-aws-branch-prefix-collision` |
 | `prefix-match` | Unanchored prefix admits more than intended | caution | `gh-gcp-branch-prefix-startswith` |
+| `vcs-ref` | CircleCI V2 `vcs-ref` branch/tag pin; name-based, mutable, V2-token-only | caution | `circleci-aws-vcs-ref-branch-pin-v2` |
 
 ### Tag refs — `scope-tag`
 
@@ -176,6 +179,7 @@ The rule is unsafe *and* hard to see: a scanner looking at the wrong field misse
 | Pattern ID | Meaning | Grade | Example |
 | --- | --- | --- | --- |
 | `scanner-blindspot` | Rule invisible to subject-only scanners (flexible FIC nulls `subject`) | dangerous | `gh-flex-eq-pull-request-scanner-blindspot` |
+| `ssh-rerun` | CircleCI SSH-debug-session token admitted; cannot be reliably excluded in-policy | dangerous | `circleci-aws-ssh-rerun-debug-token-admitted` |
 
 ## Vocabulary note
 

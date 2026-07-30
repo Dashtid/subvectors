@@ -1,0 +1,144 @@
+{
+  "suite": "circleci-aws",
+  "version": "0.1.0",
+  "description": "CircleCI CI OIDC tokens against AWS IAM role trust-policy conditions (StringEquals / StringLike). CircleCI is the structural opposite of the other issuers in this corpus. (1) PER-ORG ISSUER: iss = https://oidc.circleci.com/org/<ORG_ID> and the registered AWS OIDC provider (arn:...:oidc-provider/oidc.circleci.com/org/<ORG_ID>) are BOTH org-specific, so a token minted by another CircleCI org carries a different issuer and fails validation before any condition is evaluated -- cross-org spoofing is blocked structurally, unlike the single shared issuers of GitHub (token.actions.githubusercontent.com), GitLab (gitlab.com), and Terraform Cloud (app.terraform.io), where cross-tenant isolation rests entirely on the sub/aud conditions. (2) IMMUTABLE-BY-CONSTRUCTION SUB: sub = org/<ORG_ID>/project/<PROJECT_ID>/user/<USER_ID>, all three UUIDs (the V2 token appends /vcs-origin/<origin>/vcs-ref/<ref> for VCS-triggered jobs; absent for custom-webhook triggers). Because the segments are opaque UUIDs, pinning the sub is rename-proof by default -- the OPPOSITE of Terraform Cloud's name-based sub. (3) AWS surfaced exactly ONE CircleCI custom condition key, oidc.circleci.com/project-id (the project UUID), referenced as oidc.circleci.com/org/<ORG_ID>:oidc.circleci.com/project-id; AWS's documented example pins it plus aud. The token's default aud is the org UUID (aud is the only customizable claim); for AWS it is set to sts.amazonaws.com, and the trust policy must pin whichever aud the job actually mints. (4) The SSH-RERUN escalation: oidc.circleci.com/ssh-rerun marks a token minted from an interactive SSH debug session; such a token still satisfies a normal project/sub-scoped policy, and it cannot be reliably excluded in-policy (only project-id is a registered AWS key, and ssh-rerun was historically absent from the issuer's claims_supported, with a user-reported condition failure), so CircleCI's guidance is to disable SSH debugging at the org/project level. The AWS condition key is oidc.circleci.com/org/<ORG_ID>:sub (host-agnostic in the matcher, which matches the raw sub string), so claim stays 'sub' for sub conditions; project-id and aud are matched as their own claims.",
+  "vectors": [
+    {
+      "id": "circleci-aws-exact-sub-immutable-safe",
+      "description": "The tightest possible pin: StringEquals on the exact V1 sub (org/project/user, all immutable UUIDs) AND StringEquals on the aud (sts.amazonaws.com), ANDed in one Condition block. Pins one triggering user of one project in one org, all by opaque UUID.",
+      "issuer": "circleci",
+      "subject": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555",
+      "claims": {
+        "sub": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555",
+        "aud": "sts.amazonaws.com"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "sub", "pattern": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555" },
+          { "consumer": "aws-stringequals", "claim": "aud", "pattern": "sts.amazonaws.com" }
+        ]
+      },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "Every sub segment is an opaque, immutable UUID (org, project, user), so the pin is rename-proof by construction -- an org/project/user rename does not change the sub, and there is no name to reuse (contrast a name-based sub, which a rename or recreate silently remaps). The aud is pinned, and the per-org issuer/provider already binds the token to this one organization. The only residual is the SSH-rerun path: this same user opening an interactive debug session mints a token with an identical sub (see circleci-aws-ssh-rerun-debug-token-admitted), which is controlled out-of-band by disabling SSH debugging, not in the trust policy.", "patterns": ["immutable-id", "exact-ref", "aud-pinned", "multi-key-and"] },
+      "status": "documented",
+      "sources": [
+        "https://circleci.com/docs/openid-connect-tokens/",
+        "https://circleci.com/docs/oidc-tokens-with-custom-claims/",
+        "https://discuss.circleci.com/t/restrict-aws-oidc-when-ssh-rerun-is-true/50863",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "circleci-aws-docs-projectid-aud-pin",
+      "description": "AWS's documented CircleCI example instantiated: StringEquals on oidc.circleci.com/org/<ORG_ID>:aud (sts.amazonaws.com) AND on the one AWS-registered CircleCI custom key oidc.circleci.com/org/<ORG_ID>:oidc.circleci.com/project-id (the project UUID). AWS and CircleCI recommend the project-id key over parsing the sub.",
+      "issuer": "circleci",
+      "subject": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555",
+      "claims": {
+        "sub": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555",
+        "aud": "sts.amazonaws.com",
+        "oidc.circleci.com/project-id": "76543210-ba98-fedc-3210-edcba0987654"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "aud", "pattern": "sts.amazonaws.com" },
+          { "consumer": "aws-stringequals", "claim": "oidc.circleci.com/project-id", "pattern": "76543210-ba98-fedc-3210-edcba0987654" }
+        ]
+      },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Pins the immutable project UUID (rename-proof, a single unambiguous match, which is why AWS and CircleCI prefer it to sub-parsing) plus the aud. But it constrains nothing narrower than the project: any triggering user and any pipeline in the project satisfies it, and it does not exclude an SSH-rerun debug token. Broader than the exact-sub pin (circleci-aws-exact-sub-immutable-safe); tighten by also pinning the user segment of the sub if a single identity is intended.", "patterns": ["project-id-pin", "wildcard-user", "aud-pinned", "multi-key-and"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://circleci.com/docs/openid-connect-tokens/",
+        "https://circleci.com/docs/oidc-tokens-with-custom-claims/"
+      ]
+    },
+    {
+      "id": "circleci-aws-immutable-sub-user-wildcard",
+      "description": "The sub-parsing alternative to the project-id key: StringLike on the sub pinning org+project by UUID and wildcarding the user segment (org/<ORG_ID>/project/<PROJECT_ID>/user/*). Rename-proof because the pinned segments are UUIDs, but admits any triggering user.",
+      "issuer": "circleci",
+      "subject": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/*" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "org and project are pinned by opaque UUID, so this survives renames (unlike a name-based sub), but user/* admits ANY user who can trigger a pipeline on the project -- the role is only as trusted as the set of pipeline-triggering users. Pin the user segment for a single identity, or prefer the oidc.circleci.com/project-id key (circleci-aws-docs-projectid-aud-pin) for a cleaner project pin.", "patterns": ["immutable-id", "wildcard-user"] },
+      "status": "documented",
+      "sources": [
+        "https://circleci.com/docs/openid-connect-tokens/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "circleci-aws-project-wildcard-org-wide",
+      "description": "StringLike on the sub truncated after the org segment (org/<ORG_ID>/project/*). Because StringLike * is not path-aware and spans the '/' separators, every project and every user in the org satisfies it. A different project's token is admitted.",
+      "issuer": "circleci",
+      "subject": "org/2a3b4c5d-1111-2222-3333-444455556666/project/99998888-7777-6666-5555-444433332222/user/bbbb2222-cccc-3333-dddd-444455556666",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "org/2a3b4c5d-1111-2222-3333-444455556666/project/*" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "project/* (and the user segment it subsumes) admits every project and user in the organization, collapsing per-project scoping to org-wide access; a new project created in the org inherits the trust immediately. The per-org issuer/provider confines this to ONE organization (the AWS OIDC provider is registered as oidc.circleci.com/org/<ORG_ID>, so a different org's token fails issuer validation), but within the org it is wide open. Pin the project UUID via oidc.circleci.com/project-id or the full project sub.", "patterns": ["wildcard-project", "org-wide"] },
+      "status": "documented",
+      "sources": [
+        "https://circleci.com/docs/openid-connect-tokens/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "circleci-aws-ssh-rerun-debug-token-admitted",
+      "description": "The SSH-rerun escalation realized. The token carries oidc.circleci.com/ssh-rerun = true -- it was minted from an interactive SSH debug session -- yet it satisfies the AWS-documented project-scoped policy (aud + project-id), because that policy does not (and cannot reliably) check ssh-rerun.",
+      "issuer": "circleci",
+      "subject": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555",
+      "claims": {
+        "sub": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555",
+        "aud": "sts.amazonaws.com",
+        "oidc.circleci.com/project-id": "76543210-ba98-fedc-3210-edcba0987654",
+        "oidc.circleci.com/ssh-rerun": "true"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "aud", "pattern": "sts.amazonaws.com" },
+          { "consumer": "aws-stringequals", "claim": "oidc.circleci.com/project-id", "pattern": "76543210-ba98-fedc-3210-edcba0987654" }
+        ]
+      },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "A token minted from an interactive SSH-rerun debug session (oidc.circleci.com/ssh-rerun = true) satisfies the project-scoped policy, so an engineer who can open a debug session on a job reads $CIRCLE_OIDC_TOKEN and assumes the cloud role by hand -- a privilege-escalation path outside the automated pipeline that a pipeline-only threat model misses. It cannot be reliably excluded in-policy: AWS registered only oidc.circleci.com/project-id as a CircleCI condition key, and oidc.circleci.com/ssh-rerun was historically absent from the issuer's claims_supported metadata (a user reported the condition not enforcing), so CircleCI's guidance is to disable SSH debugging at the org/project level rather than filter it in the trust policy.", "patterns": ["ssh-rerun", "project-id-pin"] },
+      "status": "documented",
+      "sources": [
+        "https://circleci.com/docs/openid-connect-tokens/",
+        "https://discuss.circleci.com/t/restrict-aws-oidc-when-ssh-rerun-is-true/50863",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif"
+      ]
+    },
+    {
+      "id": "circleci-aws-vcs-ref-branch-pin-v2",
+      "description": "Branch pinning, only possible with the V2 token: StringLike on the V2 sub whose tail is /vcs-origin/<origin>/vcs-ref/refs/heads/main. The org/project UUIDs are pinned and the user + vcs-origin are wildcarded, restricting to jobs triggered on the main branch.",
+      "issuer": "circleci",
+      "subject": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555/vcs-origin/github.com/my-org/my-repo/vcs-ref/refs/heads/main",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/*/vcs-origin/*/vcs-ref/refs/heads/main" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Restricts to jobs on refs/heads/main, but the vcs-ref (and vcs-origin) segments are name-based, mutable display values -- a branch ref, like GitHub's ref -- so this is the one fragile lever in an otherwise UUID-based issuer: a branch is attacker-creatable/renameable, and the vcs segments exist ONLY in the V2 token for VCS-triggered jobs (a custom-webhook-triggered token has no vcs-origin/vcs-ref, so a V2-shaped condition silently will not match it -- see circleci-aws-vcs-ref-condition-misses-v1-token). Combine with a protected branch and the immutable org/project pin.", "patterns": ["vcs-ref", "name-based"] },
+      "status": "documented",
+      "sources": [
+        "https://circleci.com/docs/openid-connect-tokens/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "circleci-aws-vcs-ref-condition-misses-v1-token",
+      "description": "The V1/V2 footgun: a V2-shaped branch condition (ending /vcs-ref/refs/heads/main) never matches a V1 token, because the V1 sub has no vcs-origin/vcs-ref segments at all. The same mismatch occurs for a custom-webhook-triggered V2 token, whose sub also omits the vcs segments.",
+      "issuer": "circleci",
+      "subject": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/*/vcs-origin/*/vcs-ref/refs/heads/main" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://circleci.com/docs/openid-connect-tokens/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    }
+  ]
+}

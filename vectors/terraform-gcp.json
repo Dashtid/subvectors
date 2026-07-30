@@ -1,0 +1,116 @@
+{
+  "suite": "terraform-gcp",
+  "version": "0.1.0",
+  "description": "Terraform Cloud / HCP Terraform CI OIDC tokens against GCP Workload Identity Federation attribute conditions (gcp-cel). The TFC issuer https://app.terraform.io is SHARED across all organizations, so Google mandates an org-restricting condition: 'GitHub, GitLab SaaS, and HCP Terraform use a single issuer URL across all organizations ... To help protect against spoofing threats, you must use an attribute condition that restricts access to tokens issued by your ... HCP Terraform organization.' Unlike Azure classic and flexible FIC (which match only the name-based sub), GCP CEL can reference ANY assertion claim -- so the immutable terraform_organization_id / terraform_workspace_id (which the sub omits) ARE pinnable, and Google's documented condition recommends exactly that: assertion.terraform_organization_id=='ORGANIZATION_ID' && assertion.terraform_workspace_id=='WORKSPACE_ID'. CEL can also gate terraform_run_phase (plan|apply) as a separate claim. sub = organization:{org}:project:{project}:workspace:{workspace}:run_phase:{plan|apply}, built from display names. This is the one consumer where TFC's immutable-id gap closes.",
+  "vectors": [
+    {
+      "id": "tfc-gcp-immutable-org-and-workspace-id-pin",
+      "description": "Google's documented recommended condition for HCP Terraform, instantiated: assertion.terraform_organization_id=='org-ABC123DEF' && assertion.terraform_workspace_id=='ws-XYZ789GHI'. Both immutable ids are separate token claims the name-based sub does not carry, and CEL references them directly.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply",
+      "claims": {
+        "sub": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply",
+        "terraform_organization_id": "org-ABC123DEF",
+        "terraform_workspace_id": "ws-XYZ789GHI"
+      },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.terraform_organization_id == 'org-ABC123DEF' && assertion.terraform_workspace_id == 'ws-XYZ789GHI'" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Google's recommended condition pins the immutable terraform_organization_id AND terraform_workspace_id -- rename- and name-reuse-proof, and satisfying the shared-issuer org-restriction requirement. The residual: it does not gate terraform_run_phase, so both plan and apply of this workspace qualify; add assertion.terraform_run_phase=='apply' for write-capable resources (see tfc-gcp-immutable-id-run-phase-apply).", "patterns": ["immutable-id", "immutable"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines",
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens"
+      ]
+    },
+    {
+      "id": "tfc-gcp-org-id-only-baseline",
+      "description": "The mandatory anti-spoofing floor as a single immutable claim: assertion.terraform_organization_id=='org-ABC123DEF'. Google's basic documented condition ('assertion.terraform_organization_id==ORGANIZATION_ID'), which restricts to one HCP Terraform organization but nothing narrower.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:other-project:workspace:other-workspace:run_phase:apply",
+      "claims": {
+        "sub": "organization:my-org:project:other-project:workspace:other-workspace:run_phase:apply",
+        "terraform_organization_id": "org-ABC123DEF"
+      },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.terraform_organization_id == 'org-ABC123DEF'" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "The floor Google requires because the issuer is shared -- it restricts to your organization (matched here by a different project/workspace in that org) -- but every project, workspace, and run phase in the org satisfies it. Not the ceiling: add terraform_workspace_id and a terraform_run_phase gate.", "patterns": ["org-wide", "immutable-id"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines",
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens"
+      ]
+    },
+    {
+      "id": "tfc-gcp-sub-name-based-condition",
+      "description": "Conditioning on the name-based sub instead of the immutable ids: assertion.sub == the fully-qualified workspace path at apply. It is org-scoped (the sub embeds the organization display name) and admits exactly one workspace's apply, but on mutable names.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply",
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.sub == 'organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply'" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Works and is org-scoped via the sub's organization-name segment, but it is rename-fragile -- an organization, project, or workspace rename changes the sub, and a workspace recreated under the same name re-satisfies it. Google's guidance pins the immutable terraform_organization_id/terraform_workspace_id instead, which CEL can reference directly (see tfc-gcp-immutable-org-and-workspace-id-pin).", "patterns": ["name-based", "no-id-pin", "exact-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines",
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens"
+      ]
+    },
+    {
+      "id": "tfc-gcp-immutable-id-run-phase-apply",
+      "description": "The strongest form: the immutable org and workspace ids AND the run phase gated to apply -- assertion.terraform_organization_id=='org-ABC123DEF' && assertion.terraform_workspace_id=='ws-XYZ789GHI' && assertion.terraform_run_phase=='apply'. terraform_run_phase is a separate claim (plan|apply) CEL checks alongside the ids.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply",
+      "claims": {
+        "sub": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply",
+        "terraform_organization_id": "org-ABC123DEF",
+        "terraform_workspace_id": "ws-XYZ789GHI",
+        "terraform_run_phase": "apply"
+      },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.terraform_organization_id == 'org-ABC123DEF' && assertion.terraform_workspace_id == 'ws-XYZ789GHI' && assertion.terraform_run_phase == 'apply'" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "Rename/reuse-proof identity (immutable org + workspace ids) plus phase separation (terraform_run_phase gated to apply), so only apply-phase runs of this exact workspace match (plan runs are excluded). The plan/apply distinction is enforced as a claim check rather than needing a second credential.", "patterns": ["immutable-id", "run-phase-pin"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines",
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens"
+      ]
+    },
+    {
+      "id": "tfc-gcp-run-phase-apply-excludes-plan",
+      "description": "The run_phase gate working: the same immutable-ids-plus-apply condition does NOT match a plan token, because terraform_run_phase is 'plan'. Plan runs of the pinned workspace are excluded -- the GCP claim-check counterpart of a per-phase credential.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:plan",
+      "claims": {
+        "sub": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:plan",
+        "terraform_organization_id": "org-ABC123DEF",
+        "terraform_workspace_id": "ws-XYZ789GHI",
+        "terraform_run_phase": "plan"
+      },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.terraform_organization_id == 'org-ABC123DEF' && assertion.terraform_workspace_id == 'ws-XYZ789GHI' && assertion.terraform_run_phase == 'apply'" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines",
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens"
+      ]
+    },
+    {
+      "id": "tfc-gcp-workspace-name-shared-issuer-spoof",
+      "description": "The shared-issuer spoof Google warns about, realized. A condition on terraform_workspace_name alone -- assertion.terraform_workspace_name=='production' -- carries NO organization restriction, and terraform_workspace_name is a display name, not unique across organizations. Because app.terraform.io is one issuer for every org, a DIFFERENT organization's token (here org-ATTACKER99) whose workspace is also named 'production' satisfies the condition.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:attacker-org:project:default:workspace:production:run_phase:apply",
+      "claims": {
+        "sub": "organization:attacker-org:project:default:workspace:production:run_phase:apply",
+        "terraform_workspace_name": "production",
+        "terraform_organization_id": "org-ATTACKER99"
+      },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.terraform_workspace_name == 'production'" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "No org restriction on a shared issuer: any organization's token with a workspace named 'production' is admitted, so an unrelated tenant assumes the identity -- exactly the spoofing Google requires an org-restricting condition to prevent ('you must use an attribute condition that restricts access to tokens issued by your ... HCP Terraform organization'). Pin terraform_organization_id (and prefer terraform_workspace_id over the mutable name).", "patterns": ["shared-issuer-spoof", "name-based", "no-id-pin"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines",
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens"
+      ]
+    }
+  ]
+}

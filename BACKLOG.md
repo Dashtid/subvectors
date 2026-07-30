@@ -62,10 +62,17 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
     defines `SUB_CLAIM_LEADING_COMPONENTS = %w[project_path project_id]`, so a `project_id:20:...`
     sub IS producible -- this confirms both `gitlab-az-fic-immutable-projectid-exact-match` and the
     shipped `gitlab-aws-immutable-projectid-sub-stringequals` + the `gitlab.py` grammar.
-  - `[~]` Bitbucket, CircleCI, Terraform Cloud issuer grammars + vectors. Terraform Cloud SEEDED
-    (via `terraform-azure-flexible`, 6 vectors) -- its `organization:...:run_phase:{plan|apply}`
-    sub is now cited/encoded. Remaining: Bitbucket + CircleCI issuers, and TFC -> AWS / GCP
-    tranches (the run_phase two-role pattern maps directly onto AWS StringLike / GCP CEL).
+  - `[~]` Bitbucket, CircleCI, Terraform Cloud issuer grammars + vectors. Terraform Cloud now
+    spans TWO consumers (12 vectors): `terraform-azure-flexible` (6) + `terraform-gcp` (6). The
+    GCP tranche is the payoff of the run_phase/immutable-id story: GCP CEL references ANY assertion
+    claim, so the immutable terraform_organization_id/terraform_workspace_id the name-based sub
+    omits ARE pinnable -- and Google's DOCUMENTED recommended condition pins exactly those
+    (`assertion.terraform_organization_id=='..' && assertion.terraform_workspace_id=='..'`), plus a
+    `terraform_run_phase=='apply'` gate. The immutable-id gap (open on Azure classic + flexible FIC)
+    CLOSES on GCP. Also the shared-issuer spoof Google warns about (app.terraform.io is one issuer
+    for all orgs; a workspace_name-only condition admits another tenant). Remaining: Bitbucket +
+    CircleCI issuers, and TFC -> AWS (does AWS expose terraform_*_id as condition keys? -- verify;
+    if not, the immutable-id gap persists on AWS too, unlike GCP).
   - `[x]` Multi-key AWS consumer -- shipped as **`aws-all`** (github-aws 0.3.0), a composite
     modeling a full IAM Condition block instead of the sketched `aws-stringequals-all`: `of`
     lists ANDed AWS string sub-conditions, so operators can MIX (StringEquals aud + StringLike

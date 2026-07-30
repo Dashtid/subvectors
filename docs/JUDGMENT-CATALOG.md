@@ -170,6 +170,7 @@ breakage, not exposure); the vacuous-negation cases **fail open** (dangerous).
 | `fixed-width` | `????` matches only names of that exact length | dangerous | `gh-flex-question-fixed-width-footgun` |
 | `wildcard-question` | `?` single-char width footgun | dangerous | `gh-flex-question-fixed-width-footgun` |
 | `regex` | RE2 `matches()` anchoring / substring pitfalls | caution | `gh-gcp-matches-tag-regex` |
+| `volatile-sub` | Pins a per-run volatile sub segment (e.g. Bitbucket `stepUuid`); an exact match breaks on the next run | caution | `bitbucket-aws-full-sub-stringequals-breaks-next-run` |
 
 ### Detection / tooling gaps — `detection-gap`
 

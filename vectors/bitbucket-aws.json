@@ -1,0 +1,126 @@
+{
+  "suite": "bitbucket-aws",
+  "version": "0.1.0",
+  "description": "Bitbucket Pipelines CI OIDC tokens against AWS IAM role trust-policy conditions (StringEquals / StringLike). Like CircleCI and unlike Terraform Cloud, Bitbucket's immutable-id gap CLOSES BY CONSTRUCTION on AWS -- even though Bitbucket is UNLISTED on AWS's per-IdP condition-key allowlist (no Bitbucket tab; it falls back to the Default mapping, so a trust policy can condition ONLY on <issuer>:sub and <issuer>:aud). Two structural reasons: (1) PER-WORKSPACE ISSUER: iss = https://api.bitbucket.org/2.0/workspaces/{workspace}/pipelines-config/identity/oidc is unique per workspace, so AWS registers one OIDC provider per issuer URL and a different workspace's token fails validation before conditions run -- cross-workspace spoofing is blocked structurally (the {workspace} slug in iss is a MUTABLE display name, but the immutable workspace UUID lives in aud). (2) UUID-BASED SUB: sub = {repositoryUuid}:{stepUuid} for a normal step, or {repositoryUuid}:{deploymentEnvironmentUuid}:{stepUuid} for a deployment step -- each segment a UUID in literal braces. The leading repositoryUuid is immutable, so pinning it is rename-proof, and no AWS custom key is needed. The signature footgun: stepUuid REGENERATES every pipeline run, so the full sub changes each run -- a StringEquals on the whole sub matches only the run that minted it; trust policies must StringLike-wildcard the step ({repositoryUuid}:* or {repositoryUuid}:{deploymentEnvironmentUuid}:*). aud = ari:cloud:bitbucket::workspace/{workspace_uuid} (immutable workspace binding; when custom audiences are configured it becomes a JSON array containing the workspace ARI plus each custom value, so a bare StringEquals should become ForAnyValue:StringEquals). Two claims are visible but UNUSABLE on AWS: branchName and the deploymentEnvironment NAME are mutable AND absent from the Default mapping, so a Bitbucket AWS role cannot be restricted by branch, and an environment must be pinned by its immutable deploymentEnvironmentUuid (the middle sub segment), never by name. The matcher matches the raw sub string, so claim stays 'sub' for sub conditions; aud is matched as its own claim.",
+  "vectors": [
+    {
+      "id": "bitbucket-aws-docs-env-scoped-safe",
+      "description": "Atlassian's documented deployment-scoped policy: StringEquals on aud (the workspace-UUID ARI) AND StringLike on sub = {repositoryUuid}:{deploymentEnvironmentUuid}:* (repo + specific environment, step wildcarded). The subject is a deployment-step token (3-part sub).",
+      "issuer": "bitbucket",
+      "subject": "{1de489be-ce6a-42a0-a8c8-eadbf1174ac7}:{bd715740-c970-486b-b68a-b421ec2a1f8b}:{759de0c6-eaee-4eaa-b7a6-c507eec759a7}",
+      "claims": {
+        "sub": "{1de489be-ce6a-42a0-a8c8-eadbf1174ac7}:{bd715740-c970-486b-b68a-b421ec2a1f8b}:{759de0c6-eaee-4eaa-b7a6-c507eec759a7}",
+        "aud": "ari:cloud:bitbucket::workspace/922e118c-f34f-4226-a897-0e0afbec553d"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "aud", "pattern": "ari:cloud:bitbucket::workspace/922e118c-f34f-4226-a897-0e0afbec553d" },
+          { "consumer": "aws-stringlike", "claim": "sub", "pattern": "{1de489be-ce6a-42a0-a8c8-eadbf1174ac7}:{bd715740-c970-486b-b68a-b421ec2a1f8b}:*" }
+        ]
+      },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "Scopes trust to one repository AND one deployment environment, both pinned by immutable UUID (repositoryUuid + deploymentEnvironmentUuid, the leading two sub segments), with only the volatile stepUuid wildcarded, plus the aud pinned to the immutable workspace-UUID ARI. The per-workspace issuer already binds the token to this one workspace. No AWS custom condition key is needed because the immutable identifiers ride in the sub -- the gap closes by construction, unlike a purely name-based sub, which would offer no immutable lever under AWS's Default OIDC mapping. A rename of the repo, environment, or workspace does not change any pinned UUID.", "patterns": ["immutable-id", "environment-scoped", "aud-pinned", "multi-key-and"] },
+      "status": "documented",
+      "sources": [
+        "https://support.atlassian.com/bitbucket-cloud/docs/integrate-pipelines-with-resource-servers-using-oidc/",
+        "https://support.atlassian.com/bitbucket-cloud/docs/deploy-on-aws-using-bitbucket-pipelines-openid-connect/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "bitbucket-aws-repo-uuid-repo-wide",
+      "description": "The repo-wide form: StringEquals aud (workspace ARI) AND StringLike sub = {repositoryUuid}:* -- pins the repository by immutable UUID, wildcarding everything after it. Matches every step of the repo, deployment and non-deployment alike. The subject is a normal (2-part) step token.",
+      "issuer": "bitbucket",
+      "subject": "{1de489be-ce6a-42a0-a8c8-eadbf1174ac7}:{759de0c6-eaee-4eaa-b7a6-c507eec759a7}",
+      "claims": {
+        "sub": "{1de489be-ce6a-42a0-a8c8-eadbf1174ac7}:{759de0c6-eaee-4eaa-b7a6-c507eec759a7}",
+        "aud": "ari:cloud:bitbucket::workspace/922e118c-f34f-4226-a897-0e0afbec553d"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "aud", "pattern": "ari:cloud:bitbucket::workspace/922e118c-f34f-4226-a897-0e0afbec553d" },
+          { "consumer": "aws-stringlike", "claim": "sub", "pattern": "{1de489be-ce6a-42a0-a8c8-eadbf1174ac7}:*" }
+        ]
+      },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "The repository is pinned by immutable UUID (rename-proof) and the workspace by the aud ARI, but {repositoryUuid}:* admits every step of the repo on any branch and in any deployment environment. Branch cannot be narrowed on AWS at all: branchName is a mutable, attacker-influenceable claim that is NOT exposed under AWS's Default OIDC mapping, so a Bitbucket AWS role cannot be restricted by branch. Scope to a deployment environment via {repositoryUuid}:{deploymentEnvironmentUuid}:* (see bitbucket-aws-docs-env-scoped-safe) for anything privileged.", "patterns": ["immutable-id", "repo-wide", "aud-pinned", "multi-key-and"] },
+      "status": "documented",
+      "sources": [
+        "https://support.atlassian.com/bitbucket-cloud/docs/integrate-pipelines-with-resource-servers-using-oidc/",
+        "https://support.atlassian.com/bitbucket-cloud/docs/deploy-on-aws-using-bitbucket-pipelines-openid-connect/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "bitbucket-aws-full-sub-stringequals-breaks-next-run",
+      "description": "The stepUuid-volatility footgun. A StringEquals condition pins the FULL sub captured from one run ({repositoryUuid}:{stepUuid-A}); the next run of the same repository mints a regenerated stepUuid ({stepUuid-B}), so the exact match fails. The subject is the next run's token.",
+      "issuer": "bitbucket",
+      "subject": "{1de489be-ce6a-42a0-a8c8-eadbf1174ac7}:{8f0a1b2c-3d4e-5f60-7182-93a4b5c6d7e8}",
+      "condition": { "consumer": "aws-stringequals", "claim": "sub", "pattern": "{1de489be-ce6a-42a0-a8c8-eadbf1174ac7}:{759de0c6-eaee-4eaa-b7a6-c507eec759a7}" },
+      "expect": "no-match",
+      "judgment": { "grade": "caution", "reason": "Fail-closed breakage, not exposure: stepUuid is regenerated on every pipeline run, so a StringEquals on the whole sub matches only the single run that minted it and rejects every subsequent run -- the policy appears to work once, then breaks. The fix is to StringLike-wildcard the step ({repositoryUuid}:* or {repositoryUuid}:{deploymentEnvironmentUuid}:*), pinning the immutable leading segment(s) and never the volatile trailing UUID.", "patterns": ["volatile-sub", "always-false"] },
+      "status": "documented",
+      "sources": [
+        "https://support.atlassian.com/bitbucket-cloud/docs/integrate-pipelines-with-resource-servers-using-oidc/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "bitbucket-aws-aud-only-workspace-wide",
+      "description": "aud-only over-permission: StringEquals aud (workspace ARI) AND a sub condition that constrains nothing (StringLike sub = *). The workspace is pinned but the repository is not, so any repository's token in the workspace assumes the role.",
+      "issuer": "bitbucket",
+      "subject": "{99997777-5555-3333-1111-aaaabbbbcccc}:{759de0c6-eaee-4eaa-b7a6-c507eec759a7}",
+      "claims": {
+        "sub": "{99997777-5555-3333-1111-aaaabbbbcccc}:{759de0c6-eaee-4eaa-b7a6-c507eec759a7}",
+        "aud": "ari:cloud:bitbucket::workspace/922e118c-f34f-4226-a897-0e0afbec553d"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "aud", "pattern": "ari:cloud:bitbucket::workspace/922e118c-f34f-4226-a897-0e0afbec553d" },
+          { "consumer": "aws-stringlike", "claim": "sub", "pattern": "*" }
+        ]
+      },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "Pinning only the aud (workspace ARI) with an unconstrained sub authorizes EVERY repository and pipeline in the workspace to assume the role -- a different repo's token (repositoryUuid 99997777... here) is admitted. The per-workspace issuer bounds this to one workspace, but within it there is no repo scoping; a new repo added to the workspace inherits the trust immediately. Always AND a sub condition on {repositoryUuid}:* -- the immutable repo anchor is free (it leads the sub).", "patterns": ["no-repo-scope", "wildcard-repo"] },
+      "status": "documented",
+      "sources": [
+        "https://support.atlassian.com/bitbucket-cloud/docs/integrate-pipelines-with-resource-servers-using-oidc/",
+        "https://support.atlassian.com/bitbucket-cloud/docs/deploy-on-aws-using-bitbucket-pipelines-openid-connect/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "bitbucket-aws-env-name-not-uuid-never-matches",
+      "description": "The environment must be pinned by UUID, not name. A condition written with the human-readable environment name in the sub ({repositoryUuid}:production:*) never matches, because the sub's middle segment is the deploymentEnvironmentUuid, not the deploymentEnvironment name. The subject is a real deployment-step token.",
+      "issuer": "bitbucket",
+      "subject": "{1de489be-ce6a-42a0-a8c8-eadbf1174ac7}:{bd715740-c970-486b-b68a-b421ec2a1f8b}:{759de0c6-eaee-4eaa-b7a6-c507eec759a7}",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "{1de489be-ce6a-42a0-a8c8-eadbf1174ac7}:production:*" },
+      "expect": "no-match",
+      "judgment": { "grade": "caution", "reason": "Fail-closed misconfiguration: the sub carries the immutable deploymentEnvironmentUuid as its middle segment, not the deploymentEnvironment display name ('production'), so a name-based pattern never matches. The deploymentEnvironment name is a separate, mutable claim that AWS's Default mapping does not expose as a condition key anyway. Pin the environment by its UUID ({repositoryUuid}:{deploymentEnvironmentUuid}:*), as in bitbucket-aws-docs-env-scoped-safe.", "patterns": ["always-false", "name-based"] },
+      "status": "documented",
+      "sources": [
+        "https://support.atlassian.com/bitbucket-cloud/docs/integrate-pipelines-with-resource-servers-using-oidc/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "bitbucket-aws-stringequals-treats-star-literally",
+      "description": "The repo-wide {repositoryUuid}:* string is inert under StringEquals: * is a literal character, so it matches only the literal string, never a real sub. The operator, not the pattern, decides -- StringLike would pin the repo (see bitbucket-aws-repo-uuid-repo-wide), StringEquals does not.",
+      "issuer": "bitbucket",
+      "subject": "{1de489be-ce6a-42a0-a8c8-eadbf1174ac7}:{759de0c6-eaee-4eaa-b7a6-c507eec759a7}",
+      "condition": { "consumer": "aws-stringequals", "claim": "sub", "pattern": "{1de489be-ce6a-42a0-a8c8-eadbf1174ac7}:*" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
+        "https://support.atlassian.com/bitbucket-cloud/docs/integrate-pipelines-with-resource-servers-using-oidc/"
+      ]
+    }
+  ]
+}

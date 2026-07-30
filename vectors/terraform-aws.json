@@ -1,0 +1,126 @@
+{
+  "suite": "terraform-aws",
+  "version": "0.1.0",
+  "description": "Terraform Cloud / HCP Terraform CI OIDC tokens against AWS IAM role trust-policy conditions (StringEquals / StringLike). The AWS OIDC condition-key model is a curated per-IdP allowlist: AWS publishes provider-specific claim keys for GitHub (repository_id, ...), GitLab.com (project_id, namespace_id, ...), CircleCI, Buildkite, OCI, and Google, but there is NO Terraform Cloud entry. Unlisted IdPs fall back to the Default mapping, which resolves ONLY the standard OIDC claims: 'Use this mapping if your IdP is not listed in the tab options' -> amr, aud, email, oaud, sub. So for app.terraform.io the only identity lever in a trust policy is app.terraform.io:sub (plus the fixed app.terraform.io:aud audience). HashiCorp's own documented policy pins exactly those two keys with StringEquals; sub = organization:{org}:project:{project}:workspace:{workspace}:run_phase:{plan|apply}, built from DISPLAY NAMES. The immutable terraform_organization_id / terraform_workspace_id are present IN the token but AWS exposes no condition key for them -- so unlike GCP CEL (assertion.terraform_workspace_id closes the gap) and unlike GitLab-on-AWS (gitlab.com:project_id closes it), TFC's rename/reuse gap CANNOT be closed on AWS. This is the mirror of terraform-azure-flexible: another consumer where the immutable-id lever is unavailable, made one step sharper because here the id claim demonstrably rides in the token, unusable. run_phase lives inside the sub, so a single StringEquals on the full sub gates the phase without a second credential (unlike Azure classic FIC), and HashiCorp notes that different plan/apply PERMISSIONS require two roles.",
+  "vectors": [
+    {
+      "id": "tfc-aws-docs-exact-apply-sub-aud",
+      "description": "HashiCorp's documented HCP Terraform trust policy instantiated: StringEquals on app.terraform.io:sub (the fully-qualified workspace path at run_phase:apply) AND app.terraform.io:aud (the fixed audience aws.workload.identity), ANDed in one Condition block. This is the tightest condition AWS offers a TFC workspace.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply",
+      "claims": {
+        "sub": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply",
+        "aud": "aws.workload.identity"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          { "consumer": "aws-stringequals", "claim": "sub", "pattern": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply" },
+          { "consumer": "aws-stringequals", "claim": "aud", "pattern": "aws.workload.identity" }
+        ]
+      },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "The documented ceiling: an exact single-workspace single-phase sub (the run_phase:apply segment gates the phase) plus the audience pin. But both levers are all AWS gives TFC -- the sub is name-based (organization, project, and workspace are mutable, reusable DISPLAY names) and aud is a constant audience, not an identity. AWS publishes no app.terraform.io:terraform_organization_id or :terraform_workspace_id condition key (Terraform Cloud is not on AWS's per-IdP list, so only the Default OIDC mapping -- sub/aud/amr -- resolves), so there is no immutable identifier to AND in. Contrast GitLab on the same cloud, for which AWS does publish an immutable key (gitlab.com:project_id), a rename-proof pin.", "patterns": ["multi-key-and", "exact-ref", "name-based", "no-id-pin"] },
+      "status": "documented",
+      "sources": [
+        "https://developer.hashicorp.com/terraform/cloud-docs/dynamic-provider-credentials/aws-configuration",
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif"
+      ]
+    },
+    {
+      "id": "tfc-aws-run-phase-wildcard-collapses-plan-apply",
+      "description": "StringLike on app.terraform.io:sub with run_phase:* -- HashiCorp's documented way to 'match both phases' with one role. A plan-phase token (run_phase:plan) satisfies a condition meant for the workspace, so the lower-trust plan phase gets the same AWS access as apply.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:plan",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:*" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "run_phase:* admits both plan and apply of the workspace. Plan and apply are distinct trust phases -- HashiCorp's guidance is to create two roles and trust policies when they need different permissions -- so collapsing them lets a plan-phase token assume the apply role's cloud credentials. Pin run_phase:apply explicitly (see tfc-aws-apply-exact-excludes-plan).", "patterns": ["run-phase-wildcard", "wildcard-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://developer.hashicorp.com/terraform/cloud-docs/dynamic-provider-credentials/aws-configuration",
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "tfc-aws-workspace-wildcard-project-wide",
+      "description": "StringLike on app.terraform.io:sub truncated after the project segment (workspace:*). AWS StringLike * is not path-aware and spans the ':' segment separators, so every workspace in the project -- at any run phase -- assumes the role. A different workspace's apply token is admitted.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:my-project:workspace:other-workspace:run_phase:apply",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "organization:my-org:project:my-project:workspace:*" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "Any workspace under my-project, any run phase, can assume the role, because StringLike * spans the remaining ':workspace:NAME:run_phase:PHASE' tail. A new or unrelated workspace created in the project inherits the trust immediately, and there is no immutable per-workspace key (terraform_workspace_id) to reference on AWS to narrow it -- Terraform Cloud is absent from AWS's per-IdP condition-key list. Pin the full workspace sub.", "patterns": ["wildcard-workspace", "no-id-pin"] },
+      "status": "documented",
+      "sources": [
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens",
+        "https://developer.hashicorp.com/terraform/cloud-docs/dynamic-provider-credentials/aws-configuration",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif"
+      ]
+    },
+    {
+      "id": "tfc-aws-org-wide-wildcard",
+      "description": "StringLike on app.terraform.io:sub truncated after the organization segment (organization:my-org:*). The whole HCP Terraform organization -- every project, every workspace, every run phase -- satisfies the condition.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:other-project:workspace:other-workspace:run_phase:plan",
+      "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "organization:my-org:*" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "organization:my-org:* is the broadest condition that is still org-scoped: because StringLike * spans every ':'-separated segment, any project/workspace/run_phase in the organization can assume the role, including a plan-phase run of an unrelated workspace. The organization name is the only anchor, and it is a mutable display name. Narrow to a specific project and workspace, and pin run_phase.", "patterns": ["org-wide", "wildcard-workspace", "run-phase-wildcard"] },
+      "status": "documented",
+      "sources": [
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens",
+        "https://developer.hashicorp.com/terraform/cloud-docs/dynamic-provider-credentials/aws-configuration",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "tfc-aws-name-based-no-immutable-lever",
+      "description": "The immutable-id gap made concrete. The token carries terraform_workspace_id and terraform_organization_id -- the unique, rename-proof identifiers -- yet the only expressible condition is StringEquals on the name-based sub, because AWS publishes no condition key for those claims. The ids ride in the token, unusable.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply",
+      "claims": {
+        "sub": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply",
+        "terraform_organization_id": "org-ABC123DEF",
+        "terraform_workspace_id": "ws-XYZ789GHI"
+      },
+      "condition": { "consumer": "aws-stringequals", "claim": "sub", "pattern": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Exact single-workspace pin, but on the mutable, reusable name-based sub: an organization/project/workspace rename changes the sub, and a workspace deleted and recreated under the same name (a new terraform_workspace_id) re-satisfies it. The token even carries terraform_workspace_id ws-XYZ789GHI -- the identifier that would close this gap -- but AWS exposes no app.terraform.io:terraform_workspace_id condition key (Terraform Cloud is absent from AWS's per-IdP allowlist; the Default OIDC mapping resolves only the standard OIDC claims -- sub, aud, amr, email, oaud), so it cannot be referenced. This is strictly weaker than the same issuer on other clouds: GitLab-on-AWS pins gitlab.com:project_id and GCP CEL pins assertion.terraform_workspace_id, both rename-proof. On AWS the name-based sub is the ceiling.", "patterns": ["exact-ref", "name-based", "no-id-pin"] },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens",
+        "https://developer.hashicorp.com/terraform/cloud-docs/dynamic-provider-credentials/aws-configuration",
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-deployment-pipelines"
+      ]
+    },
+    {
+      "id": "tfc-aws-stringequals-treats-star-literally",
+      "description": "The same run_phase:* string is inert under StringEquals: * is a literal character, so it matches only the literal string, never a real sub. The operator, not the pattern, decides -- StringLike would collapse the phases (see tfc-aws-run-phase-wildcard-collapses-plan-apply), StringEquals does not.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply",
+      "condition": { "consumer": "aws-stringequals", "claim": "sub", "pattern": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:*" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
+        "https://developer.hashicorp.com/terraform/cloud-docs/dynamic-provider-credentials/aws-configuration"
+      ]
+    },
+    {
+      "id": "tfc-aws-apply-exact-excludes-plan",
+      "description": "The phase gate working via the sub alone: a StringEquals condition pinned to run_phase:apply does NOT match a plan token, because run_phase is a segment of the sub. On AWS the plan/apply distinction is enforced by one condition key without a second credential, since the run phase is carried inside the sub rather than in a separate claim.",
+      "issuer": "terraform-cloud",
+      "subject": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:plan",
+      "condition": { "consumer": "aws-stringequals", "claim": "sub", "pattern": "organization:my-org:project:my-project:workspace:my-workspace:run_phase:apply" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://developer.hashicorp.com/terraform/cloud-docs/dynamic-provider-credentials/aws-configuration",
+        "https://developer.hashicorp.com/terraform/cloud-docs/workspaces/dynamic-provider-credentials/workload-identity-tokens",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    }
+  ]
+}

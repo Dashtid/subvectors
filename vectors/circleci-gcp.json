@@ -1,0 +1,102 @@
+{
+  "suite": "circleci-gcp",
+  "version": "0.1.0",
+  "description": "CircleCI CI OIDC tokens against GCP Workload Identity Federation attribute conditions (gcp-cel). CircleCI federates as a generic OIDC provider (GCP WIF accepts any IdP with an issuer URI + JWKS + OIDC 1.0), registered with its PER-ORG issuer https://oidc.circleci.com/org/<ORG_ID> -- so, as on AWS, cross-org spoofing is blocked at provider registration. The attribute_condition is a CEL accept/reject gate over the token claims (assertion.<claim>). The sub = org/<ORG_ID>/project/<PROJECT_ID>/user/<USER_ID> is built from immutable UUIDs, so a CEL pin on it (== or startsWith on the org/project prefix) is rename-proof by construction. The distinctive GCP lever vs AWS: CEL can reference ANY claim, including CircleCI's namespaced oidc.circleci.com/* claims via map indexing -- assertion['oidc.circleci.com/project-id'] and assertion['oidc.circleci.com/vcs-ref'] (bracket notation is required for a claim name containing dots/slashes; GCP's own condition CEL uses the same form for special-character keys). So on GCP you can pin the project-id UUID directly (the same immutable identity AWS exposes through its ONE registered custom key, but reached here through general CEL) AND gate the branch via the vcs-ref claim -- a lever AWS lacks entirely, since vcs-ref is not an AWS condition key and could only be matched by embedding it in the V2 sub. Two claims are referenceable in principle but out of this string-claim tranche's scope: oidc.circleci.com/ssh-rerun (a boolean) and oidc.circleci.com/context-ids (an array). Claim values here are strings; the matcher evaluates the CEL over the full claim set.",
+  "vectors": [
+    {
+      "id": "circleci-gcp-sub-exact-immutable-safe",
+      "description": "Exact CEL pin on the sub: assertion.sub == the fully-qualified org/project/user path, every segment an immutable UUID. Pins one triggering user of one project in one org.",
+      "issuer": "circleci",
+      "subject": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555",
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.sub == 'org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555'" },
+      "expect": "match",
+      "judgment": { "grade": "safe", "reason": "Every sub segment is an opaque, immutable UUID (org, project, user), so the exact pin is rename-proof by construction, and it is bound to one triggering user of one project under the per-org issuer. The residual is the same out-of-band SSH-rerun path noted for AWS (a debug session by this user mints the same sub) -- on GCP it could additionally be gated with a CEL check on the ssh-rerun claim, which is outside this string-claim tranche.", "patterns": ["immutable-id", "exact-ref", "rename-proof"] },
+      "status": "documented",
+      "sources": [
+        "https://circleci.com/docs/openid-connect-tokens/",
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-other-providers"
+      ]
+    },
+    {
+      "id": "circleci-gcp-sub-startswith-repo-scope",
+      "description": "Project-scoped CEL pin: assertion.sub.startsWith('org/<ORG_ID>/project/<PROJECT_ID>/'), pinning org+project by immutable UUID and allowing any user segment after the prefix. matches() would be substring; startsWith is prefix-anchored.",
+      "issuer": "circleci",
+      "subject": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555",
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.sub.startsWith('org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/')" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "org and project are pinned by immutable UUID via a prefix-anchored startsWith (rename-proof), but the trailing user segment is unconstrained, so any user who can trigger a pipeline on the project is admitted. (The trailing '/' after the project UUID is segment-boundary hygiene; with fixed-length UUIDs it is not itself a collision guard.) Pin the user segment, or pin oidc.circleci.com/project-id for a cleaner project match.", "patterns": ["immutable-id", "wildcard-user", "prefix-match"] },
+      "status": "documented",
+      "sources": [
+        "https://circleci.com/docs/openid-connect-tokens/",
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-other-providers"
+      ]
+    },
+    {
+      "id": "circleci-gcp-project-id-claim-pin",
+      "description": "Pinning the project by its dedicated claim via CEL map indexing: assertion['oidc.circleci.com/project-id'] == the project UUID. The bracket form is required because the claim name contains dots and a slash. This is the same immutable project identity AWS exposes through its one registered custom key -- reached here through general CEL over the assertion.",
+      "issuer": "circleci",
+      "subject": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555",
+      "claims": {
+        "sub": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555",
+        "oidc.circleci.com/project-id": "76543210-ba98-fedc-3210-edcba0987654"
+      },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion['oidc.circleci.com/project-id'] == '76543210-ba98-fedc-3210-edcba0987654'" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Pins the immutable project UUID directly by claim (rename-proof, opaque, a single unambiguous match), but constrains nothing narrower than the project: any user and any pipeline in the project qualifies. Equivalent identity strength to the sub-prefix pin; whether you reach the project id through the sub or through the dedicated claim, GCP CEL admits both because it can reference any claim in the assertion. Add a user or vcs-ref gate for anything privileged.", "patterns": ["project-id-pin", "immutable-id", "wildcard-user"] },
+      "status": "documented",
+      "sources": [
+        "https://circleci.com/docs/openid-connect-tokens/",
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-other-providers",
+        "https://github.com/google/cel-spec/blob/master/doc/langdef.md",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif"
+      ]
+    },
+    {
+      "id": "circleci-gcp-repo-and-vcs-ref-branch-gate",
+      "description": "Branch gating via the vcs-ref CLAIM, which AWS cannot reference: assertion.sub.startsWith(project prefix) AND assertion['oidc.circleci.com/vcs-ref'] == 'refs/heads/main'. GCP CEL reads the vcs-ref claim directly; on AWS vcs-ref is not a condition key, so a branch restriction could only be encoded inside the V2 sub, not gated as its own claim.",
+      "issuer": "circleci",
+      "subject": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555",
+      "claims": {
+        "sub": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555",
+        "oidc.circleci.com/vcs-ref": "refs/heads/main"
+      },
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.sub.startsWith('org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/') && assertion['oidc.circleci.com/vcs-ref'] == 'refs/heads/main'" },
+      "expect": "match",
+      "judgment": { "grade": "caution", "reason": "Combines an immutable project pin (rename-proof sub prefix) with a branch gate on the vcs-ref claim -- a hardening AWS cannot express as a claim (vcs-ref is not an AWS condition key; on AWS the branch is matchable only inside the V2 sub). But vcs-ref is a name-based, mutable ref (an attacker who can push a branch named main, or a repo without protected branches, still satisfies it), and it is present ONLY in the V2 token for VCS-triggered jobs -- a custom-webhook-triggered job omits vcs-ref, so this exact condition would fail-closed (reference an absent claim) for those runs. Pair with a protected branch.", "patterns": ["immutable-id", "vcs-ref", "name-based"] },
+      "status": "documented",
+      "sources": [
+        "https://circleci.com/docs/openid-connect-tokens/",
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-other-providers",
+        "https://github.com/google/cel-spec/blob/master/doc/langdef.md",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif"
+      ]
+    },
+    {
+      "id": "circleci-gcp-org-only-no-project-scope",
+      "description": "Org-only over-permission: assertion.sub.startsWith('org/<ORG_ID>/'). Because the per-org issuer already scopes every token to this organization, a startsWith on just the org prefix adds essentially no scoping -- every project and user in the org matches. A different project's token is admitted.",
+      "issuer": "circleci",
+      "subject": "org/2a3b4c5d-1111-2222-3333-444455556666/project/99998888-7777-6666-5555-444433332222/user/bbbb2222-cccc-3333-dddd-444455556666",
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.sub.startsWith('org/2a3b4c5d-1111-2222-3333-444455556666/')" },
+      "expect": "match",
+      "judgment": { "grade": "dangerous", "reason": "The condition constrains only the organization, which the per-org issuer already guarantees, so it authorizes every project and user in the org to assume the role -- this token's project (99998888...) is admitted with no project-level pin at all, and a new project added to the org inherits the trust immediately. This is the CEL equivalent of pinning nothing below the tenant. Pin the project (sub prefix through .../project/<PROJECT_ID>/ or the oidc.circleci.com/project-id claim).", "patterns": ["no-repo-scope", "wildcard-user"] },
+      "status": "documented",
+      "sources": [
+        "https://circleci.com/docs/openid-connect-tokens/",
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-other-providers"
+      ]
+    },
+    {
+      "id": "circleci-gcp-sub-exact-excludes-other-user",
+      "description": "The exact-sub pin working as an exclusion: the same assertion.sub == condition pinned to user aaaa1111... does NOT match a token from a different triggering user (bbbb2222...) of the same project. CEL == is exact string equality, so a single differing segment rejects.",
+      "issuer": "circleci",
+      "subject": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/bbbb2222-cccc-3333-dddd-444455556666",
+      "condition": { "consumer": "gcp-cel", "pattern": "assertion.sub == 'org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555'" },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://circleci.com/docs/openid-connect-tokens/",
+        "https://docs.cloud.google.com/iam/docs/workload-identity-federation-with-other-providers"
+      ]
+    }
+  ]
+}

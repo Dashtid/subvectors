@@ -120,3 +120,36 @@ def test_grouping_overrides_precedence() -> None:
     claims = {**CLAIMS, "event_name": "pull_request"}
     assert evaluate("(assertion.ref == 'refs/heads/main' || assertion.event_name == 'push') && assertion.repository == 'octo-org/octo-repo'", claims) is True
     assert evaluate("assertion.event_name == 'push' || assertion.ref == 'refs/heads/dev' && assertion.repository == 'x'", claims) is False
+
+
+NAMESPACED = {
+    "sub": "org/2a3b4c5d/project/76543210/user/aaaa1111",
+    "oidc.circleci.com/project-id": "76543210-ba98-fedc-3210-edcba0987654",
+    "oidc.circleci.com/vcs-ref": "refs/heads/main",
+}
+
+
+def test_bracket_indexing_addresses_namespaced_claim() -> None:
+    # A claim whose name has dots/slashes is only reachable via assertion['name'].
+    assert evaluate("assertion['oidc.circleci.com/project-id'] == '76543210-ba98-fedc-3210-edcba0987654'", NAMESPACED) is True
+    assert evaluate("assertion['oidc.circleci.com/project-id'] == 'other'", NAMESPACED) is False
+
+
+def test_bracket_indexing_composes_with_methods_and_logic() -> None:
+    assert evaluate("assertion.sub.startsWith('org/2a3b4c5d/project/76543210/') && assertion['oidc.circleci.com/vcs-ref'] == 'refs/heads/main'", NAMESPACED) is True
+    assert evaluate("assertion['oidc.circleci.com/vcs-ref'].endsWith('/main')", NAMESPACED) is True
+
+
+def test_bracket_indexing_absent_claim_raises() -> None:
+    with pytest.raises(CelError):
+        evaluate("assertion['oidc.circleci.com/ssh-rerun'] == 'false'", NAMESPACED)
+
+
+def test_bracket_indexing_and_dot_notation_agree_for_simple_names() -> None:
+    assert evaluate("assertion['sub'] == assertion.sub", NAMESPACED) is True
+
+
+def test_bracket_indexing_malformed_raises() -> None:
+    for bad in ["assertion[] == 'x'", "assertion['a' == 'x'", "assertion[project] == 'x'", "assertion['a'] ['b']"]:
+        with pytest.raises(CelError):
+            evaluate(bad, NAMESPACED)

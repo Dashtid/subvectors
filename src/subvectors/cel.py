@@ -8,7 +8,9 @@ correctness oracle for the ``gcp-cel`` consumer is a CEL evaluator, not a string
 This implements the small, security-relevant subset of CEL that realistic GitHub -> GCP
 attribute_conditions use, and nothing more (see the "not implemented" note below). The token
 claims are exposed under the ``assertion`` namespace by dot notation, e.g.
-``assertion.repository_owner_id == '1342004'``.
+``assertion.repository_owner_id == '1342004'``. A claim whose NAME is not a valid identifier
+(dots or slashes, e.g. CircleCI's ``oidc.circleci.com/project-id``) is addressed by CEL map
+indexing instead: ``assertion['oidc.circleci.com/project-id'] == '...'``.
 
 Semantics that are easy to get wrong, pinned to primary sources:
 - The condition is the accept/reject gate: true = accepted, false = rejected.
@@ -164,13 +166,27 @@ class _Parser:
         k, v = self._peek()
         if k == "ident" and v == "assertion":
             self._advance()
-            if not self._at_op("."):
-                raise CelError("expected '.<claim>' after 'assertion'")
-            self._advance()
-            ck, claim = self._advance()
-            if ck != "ident":
-                raise CelError("expected a claim name after 'assertion.'")
-            return ("claim", claim)
+            if self._at_op("."):
+                self._advance()
+                ck, claim = self._advance()
+                if ck != "ident":
+                    raise CelError("expected a claim name after 'assertion.'")
+                return ("claim", claim)
+            if self._at_op("["):
+                # Map indexing: the only way to address a claim whose NAME contains
+                # characters not valid in a CEL identifier (dots, slashes), e.g.
+                # CircleCI's 'oidc.circleci.com/project-id'. This is CEL map access
+                # by a string key -- GCP's own condition CEL uses the same form for
+                # special-character keys (e.g. assertion.attributes['https://.../SAML/...']).
+                self._advance()  # [
+                sk, name = self._advance()
+                if sk != "str":
+                    raise CelError("assertion[...] index must be a single quoted claim name")
+                if not self._at_op("]"):
+                    raise CelError("expected ']' to close assertion[...]")
+                self._advance()  # ]
+                return ("claim", name)
+            raise CelError("expected '.<claim>' or ['<claim>'] after 'assertion'")
         if k == "str":
             self._advance()
             return ("str", v)

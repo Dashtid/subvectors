@@ -1,0 +1,40 @@
+# Dependabot configuration - deliberately low-noise.
+#
+# Non-major updates arrive as ONE grouped PR per ecosystem per month.
+# Security updates stay ungrouped and uncooled so they land fast.
+# Rationale and the estate-wide posture: github.com/Dashtid/estate
+version: 2
+updates:
+  - package-ecosystem: "pip"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 5
+    cooldown:
+      default-days: 7
+      semver-major-days: 30
+    groups:
+      python-non-major:
+        applies-to: version-updates
+        patterns:
+          - "*"
+        update-types:
+          - "minor"
+          - "patch"
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    cooldown:
+      default-days: 7
+    groups:
+      actions-all:
+        applies-to: version-updates
+        patterns:
+          - "*"
+    labels:
+      - "dependencies"

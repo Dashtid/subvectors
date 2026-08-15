@@ -95,7 +95,6 @@ tests/             <- THE PROOF.
 
 docs/
   JUDGMENT-CATALOG.md    the graded over-permission patterns
-  NOVELTY-AND-RISKS.md   the decision record (why this shape, what was killed)
 ```
 
 ## How the matcher works

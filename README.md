@@ -102,7 +102,7 @@ Judgments: 30 safe - 45 caution - 36 dangerous - 22 ungraded (mechanical no-matc
 
 Scanners in this space compete and get obsoleted: SpecterOps GitHound already maps
 workflow-to-cloud OIDC reach, Prowler shipped a GitHub provider (2026-07-02), Wiz and Datadog are
-converging (see [`docs/NOVELTY-AND-RISKS.md`](docs/NOVELTY-AND-RISKS.md)). A test-vector suite does
+converging. A test-vector suite does
 not compete with scanners — it grades them. Each new tool entering the space is a new consumer of
 the corpus, the way Wycheproof tests everyone's cryptography and the JSON-Schema-Test-Suite tests
 everyone's validators. Consumers keep their own matching code (no runtime dependency to trust) and

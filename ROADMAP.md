@@ -1,8 +1,7 @@
 # Roadmap
 
 Re-pointed 2026-07-05: the scanner/PR-gate plan ("oidc-reach v1") is dropped in favor of the
-conformance vector suite + upstream feeder campaigns. Rationale and the full decision record live
-in [`docs/NOVELTY-AND-RISKS.md`](docs/NOVELTY-AND-RISKS.md). The compounding test: an incumbent
+conformance vector suite + upstream feeder campaigns. The compounding test: an incumbent
 shipping an overlapping feature must ADD a consumer of this corpus, never obsolete it.
 
 **Cadence discipline:** every slice is weeknight-sized and independently shippable. Ship the
@@ -72,7 +71,7 @@ substrate for the deferred offensive project, or is donated to a neutral home.
 - Fallback feeder if either seam closes: Prowler Entra FIC checks (verified zero FIC code there,
   proven community merge channel).
 
-## Rethink triggers (re-read docs/NOVELTY-AND-RISKS.md before overriding)
+## Rethink triggers
 
 - [!] No tool has merged a vector-derived PR or cited the corpus by end of 2026 → pivot the lead
       to the Prowler Entra-FIC campaign; keep the corpus as its fixture backing.

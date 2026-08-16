@@ -7,6 +7,28 @@ shipping an overlapping feature must ADD a consumer of this corpus, never obsole
 **Cadence discipline:** every slice is weeknight-sized and independently shippable. Ship the
 slice, update this file, stop.
 
+## Where this actually stands (2026-08-16)
+
+**The corpus is feature-complete. Do not add vectors.** All 5 planned issuers and all 6 consumer
+semantics have shipped: 14 suites / 133 vectors, 225 tests green, CI green on 3.11-3.13. Corpus and
+code work paused 2026-07-31; docs hygiene continued through 08-16. It is **not stalled** — it is
+built, and the remaining value is entirely OUTSIDE this repo.
+
+What is actually open, in priority order:
+
+1. **One correctness bug** — `src/subvectors/github.py:56` uses `or` where it needs `and` (a
+   one-sided `@id` subject is malformed, not immutable). Zero of 133 vectors exercise that branch,
+   so 225 green tests sail over it, and it makes this repo *disagree with subcheck*, its own first
+   consumer. ~15 min.
+2. **Doc-truth debt** — the Azure error claim (above), and README should state plainly that all
+   133 vectors are `documented` and **0 are `observed`**.
+3. **Three upstream PRs, all blocked on maintainers, zero merged** — checkov #7610 (CI never ran;
+   stuck in the fork-PR approval queue), checkov #7627, cartography #3088. The scoreboard below
+   says merged PRs are the metric; it currently reads 0.
+4. **The `documented` → `observed` promotion**, which needs a live issuer/cloud and therefore a
+   scope decision (see BACKLOG). This is the highest-value work available and it is DECISION-BLOCKED,
+   not effort-blocked.
+
 ## How we measure success (read before adding vectors)
 
 The corpus is the ENGINE, not the deliverable. Wycheproof matters because it found real bugs in
@@ -27,39 +49,60 @@ substrate for the deferred offensive project, or is donated to a neutral home.
 ## v0.1 — GitHub-to-AWS tranche + the two feeder PRs (first month)
 *Goal: land the first merged bug-fix PR (Checkov) and stand up the oracle that generated it.*
 
-- [ ] **Slice 1 — Checkov `oidc_utils.py` fix (upstream, deadline-bound: before 2026-07-15).**
+- [~] **Slice 1 — Checkov `oidc_utils.py` fix (upstream, deadline-bound: before 2026-07-15).**
       One PR: `gh_repo_regex` currently accepts `org/*` wildcard repos (false negative) and
       rejects the immutable `owner@123/name@456` format that becomes mandatory for new repos on
       2026-07-15 (false positive). Parametrized tests across CKV_AWS_358 / CKV_AZURE_249 /
       CKV_GCP_125; GitHub changelog citation in the PR body. 1-2 evenings.
+      **Opened** as Checkov PR #7610 (immutable `@id` support across the four GH-OIDC checks); the
+      org-wide `repo:org/*` case raised as the open question per plan. Tracked in oss-contributions
+      (NOW bucket, `checkov/7610-immutable-oidc-subject/`); awaiting maxamel's 4-8wk sweep. Not yet
+      merged, so still `[~]`.
 - [x] **Slice 2 — suite skeleton.** JSON Schema for vectors; GitHub issuer grammar (classic AND
       immutable formats); ~20 AWS StringLike/StringEquals match/no-match vectors including
       wildcard-vs-immutable-ID footguns; ~100-line Python reference matcher passing pytest.
       Vector layout shaped so Checkov-style parametrized tests can be regenerated from it (the
       adoption hook). Done: skeleton shipped, github-aws now 27 vectors (0.2.0 tranche
       2026-07-16, adversarially source-verified); Azure/GCP/GitLab tranches landed alongside.
-- [ ] **Slice 3 — Cartography scoping issue (upstream).** Issue against `intel/aws/iam.py`
+- [~] **Slice 3 — Cartography scoping issue (upstream).** Issue against `intel/aws/iam.py`
       ("# TODO support conditions") with a failing fixture: a GitHub-OIDC StringLike trust policy
       producing an unconditioned federated edge. Minimal additive proposal (sub/aud as edge
       properties, no new node types). Issue-first is correct here: it is a genuine schema-design
       question. 1 evening.
+      **Advanced well past plan:** filed as issue #3078; maintainer (kunaals) green-lit option 3,
+      tier-1 first; now open as PR #3088 (`feat/iam-trust-conditions`, rebased 2026-08-15). Tracked
+      in oss-contributions (NOW, `cartography/3088-iam-trust-conditions-pr/`); maintainer-requested
+      reassess 2026-09-30.
 - [~] **Slice 4 — Azure FIC tranche (the depth wedge).**
       - [x] Classic FIC `azure-fic-exact` consumer in the matcher + 10 cited vectors
             (`vectors/github-azure.json`): case-sensitivity, the silent no-error mismatch, the
             wildcard-as-literal trap (opposite of AWS StringLike — `repo:org/*` matches nothing on
             Azure), tag/environment scoping, the `pull_request` over-permission CKV_AZURE_249
             passes, and the classic-vs-immutable silent break.
-      - [ ] Flexible-FIC tranche (`claimsMatchingExpression`: `matches`/`eq`/`and`, `*`/`?`
-            wildcards) — Preview, Graph/portal-only, version-stamped. Its own consumer + slice
-            (moving target; not exposed via Terraform/CLI yet).
-      - [ ] CKV_AZURE_249 deepening PR generated from the pull_request/tag/environment vectors.
-      (Correction to earlier note: a subject mismatch is a SILENT no-error rejection; AADSTS70021
-      is the separate propagation-delay error, not a mismatch diagnostic.)
+      - [x] Flexible-FIC tranche (`claimsMatchingExpression`: `matches`/`eq`/`and`, `*`/`?`
+            wildcards) — Preview, Graph/portal-only, version-stamped. SHIPPED:
+            `src/subvectors/ffl.py` + the `azure-fic-flexible` consumer + all three issuers
+            Microsoft supports — `github-azure-flexible` (8), `gitlab-azure-flexible` (5),
+            `terraform-azure-flexible` (6).
+      - [~] CKV_AZURE_249 deepening PR generated from the pull_request/tag/environment vectors.
+            Opened as Checkov PR #7627 ("CKV_AZURE_249 should flag `pull_request` OIDC subjects");
+            tracked in oss-contributions (NOW, `checkov/7627-ckv-azure-249/`).
+      [!] (Corrected 2026-08-16 — the previous "correction" here was itself inverted.) The silence
+      is at CREATION, not exchange: Azure performs no validation when a federated identity
+      credential is written, so a wrong subject is accepted without complaint. At TOKEN EXCHANGE a
+      mismatch DOES return an error — `AADSTS700213` ("No matching federated identity record found
+      for presented assertion subject ... matching is done using a case-sensitive comparison");
+      `AADSTS700211` is the issuer-mismatch variant and `AADSTS70021` the generic no-match.
+      The defect to claim is "unvalidated at write time", not "fails silently". This wording still
+      needs fixing in `matcher.py` and the Azure vector suites — see ARCHITECTURE.md known issues.
 
 ## v0.2 — breadth and consumers
 
-- [ ] GCP Workload Identity Federation CEL tranche.
-- [ ] Non-GitHub issuers: GitLab, Bitbucket, CircleCI, Terraform Cloud subject dialects.
+- [x] GCP Workload Identity Federation CEL tranche. SHIPPED: `src/subvectors/cel.py` (incl. map
+      indexing) + 4 suites — `github-gcp` (12), `gitlab-gcp` (6), `terraform-gcp` (6),
+      `circleci-gcp` (6).
+- [x] Non-GitHub issuers: GitLab, Bitbucket, CircleCI, Terraform Cloud subject dialects. ALL
+      SHIPPED — 5 issuers total (github, gitlab, bitbucket, circleci, terraform-cloud).
 - [ ] Consumer-adoption pass: offer vector-derived test PRs to zizmor / Prowler / GitHound where
       their matching logic diverges from the suite.
 - [ ] Judgment catalog write-up: the graded over-permission patterns as a citable reference page.

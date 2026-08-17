@@ -13,7 +13,11 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 - `[~]` **Checkov immutable-subject PR** (Slice 1) — separate session in the checkov clone.
   Deadline 2026-07-15. Ship the immutable `@id` regex fix only; raise the org-wide `repo:org/*`
   case as an open question (maintainer-documented as intended). Snapshot to the private tracker
-  once opened.
+  once opened. **OPENED:** PR #7610 (immutable `@id` support across the four GH-OIDC checks),
+  snapshotted in oss-contributions (`checkov/7610-immutable-oidc-subject/`, NOW bucket); org-wide
+  `repo:org/*` raised as the open question per plan. Sibling PR #7627 (CKV_AZURE_249 `pull_request`)
+  opened alongside. Both awaiting maxamel's 4-8wk community sweep — no human contact yet; stays
+  `[~]` until merged/closed.
 
 ## Next up — this repo, independent of the upstream PRs
 
@@ -213,7 +217,9 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   401-limited). No gitlab.com credentials in this environment -- post from a session with
   GitLab auth, then track in oss-contributions.
 
-- `[ ]` **CKV_AZURE_249 deepening PR.** After the first Checkov PR lands. Driven by the
+- `[~]` **CKV_AZURE_249 deepening PR.** OPENED as Checkov PR #7627 ("CKV_AZURE_249 should flag
+  `pull_request` OIDC subjects"), tracked in oss-contributions (NOW, `checkov/7627-ckv-azure-249/`).
+  Driven by the
   `pull_request`/tag/environment Azure vectors — the check passes patterns it should flag.
   Stronger angle now vectored: flexible FIC nulls the `subject` property and moves matching into
   `claimsMatchingExpression`, so any subject-only check is BLIND to a flexible-FIC rule entirely
@@ -226,8 +232,11 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   as the open question already in issue #7005 (not a unilateral bug). Vectors
   `gh-gcp-immutable-id-pin-safe` + `gh-gcp-classic-sub-immutable-break` demonstrate the divergence.
   `git log -S "assertion.sub"` in a fresh clone first (confirm still sub-only post-#7610).
-- `[ ]` **Cartography scoping issue + failing fixture** (Slice 3). `intel/aws/iam.py`
+- `[~]` **Cartography scoping issue + failing fixture** (Slice 3). `intel/aws/iam.py`
   "# TODO support conditions"; minimal additive proposal (sub/aud as edge properties). Issue-first.
+  DONE and advanced: issue #3078 filed, maintainer-requested, now open as PR #3088
+  (`feat/iam-trust-conditions`, tier-1); tracked in oss-contributions (NOW,
+  `cartography/3088-iam-trust-conditions-pr/`), reassess 2026-09-30.
 - `[ ]` **Consumer-adoption outreach.** Where a tool's matching diverges from the suite (zizmor,
   Prowler, GitHound), offer a vector-derived test PR. This is the adoption signal to watch.
 - `[ ]` **Fallback feeder: Prowler Entra-FIC checks** — only if the Checkov/Cartography seams close

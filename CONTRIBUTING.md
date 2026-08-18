@@ -91,7 +91,7 @@ python scripts/coverage.py --write     # regenerate the README coverage matrix a
 
 ## Scope — hard boundaries
 
-- **Stay in the cloud-CI / OIDC / IAM domain.** No medical-imaging or SBOM/SCA content.
+- **Stay in the cloud-CI / OIDC / IAM domain.** Vectors outside that scope will not be accepted.
 - **Don't grow the matcher into a scanner.** No reachability graphs, PR gates, or live cloud
   collectors — it is a correctness oracle, not a product.
 - Conventional commits; small, focused changes.

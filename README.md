@@ -11,8 +11,8 @@ subject, a GCP Workload Identity Federation attribute condition. Every security 
 must re-implement that comparison and judge those rules. They re-figure it out alone, and they get
 it wrong.
 
-> Status: pre-v0.1. Built on personal time + personal equipment. IP-clean: cloud-CI OIDC trust
-> boundaries, deliberately outside any medical-imaging / SBOM-SCA domain.
+> Status: pre-v0.1. An independent personal project, built on personal time and personal
+> equipment.
 
 ## The proof this is needed (verified 2026-07-04)
 

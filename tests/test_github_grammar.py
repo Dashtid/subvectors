@@ -3,6 +3,12 @@
 The immutable cases are the ones that matter: they are the format that becomes
 mandatory for new repositories after 2026-07-15, and the format a classic-only
 parser silently drops.
+
+The one-sided cases guard the other edge: GitHub appends ``@id`` to both the
+owner and the repo or to neither, so a subject carrying exactly one id is a
+shape GitHub never mints. It parses (the ids present are still reported), but
+it is not immutable -- the same verdict subcheck reaches when it labels that
+shape ``malformed``.
 """
 
 from __future__ import annotations
@@ -24,6 +30,28 @@ def test_parses_immutable_subject() -> None:
     assert (seg.owner, seg.repo) == ("octo-org", "octo-repo")
     assert (seg.owner_id, seg.repo_id) == ("123456", "7891011")
     assert seg.immutable is True
+
+
+def test_owner_id_only_is_malformed_not_immutable() -> None:
+    # An id on the owner alone is a shape GitHub never mints: the subject is
+    # malformed, not immutable. It still parses, and the one id that is
+    # present is still reported -- only the immutable verdict is withheld.
+    seg = parse_repo_segment("repo:octo-org@123456/octo-repo:ref:refs/heads/main")
+    assert seg is not None
+    assert (seg.owner, seg.repo) == ("octo-org", "octo-repo")
+    assert (seg.owner_id, seg.repo_id) == ("123456", None)
+    assert seg.immutable is False
+
+
+def test_repo_id_only_is_malformed_not_immutable() -> None:
+    # The mirror case: an id on the repo alone is equally malformed. Both
+    # one-sided forms must agree, or a consumer could be told a half-migrated
+    # subject is rename-proof when nothing pins the owner.
+    seg = parse_repo_segment("repo:octo-org/octo-repo@7891011:ref:refs/heads/main")
+    assert seg is not None
+    assert (seg.owner, seg.repo) == ("octo-org", "octo-repo")
+    assert (seg.owner_id, seg.repo_id) == (None, "7891011")
+    assert seg.immutable is False
 
 
 def test_parses_pull_request_suffix() -> None:

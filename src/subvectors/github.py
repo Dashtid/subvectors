@@ -52,8 +52,14 @@ class RepoSegment:
 
     @property
     def immutable(self) -> bool:
-        """True when the subject carries embedded owner/repo IDs."""
-        return self.owner_id is not None or self.repo_id is not None
+        """True when the subject carries embedded owner AND repo IDs.
+
+        GitHub appends ``@id`` to both segments or to neither, so a one-sided
+        subject (``owner@123/repo`` or ``owner/repo@456``) is *malformed* --
+        a shape GitHub never mints -- and is not immutable. The parsed
+        ``owner_id``/``repo_id`` still report whichever id was present.
+        """
+        return self.owner_id is not None and self.repo_id is not None
 
 
 def parse_repo_segment(subject: str) -> RepoSegment | None:

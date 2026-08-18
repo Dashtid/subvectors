@@ -2,7 +2,6 @@
 #
 # Non-major updates arrive as ONE grouped PR per ecosystem per month.
 # Security updates stay ungrouped and uncooled so they land fast.
-# Rationale and the estate-wide posture: github.com/Dashtid/estate
 version: 2
 updates:
   - package-ecosystem: "pip"

@@ -131,7 +131,7 @@ cloud account.
 
 ## What it deliberately does NOT do
 
-Guardrails, not gaps. See `CLAUDE.md`.
+Guardrails, not gaps. See the Scope section of `CONTRIBUTING.md`.
 
 - **Not a scanner, not a PR gate, no reachability graphs.** That was the original `oidc-reach` plan
   and it was **killed on 2026-07-05** — the value decayed on a ~6-month incumbent fuse. If you find
@@ -149,16 +149,25 @@ Vectors added is an *input*. A tranche that surfaces no bug and no adoption is a
 progress. Cataloguing for its own sake is the named failure mode ("the librarian trap") — see
 `ROADMAP.md`.
 
-## Known issues to fix before publishing
+## Known issues
 
-Recorded here so they aren't rediscovered later (from the 2026-07-30 verification pass):
+Recorded here so they aren't rediscovered later (from the 2026-07-30 verification pass).
+Still open:
 
 - **Azure "fails silently, no error" is only half right.** *Creation* of a FIC is unvalidated and
-  silent; *token exchange* returns `AADSTS700213`. Appears in `matcher.py`, several Azure vector
-  files, and `ROADMAP.md` (where the parenthetical "correction" is itself inverted).
-- **`RepoSegment.immutable` in `github.py` uses `or`.** It should be `and` — GitHub emits `@id` on
-  both segments or neither, so a one-sided subject is *malformed*, not immutable. subcheck already
-  fixed this on its side, so the two grammars currently disagree.
-- **README counts are stale** — it says 10 suites / 107 vectors; actually 13 / 127.
+  silent; *token exchange* returns `AADSTS700213`. Still to correct in `matcher.py` and several
+  Azure vector files. (`ROADMAP.md` was corrected in `42285eb` and now states it correctly.)
 - **README says vectors carry a `documented` vs `observed` status**, implying a mix. All are
   currently `documented`.
+
+Resolved:
+
+- **`RepoSegment.immutable` in `github.py` used `or`. FIXED 2026-08-18** — it is now `and`, since
+  GitHub emits `@id` on both segments or neither, so a one-sided subject is *malformed*, not
+  immutable. The branch was reachable (both id groups in `_REPO_RE` are independently optional, so
+  one-sided input parses); it is now covered by two unit tests. **subcheck had the identical bug
+  and fixed it first**: `decoder.py` shipped `"immutable" if (owner_id or repo_id) else "legacy"`
+  in `34a42ce` (2026-07-21) and corrected it to a three-state `immutable`/`malformed`/`legacy`
+  classification in `423964f` (2026-07-30). This repo lagged that correction by three weeks; the
+  two now agree on every input shape. `immutable` stays a two-state boolean here, so a one-sided
+  subject reads the same as a legacy one; `owner_id`/`repo_id` still distinguish them.

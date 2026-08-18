@@ -1,31 +1,40 @@
 # Roadmap
 
 Re-pointed 2026-07-05: the scanner/PR-gate plan ("oidc-reach v1") is dropped in favor of the
-conformance vector suite + upstream feeder campaigns. The compounding test: an incumbent
+conformance vector suite + the upstream fixes it feeds. The compounding test: an incumbent
 shipping an overlapping feature must ADD a consumer of this corpus, never obsolete it.
 
 **Cadence discipline:** every slice is weeknight-sized and independently shippable. Ship the
 slice, update this file, stop.
 
-## Where this actually stands (2026-08-16)
+## Where this actually stands (2026-08-18)
 
 **The corpus is feature-complete. Do not add vectors.** All 5 planned issuers and all 6 consumer
-semantics have shipped: 14 suites / 133 vectors, 225 tests green, CI green on 3.11-3.13. Corpus and
-code work paused 2026-07-31; docs hygiene continued through 08-16. It is **not stalled** — it is
+semantics have shipped: 14 suites / 133 vectors, 227 tests green, CI green on 3.11-3.13. Corpus and
+code work paused 2026-07-31; docs hygiene continued through 08-18. It is **not stalled** — it is
 built, and the remaining value is entirely OUTSIDE this repo.
+
+**Fixed 2026-08-18 — the one correctness bug.** `RepoSegment.immutable` in
+`src/subvectors/github.py` used `or` where it needed `and`, so a one-sided `@id` subject (an
+id on the owner or the repo but not both) was reported as immutable when it is *malformed* — a
+shape GitHub never mints. The branch was **reachable, not latent**: the two id groups in
+`_REPO_RE` are independently optional, so `parse_repo_segment` parses one-sided input happily.
+Zero of 133 vectors exercised it, which is why 225 green tests sailed over it; two unit tests now
+cover both one-sided forms. **subcheck shipped the identical bug and fixed it three weeks earlier**
+(`34a42ce` 2026-07-21 introduced `"immutable" if (owner_id or repo_id)`, `423964f` 2026-07-30
+replaced it with a three-state `immutable`/`malformed`/`legacy` classification). The two agree
+again on every input shape. Worth noting what this was: not the corpus disagreeing with an outside
+tool, but this repo lagging a correction its own consumer had already made — the kind of drift
+nothing here currently tests for.
 
 What is actually open, in priority order:
 
-1. **One correctness bug** — `src/subvectors/github.py:56` uses `or` where it needs `and` (a
-   one-sided `@id` subject is malformed, not immutable). Zero of 133 vectors exercise that branch,
-   so 225 green tests sail over it, and it makes this repo *disagree with subcheck*, its own first
-   consumer. ~15 min.
-2. **Doc-truth debt** — the Azure error claim (above), and README should state plainly that all
+1. **Doc-truth debt** — the Azure error claim (above), and README should state plainly that all
    133 vectors are `documented` and **0 are `observed`**.
-3. **Three upstream PRs, all blocked on maintainers, zero merged** — checkov #7610 (CI never ran;
-   stuck in the fork-PR approval queue), checkov #7627, cartography #3088. The scoreboard below
-   says merged PRs are the metric; it currently reads 0.
-4. **The `documented` → `observed` promotion**, which needs a live issuer/cloud and therefore a
+2. **Three upstream PRs open, zero merged** — checkov #7610 (CI never ran; fork-PR workflow runs
+   await approval), checkov #7627, cartography #3088. The scoreboard below says merged PRs are
+   the metric; it currently reads 0.
+3. **The `documented` → `observed` promotion**, which needs a live issuer/cloud and therefore a
    scope decision (see BACKLOG). This is the highest-value work available and it is DECISION-BLOCKED,
    not effort-blocked.
 
@@ -44,7 +53,7 @@ real crypto libraries, not because it is a tidy collection. Same scoreboard here
 
 If, after v0.1, finding and landing real bugs in real tools is not energizing, that is the pivot
 trigger (see rethink triggers) — not a cue to keep cataloguing. The corpus then becomes the
-substrate for the deferred offensive project, or is donated to a neutral home.
+substrate for follow-on work, or is donated to a neutral home.
 
 ## v0.1 — GitHub-to-AWS tranche + the two feeder PRs (first month)
 *Goal: land the first merged bug-fix PR (Checkov) and stand up the oracle that generated it.*
@@ -55,9 +64,8 @@ substrate for the deferred offensive project, or is donated to a neutral home.
       2026-07-15 (false positive). Parametrized tests across CKV_AWS_358 / CKV_AZURE_249 /
       CKV_GCP_125; GitHub changelog citation in the PR body. 1-2 evenings.
       **Opened** as Checkov PR #7610 (immutable `@id` support across the four GH-OIDC checks); the
-      org-wide `repo:org/*` case raised as the open question per plan. Tracked in oss-contributions
-      (NOW bucket, `checkov/7610-immutable-oidc-subject/`); awaiting maxamel's 4-8wk sweep. Not yet
-      merged, so still `[~]`.
+      org-wide `repo:org/*` case raised as the open question per plan. Awaiting maintainer review.
+      Not yet merged, so still `[~]`.
 - [x] **Slice 2 — suite skeleton.** JSON Schema for vectors; GitHub issuer grammar (classic AND
       immutable formats); ~20 AWS StringLike/StringEquals match/no-match vectors including
       wildcard-vs-immutable-ID footguns; ~100-line Python reference matcher passing pytest.
@@ -69,10 +77,9 @@ substrate for the deferred offensive project, or is donated to a neutral home.
       producing an unconditioned federated edge. Minimal additive proposal (sub/aud as edge
       properties, no new node types). Issue-first is correct here: it is a genuine schema-design
       question. 1 evening.
-      **Advanced well past plan:** filed as issue #3078; maintainer (kunaals) green-lit option 3,
-      tier-1 first; now open as PR #3088 (`feat/iam-trust-conditions`, rebased 2026-08-15). Tracked
-      in oss-contributions (NOW, `cartography/3088-iam-trust-conditions-pr/`); maintainer-requested
-      reassess 2026-09-30.
+      **Advanced well past plan:** filed as issue #3078; maintainer green-lit option 3, tier-1
+      first; now open as PR #3088 (`feat/iam-trust-conditions`, rebased 2026-08-15).
+      Maintainer-requested reassess 2026-09-30.
 - [~] **Slice 4 — Azure FIC tranche (the depth wedge).**
       - [x] Classic FIC `azure-fic-exact` consumer in the matcher + 10 cited vectors
             (`vectors/github-azure.json`): case-sensitivity, the silent no-error mismatch, the
@@ -85,8 +92,7 @@ substrate for the deferred offensive project, or is donated to a neutral home.
             Microsoft supports — `github-azure-flexible` (8), `gitlab-azure-flexible` (5),
             `terraform-azure-flexible` (6).
       - [~] CKV_AZURE_249 deepening PR generated from the pull_request/tag/environment vectors.
-            Opened as Checkov PR #7627 ("CKV_AZURE_249 should flag `pull_request` OIDC subjects");
-            tracked in oss-contributions (NOW, `checkov/7627-ckv-azure-249/`).
+            Opened as Checkov PR #7627 ("CKV_AZURE_249 should flag `pull_request` OIDC subjects").
       [!] (Corrected 2026-08-16 — the previous "correction" here was itself inverted.) The silence
       is at CREATION, not exchange: Azure performs no validation when a federated identity
       credential is written, so a wrong subject is accepted without complaint. At TOKEN EXCHANGE a
@@ -107,21 +113,26 @@ substrate for the deferred offensive project, or is donated to a neutral home.
       their matching logic diverges from the suite.
 - [ ] Judgment catalog write-up: the graded over-permission patterns as a citable reference page.
 
-## Standing upstream campaigns (tracked in the private oss-contributions tracker)
+## Upstream integration targets
 
-- Checkov OIDC check family (CKV_AWS_358/393, CKV_AZURE_249, CKV_GCP_125/118).
-- Cartography trust-policy conditions.
-- Fallback feeder if either seam closes: Prowler Entra FIC checks (verified zero FIC code there,
-  proven community merge channel).
+Places where a shipping tool's matching logic diverges from the corpus. Each divergence is a
+concrete, vector-backed contribution:
+
+- **Checkov's OIDC check family** (CKV_AWS_358/393, CKV_AZURE_249, CKV_GCP_125/118) reasons only
+  about `sub`, and its subject regexes predate the immutable `@id` format.
+- **Cartography** does not parse IAM trust-policy conditions at all, so a federated edge carries
+  no `sub`/`aud` scoping.
+- **Prowler** has no Entra federated-identity-credential checks (verified), so Azure FIC subject
+  grading is entirely unrepresented there.
 
 ## Rethink triggers
 
 - [!] No tool has merged a vector-derived PR or cited the corpus by end of 2026 → pivot the lead
-      to the Prowler Entra-FIC campaign; keep the corpus as its fixture backing.
+      to the Prowler Entra-FIC gap; keep the corpus as its fixture backing.
 - [!] A neutral home (e.g. an OpenSSF WG, sigstore) starts a machine-readable claims registry →
       contribute the corpus there; "own repo" becomes "join theirs".
-- [!] Both feeder seams close first (Checkov fix landed by someone else AND the Cartography TODO
-      reached) → corpus survives; Prowler becomes feeder #1.
+- [!] Both current gaps close first (Checkov fix landed by someone else AND the Cartography TODO
+      reached) → corpus survives; Prowler's Entra-FIC gap becomes the lead target.
 
 ## Explicitly dropped
 

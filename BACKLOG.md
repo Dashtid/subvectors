@@ -10,17 +10,28 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 
 ## In progress
 
-- `[~]` **Checkov immutable-subject PR** (Slice 1) — separate session in the checkov clone.
-  Deadline 2026-07-15. Ship the immutable `@id` regex fix only; raise the org-wide `repo:org/*`
-  case as an open question (maintainer-documented as intended). Snapshot to the private tracker
-  once opened. **OPENED:** PR #7610 (immutable `@id` support across the four GH-OIDC checks),
-  snapshotted in oss-contributions (`checkov/7610-immutable-oidc-subject/`, NOW bucket); org-wide
-  `repo:org/*` raised as the open question per plan. Sibling PR #7627 (CKV_AZURE_249 `pull_request`)
-  opened alongside. Both awaiting maxamel's 4-8wk community sweep — no human contact yet; stays
-  `[~]` until merged/closed.
+- `[~]` **Checkov immutable-subject PR** (Slice 1). Deadline 2026-07-15. Ship the immutable `@id`
+  regex fix only; raise the org-wide `repo:org/*` case as an open question (maintainer-documented
+  as intended). **OPENED:** PR #7610 (immutable `@id` support across the four GH-OIDC checks); the
+  org-wide `repo:org/*` case raised as the open question per plan. Sibling PR #7627 (CKV_AZURE_249
+  `pull_request`) opened alongside. Both awaiting maintainer review; stays `[~]` until
+  merged/closed.
 
 ## Next up — this repo, independent of the upstream PRs
 
+- `[x]` **Grammar correctness fix (2026-08-18): `RepoSegment.immutable` used `or` where it needs
+  `and`.** `src/subvectors/github.py` reported a one-sided `@id` subject (an id on the owner or the
+  repo but not both) as immutable, but GitHub emits `@id` on both segments or neither, so that
+  shape is *malformed* rather than rename-proof. Reachable, not latent: the two id groups in
+  `_REPO_RE` are independently optional, so `parse_repo_segment` accepts one-sided input happily.
+  Zero of 133 vectors hit the branch, so the corpus stayed frozen and coverage landed as two unit
+  tests in `tests/test_github_grammar.py` (225 -> 227 green). `immutable` remains a two-state
+  boolean, so a one-sided subject now reads the same as a legacy one; `owner_id`/`repo_id` on the
+  dataclass still tell them apart. GitLab is unaffected -- `_SUBJECT_RE` makes `project_path:` and
+  `project_id:` an alternation, so exactly one is ever set. subcheck shipped the identical bug
+  (`34a42ce`, 2026-07-21) and corrected it in `423964f` (2026-07-30), three weeks ahead of this
+  repo, so it needs no change now; if a one-sided vector is ever added, its vendored
+  `github_subjects.json` fixture must be re-vendored with a matching `"format": "malformed"` entry.
 - `[x]` **GCP CEL consumer + vector tranche.** Shipped: `src/subvectors/cel.py` (a minimal CEL
   evaluator -- ==/!=/&&/||/!/in, startsWith/endsWith/contains/matches with RE2 substring
   semantics), the `gcp-cel` consumer, 12 cited vectors (`vectors/github-gcp.json`), and the
@@ -203,7 +214,7 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   (only "multi-character match wildcard" / "any combination of characters"), so the zero-width
   match rests on interpretation until observed via the IAM policy simulator or live STS.
 
-## Upstream feeder PRs — each in its own target-repo session, tracked in oss-contributions
+## Upstream feeder PRs
 
 - `[ ]` **GitLab docs MR (ready to post): align Self-Managed AWS condition-key claim list.**
   Verified 2026-07-21: `doc/ci/secrets/id_token_authentication.md` line 191 says Self-Managed/
@@ -214,13 +225,11 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   any registered provider, so the one-line fix is aligning line 191 to "`sub` and `aud`".
   Direct docs MR per GitLab docs workflow (no issue-first); before posting, one authenticated
   search of gitlab-org/gitlab issues/MRs for an in-flight fix (unauthenticated search is
-  401-limited). No gitlab.com credentials in this environment -- post from a session with
-  GitLab auth, then track in oss-contributions.
+  401-limited). Post from an environment with GitLab authentication configured.
 
 - `[~]` **CKV_AZURE_249 deepening PR.** OPENED as Checkov PR #7627 ("CKV_AZURE_249 should flag
-  `pull_request` OIDC subjects"), tracked in oss-contributions (NOW, `checkov/7627-ckv-azure-249/`).
-  Driven by the
-  `pull_request`/tag/environment Azure vectors — the check passes patterns it should flag.
+  `pull_request` OIDC subjects"). Driven by the `pull_request`/tag/environment Azure vectors — the
+  check passes patterns it should flag.
   Stronger angle now vectored: flexible FIC nulls the `subject` property and moves matching into
   `claimsMatchingExpression`, so any subject-only check is BLIND to a flexible-FIC rule entirely
   (`gh-flex-eq-pull-request-scanner-blindspot`). Confirm CKV_AZURE_249 reads only `subject`
@@ -234,13 +243,13 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   `git log -S "assertion.sub"` in a fresh clone first (confirm still sub-only post-#7610).
 - `[~]` **Cartography scoping issue + failing fixture** (Slice 3). `intel/aws/iam.py`
   "# TODO support conditions"; minimal additive proposal (sub/aud as edge properties). Issue-first.
-  DONE and advanced: issue #3078 filed, maintainer-requested, now open as PR #3088
-  (`feat/iam-trust-conditions`, tier-1); tracked in oss-contributions (NOW,
-  `cartography/3088-iam-trust-conditions-pr/`), reassess 2026-09-30.
+  Done and advanced: issue #3078 filed, maintainer-requested, now open as PR #3088
+  (`feat/iam-trust-conditions`, tier-1); reassess 2026-09-30.
 - `[ ]` **Consumer-adoption outreach.** Where a tool's matching diverges from the suite (zizmor,
   Prowler, GitHound), offer a vector-derived test PR. This is the adoption signal to watch.
-- `[ ]` **Fallback feeder: Prowler Entra-FIC checks** — only if the Checkov/Cartography seams close
-  first (Prowler has zero FIC code; verified merge channel).
+- `[ ]` **Prowler Entra-FIC gap** — Prowler ships no federated-identity-credential checks at all
+  (verified), so Azure FIC subject grading is unrepresented there. Worth a vector-derived
+  contribution once the Checkov and Cartography threads settle.
 
 ## Repo hygiene / infra
 
@@ -260,9 +269,9 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 
 ## Validation (not code)
 
-- `[ ]` **Demand sanity-check** (pre-commit check #2 from the pivot): ask 1-2 cloud-security
-  practitioners whether the shallow-FIC-lint / reach-widening pain is real and felt. Narrows scope
-  if it lands flat.
+- `[ ]` **Practitioner sanity-check.** Ask 1-2 cloud-security practitioners whether the
+  shallow-FIC-lint / reach-widening problem this corpus targets is one they actually hit. A flat
+  response is a signal to narrow scope.
 - `[ ]` Re-read the ROADMAP rethink triggers before any strategy override.
 
 ## Later / ideas

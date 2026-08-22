@@ -208,11 +208,28 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   `path-based`/`path-only`/`path-reuse`, `always-false`/`vacuous-guard`) into a smaller set.
 - `[ ]` **Immutable-format completeness.** Rename/transfer trigger vectors; `job_workflow_ref`
   grammar (stays mutable, not `@id`-suffixed); custom subject-claim templates.
-- `[ ]` **Promote key vectors `documented` -> `observed`** by confirming against a real issuer/
-  cloud once (optional, low-priority live check). Priority candidate:
-  `gh-aws-branch-wildcard-zero-width` -- AWS never says `*` matches "zero or more" verbatim
-  (only "multi-character match wildcard" / "any combination of characters"), so the zero-width
-  match rests on interpretation until observed via the IAM policy simulator or live STS.
+- `[~]` **Promote key vectors `documented` -> `observed`** — no longer optional/low-priority:
+  **DECISION TAKEN 2026-08-22: cloud sandbox is IN SCOPE** (personal free-tier, personal gear;
+  the observed:documented ratio is the corpus's real quality metric and it reads 0:133).
+  Machine state (probed 2026-08-22): no AWS CLI, no gcloud; `az` 2.89.1 installed but logged out —
+  so the session that runs this starts with account setup (~15 min), then each experiment is
+  minutes. `aws iam simulate-custom-policy` creates NO resources and is the workhorse.
+  Run in this order (each promotes vectors and each is independently publishable):
+  1. **AWS `StringLike` case-sensitivity** — docs say case-sensitive; third-party references
+     circulate the opposite. Simulator with upper/lowercased subject pairs. Settles a live
+     contradiction; the most quotable single result.
+  2. **Does `*` cross `:` and `/`?** — AWS states no rule for the most security-relevant wildcard
+     behaviour in CI/CD federation. Simulator: pattern `repo:acme/*` vs subject
+     `repo:acme/api:ref:refs/heads/main`. Promotes the entire wildcard-footgun family.
+  3. **Zero-width `*`** (`gh-aws-branch-wildcard-zero-width`) — `main*` vs `main`. The vector
+     already flags itself as interpretation-based.
+  4. **June-2025 guardrail probe** — does role CREATION accept `values = ["repo:acme/x", "*"]`
+     (loose value hidden in a list)? If yes: AWS blocked the 2023 bug and left the 2026 one open.
+     Needs one real `iam create-role` + immediate delete.
+  5. **GCP unquoted-int** (needs GCP account) — does WIF provider creation ACCEPT
+     `assertion.project_id == 20`? The one load-bearing claim in the whole corpus with an
+     unverified empirical step: cel.py's cross-type semantics are spec-confirmed, but if GCP
+     rejects the expression at write time the fail-open angle collapses to a footnote.
 
 ## Upstream feeder PRs
 

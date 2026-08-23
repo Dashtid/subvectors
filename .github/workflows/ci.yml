@@ -4,25 +4,40 @@ on:
   push:
     branches: [main]
   pull_request:
+  workflow_dispatch:
+
+# Nothing in this workflow writes anywhere: tests are pure-offline and the
+# GITHUB_TOKEN is never used. A repo about CI/CD OIDC trust conditions should
+# hold itself to least privilege.
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     strategy:
       fail-fast: false
       matrix:
         python-version: ["3.11", "3.12", "3.13"]
     steps:
-      - uses: actions/checkout@v7
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Set up Python ${{ matrix.python-version }}
-        uses: actions/setup-python@v7
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: ${{ matrix.python-version }}
-      # The reference matcher is dependency-free; tests need only pytest +
-      # jsonschema, and imports resolve via pythonpath=["src"] in pyproject.
-      - name: Install test dependencies
+          cache: pip
+          cache-dependency-path: pyproject.toml
+      # The editable install exercises the hatchling packaging path and
+      # enforces the dev floors from pyproject instead of hand-picking
+      # pytest + jsonschema versions here.
+      - name: Install package with dev dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install pytest jsonschema
+          pip install -e ".[dev]"
       - name: Run tests
         run: python -m pytest -q

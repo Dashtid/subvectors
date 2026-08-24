@@ -102,6 +102,26 @@ Judgments: 30 safe - 45 caution - 36 dangerous - 22 ungraded (mechanical no-matc
 
 <!-- COVERAGE:END -->
 
+## Install
+
+```bash
+pip install subvectors
+```
+
+The wheel ships the entire corpus, so a consumer pins a versioned artifact
+instead of vendoring JSON by hand:
+
+```python
+from subvectors import corpus
+
+corpus.suite_names()                 # ['bitbucket-aws', ..., 'terraform-gcp']
+corpus.load_suite("github-aws")      # one suite, parsed
+corpus.load_schema()                 # the JSON Schema the suites validate against
+```
+
+Prefer no dependency at all? The vectors are plain JSON under `vectors/` —
+clone and read. The corpus itself is CC0 (`vectors/LICENSE`).
+
 ## Why an answer key instead of another scanner
 
 Scanners in this space compete and get obsoleted: SpecterOps GitHound already maps

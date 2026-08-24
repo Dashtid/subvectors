@@ -37,14 +37,13 @@ What is actually open, in priority order:
 3. **The `documented` → `observed` promotion**, which needs a live issuer/cloud and therefore a
    scope decision (see BACKLOG). This is the highest-value work available and it is DECISION-BLOCKED,
    not effort-blocked.
-4. **PyPI release gate (added 2026-08-24).** `release.yml` exists (trusted publishing, fires on a
-   published GitHub Release - inert until then) and the `subvectors` name should be reserved as a
-   PyPI pending publisher alongside subcheck's. Before the FIRST release, decide vectors/
-   packaging: `[tool.hatch.build.targets.wheel]` ships only `src/subvectors` today, so the wheel
-   would carry the matcher and NOT the corpus - for a corpus project that is an empty shell.
-   Likely shape: force-include `vectors/` into the package + a tiny `importlib.resources` loader,
-   which also gives subcheck a versioned artifact to pin its fixture against instead of
-   hand-vendoring. Weeknight-sized; blocks nothing else.
+4. **PyPI release gate (added 2026-08-24) - CLOSED same day, v0.2.0 shipped.** The wheel now
+   force-includes the whole `vectors/` tree (suites + schema + the corpus's CC0 LICENSE) and
+   `subvectors.corpus` resolves it via `importlib.resources` (packaged install and source
+   checkout both work; verified by installing the wheel in isolation - 14 suites load from the
+   packaged path). Pending publisher configured, GitHub Release published, trusted-publishing
+   run green. Follow-on for subcheck: pin the released artifact instead of hand-vendoring
+   `github_subjects.json`.
 
 ## How we measure success (read before adding vectors)
 

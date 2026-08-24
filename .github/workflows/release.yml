@@ -1,0 +1,58 @@
+name: Release
+
+# Publishes to PyPI via OIDC trusted publishing (no stored API token) - the
+# same short-lived-token mechanism this corpus exists to judge. Fires when a
+# GitHub Release is published; INERT until one exists. PyPI side is configured
+# once as a pending publisher: pypi.org -> owner Dashtid, repository
+# subvectors, workflow release.yml, environment pypi.
+#
+# [!] GATE before the first Release: decide vectors/ packaging. Today
+# [tool.hatch.build.targets.wheel] ships only src/subvectors - a wheel
+# WITHOUT the corpus, which for a corpus project is an empty shell. See
+# ROADMAP "What is actually open".
+
+on:
+  release:
+    types: [published]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+      - uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6.0.0
+        with:
+          name: dist
+          path: dist/
+
+  publish:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    environment: pypi
+    permissions:
+      id-token: write # OIDC trusted publishing
+    steps:
+      - uses: actions/download-artifact@37930b1c2abaa49bbe596cd826c3c89aef350131 # v7.0.0
+        with:
+          name: dist
+          path: dist/
+      # Deliberately a moving branch, per pypa's own guidance: it tracks
+      # security fixes in the publish action; SHA-pinning here would freeze
+      # them. The job has no other write surface (id-token only).
+      - uses: pypa/gh-action-pypi-publish@release/v1

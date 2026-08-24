@@ -41,3 +41,9 @@ jobs:
           pip install -e ".[dev]"
       - name: Run tests
         run: python -m pytest -q
+      # The README coverage table is generated from vectors/ - a vector change
+      # without a regenerated table is silent doc drift.
+      - name: README coverage table is current
+        run: |
+          python scripts/coverage.py --write
+          git diff --exit-code README.md

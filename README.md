@@ -1,5 +1,6 @@
 # subvectors
 
+[![PyPI](https://img.shields.io/pypi/v/subvectors)](https://pypi.org/project/subvectors/)
 [![CI](https://github.com/Dashtid/subvectors/actions/workflows/ci.yml/badge.svg)](https://github.com/Dashtid/subvectors/actions/workflows/ci.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](pyproject.toml)
@@ -15,8 +16,9 @@ subject, a GCP Workload Identity Federation attribute condition. Every security 
 must re-implement that comparison and judge those rules. They re-figure it out alone, and they get
 it wrong.
 
-> Status: pre-v0.1. An independent personal project, built on personal time and personal
-> equipment.
+> Status: v0.2.x on PyPI - the corpus ships inside the wheel. An independent personal
+> project, built on personal time and personal equipment. All 133 vectors are
+> `documented` (source-cited); none are `observed` against a live issuer yet.
 
 ## The proof this is needed (verified 2026-07-04)
 

@@ -57,12 +57,14 @@ def render_body() -> str:
     matrix: Counter[tuple[str, str]] = Counter()
     issuers: set[str] = set()
     grades: Counter[str] = Counter()
+    statuses: Counter[str] = Counter()
     ungraded = 0
     for _suite, v in vectors:
         issuer = v["issuer"]
         consumer = v["condition"]["consumer"]
         issuers.add(issuer)
         matrix[(issuer, consumer)] += 1
+        statuses[v["status"]] += 1
         judgment = v.get("judgment")
         if judgment:
             grades[judgment["grade"]] += 1
@@ -113,6 +115,22 @@ def render_body() -> str:
         f"Judgments: {graded_bits} - {ungraded} ungraded "
         f"(mechanical no-match / contrast vectors carry no safety grade)."
     )
+
+    # Status is GENERATED, not asserted in prose. The README used to say vectors
+    # carry "a documented vs observed status", which implies a mix that has never
+    # existed - every vector is derived from primary documentation, none from a
+    # live exchange. Generating the split means the claim cannot drift from the
+    # corpus, and CI fails if this block is stale.
+    lines.append("")
+    status_bits = " - ".join(f"{n} `{s}`" for s, n in sorted(statuses.items()))
+    lines.append(f"Provenance: {status_bits}.")
+    if not statuses.get("observed"):
+        lines.append("")
+        lines.append(
+            "> No vector is `observed` yet: every expectation here is derived from primary "
+            "documentation, not from a recorded live token exchange. Promoting a vector to "
+            "`observed` requires a real issuer and cloud account - see ROADMAP.md."
+        )
     return "\n".join(lines)
 
 

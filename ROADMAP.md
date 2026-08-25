@@ -29,8 +29,12 @@ nothing here currently tests for.
 
 What is actually open, in priority order:
 
-1. **Doc-truth debt** — the Azure error claim (above), and README should state plainly that all
-   133 vectors are `documented` and **0 are `observed`**.
+1. ~~**Doc-truth debt**~~ — **DONE 2026-08-25.** The Azure "fails silently with no error" claim is
+   corrected everywhere it appeared (matcher docstrings + 12 places across the `github-azure` and
+   `gitlab-azure` suites): creation is unvalidated, the *exchange* returns `AADSTS700213`, and the
+   six vectors naming that code now cite the Entra error-codes reference. The provenance split is
+   no longer prose at all — `scripts/coverage.py` generates "133 `documented`" plus an explicit
+   "no vector is `observed` yet" note into the README, and CI fails on a stale block.
 2. **Three upstream PRs open, zero merged** — checkov #7610 (CI never ran; fork-PR workflow runs
    await approval), checkov #7627, cartography #3088. The scoreboard below says merged PRs are
    the metric; it currently reads 0.

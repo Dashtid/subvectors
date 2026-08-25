@@ -1,7 +1,7 @@
 {
   "suite": "gitlab-azure",
   "version": "0.1.0",
-  "description": "GitLab CI/CD OIDC subjects against classic Azure federated-identity-credential (FIC) subjects (azure-fic-exact). Third consumer for the GitLab issuer. Classic FIC checks issuer + subject + audience by EXACT string comparison -- 'Wildcard characters aren't supported in any federated identity credential property value' -- and a subject mismatch fails the exchange with NO diagnostic ('You won't get an error, the exchange fails without error'). GitLab's default sub is path- and ref-scoped (project_path:{group}/{project}:ref_type:{branch|tag}:ref:{short_ref}); the immutable project_id/namespace_id are SEPARATE claims a classic FIC cannot reference. Three consequences pinned here: (1) exact match admits exactly one ref, so branch/tag/environment coverage multiplies FICs against Azure's hard cap ('A maximum of 20 federated identity credentials can be added to an application or user-assigned managed identity'), pushing admins toward broad subjects or the preview flexible-FIC expression language; (2) the AWS-StringLike habit of writing project_path:group/* is a literal that matches nothing (opposite of AWS, and silent); (3) because the default sub carries only the mutable path, a party who reclaims a deleted/renamed path mints a byte-identical subject the FIC cannot distinguish from the original -- mitigated platform-side by GitLab's June 2026 path-burn, but the FIC pins nothing immutable. The project_id-led sub is the policy-side fix.",
+  "description": "GitLab CI/CD OIDC subjects against classic Azure federated-identity-credential (FIC) subjects (azure-fic-exact). Third consumer for the GitLab issuer. Classic FIC checks issuer + subject + audience by EXACT string comparison -- 'Wildcard characters aren't supported in any federated identity credential property value' -- and a subject mismatch is not caught when the FIC is WRITTEN (creation is unvalidated), though the exchange itself does return AADSTS700213 ('No matching federated identity record found for presented assertion subject'). GitLab's default sub is path- and ref-scoped (project_path:{group}/{project}:ref_type:{branch|tag}:ref:{short_ref}); the immutable project_id/namespace_id are SEPARATE claims a classic FIC cannot reference. Three consequences pinned here: (1) exact match admits exactly one ref, so branch/tag/environment coverage multiplies FICs against Azure's hard cap ('A maximum of 20 federated identity credentials can be added to an application or user-assigned managed identity'), pushing admins toward broad subjects or the preview flexible-FIC expression language; (2) the AWS-StringLike habit of writing project_path:group/* is a literal that matches nothing (opposite of AWS, and accepted unvalidated at creation); (3) because the default sub carries only the mutable path, a party who reclaims a deleted/renamed path mints a byte-identical subject the FIC cannot distinguish from the original -- mitigated platform-side by GitLab's June 2026 path-burn, but the FIC pins nothing immutable. The project_id-led sub is the policy-side fix.",
   "vectors": [
     {
       "id": "gitlab-az-fic-branch-exact-match",
@@ -36,7 +36,7 @@
     },
     {
       "id": "gitlab-az-fic-wildcard-literal-no-match",
-      "description": "The wildcard trap in GitLab form, opposite to AWS and silent. An admin used to an AWS StringLike condition (where project_path:mygroup/* admits the whole group) writes the same string as a FIC subject. Classic FIC supports no wildcards in any property value, so '*' is a literal character: this subject matches NO real token and the credential silently authenticates nothing. Fails closed, but a correctness and portability trap that surfaces no error until the exchange fails.",
+      "description": "The wildcard trap in GitLab form, opposite to AWS and accepted without validation. An admin used to an AWS StringLike condition (where project_path:mygroup/* admits the whole group) writes the same string as a FIC subject. Classic FIC supports no wildcards in any property value, so '*' is a literal character: this subject matches NO real token and the credential authenticates nothing. Fails closed, but a correctness and portability trap: creation raises no error, and the problem first surfaces as AADSTS700213 at the exchange.",
       "issuer": "gitlab",
       "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
       "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "project_path:mygroup/*" },
@@ -44,12 +44,13 @@
       "status": "documented",
       "sources": [
         "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
-        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
+        "https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes"
       ]
     },
     {
       "id": "gitlab-az-fic-ref-type-tag-vs-branch-mismatch",
-      "description": "GitLab encodes ref_type (branch|tag) as its own sub segment, so a branch named v1.0 and a tag named v1.0 mint DIFFERENT subjects. A FIC pinned to the branch form here does not match the incoming TAG token, and the exchange fails silently. Under exact match this fails closed, but it is a GitLab-specific footgun absent from GitHub (whose sub fuses ref_type and ref into one refs/heads|refs/tags segment): the same short ref name is two distinct identities.",
+      "description": "GitLab encodes ref_type (branch|tag) as its own sub segment, so a branch named v1.0 and a tag named v1.0 mint DIFFERENT subjects. A FIC pinned to the branch form here does not match the incoming TAG token, and the exchange fails with AADSTS700213. Under exact match this fails closed, but it is a GitLab-specific footgun absent from GitHub (whose sub fuses ref_type and ref into one refs/heads|refs/tags segment): the same short ref name is two distinct identities.",
       "issuer": "gitlab",
       "subject": "project_path:mygroup/myproject:ref_type:tag:ref:v1.0",
       "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "project_path:mygroup/myproject:ref_type:branch:ref:v1.0" },
@@ -58,7 +59,8 @@
       "sources": [
         "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
         "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
-        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect",
+        "https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes"
       ]
     },
     {

@@ -154,13 +154,22 @@ progress. Cataloguing for its own sake is the named failure mode ("the librarian
 Recorded here so they aren't rediscovered later (from the 2026-07-30 verification pass).
 Still open:
 
-- **Azure "fails silently, no error" is only half right.** *Creation* of a FIC is unvalidated and
-  silent; *token exchange* returns `AADSTS700213`. Still to correct in `matcher.py` and several
-  Azure vector files. (`ROADMAP.md` was corrected in `42285eb` and now states it correctly.)
-- **README says vectors carry a `documented` vs `observed` status**, implying a mix. All are
-  currently `documented`.
+(none currently open)
 
 Resolved:
+
+- **Azure "fails silently, no error" was only half right. FIXED 2026-08-25** — *creation* of a FIC
+  is unvalidated and silent, but *token exchange* returns `AADSTS700213`. Corrected in
+  `matcher.py` and in every affected `github-azure` / `gitlab-azure` vector, including one that
+  attributed the false claim to Microsoft ("per Microsoft the exchange fails with NO error") and a
+  suite description that quoted "You won't get an error, the exchange fails without error" as if
+  sourced. The six vectors that now name the error code cite the Entra error-codes reference, and
+  a regex guard asserted no "error-free exchange" phrasing survives anywhere in the corpus or the
+  matcher.
+- **README implied a `documented` vs `observed` mix. FIXED 2026-08-25** — the split is now
+  GENERATED into the Coverage block by `scripts/coverage.py` (currently 133 `documented`, 0
+  `observed`, with an explicit note that no vector is observed yet), and CI fails when that block
+  is stale, so the claim cannot drift from the corpus again.
 
 - **`RepoSegment.immutable` in `github.py` used `or`. FIXED 2026-08-18** — it is now `and`, since
   GitHub emits `@id` on both segments or neither, so a one-sided subject is *malformed*, not

@@ -61,7 +61,9 @@ Three layers per vector:
    graded patterns are a stable, citable vocabulary — see
    [`docs/JUDGMENT-CATALOG.md`](docs/JUDGMENT-CATALOG.md).
 
-Every vector carries a source citation and a `documented` vs `observed` status. A ~100-line
+Every vector carries a source citation and a provenance status — `documented` (derived from
+primary documentation) or `observed` (recorded from a live exchange). The current split is
+generated under [Coverage](#coverage) rather than asserted here, so it cannot drift. A ~100-line
 reference matcher (Python, pytest) passes the suite — it is a correctness oracle, not a product.
 
 ## Coverage
@@ -99,6 +101,10 @@ Suites:
 - `terraform-gcp` 0.1.0 - 6 vectors
 
 Judgments: 30 safe - 45 caution - 36 dangerous - 22 ungraded (mechanical no-match / contrast vectors carry no safety grade).
+
+Provenance: 133 `documented`.
+
+> No vector is `observed` yet: every expectation here is derived from primary documentation, not from a recorded live token exchange. Promoting a vector to `observed` requires a real issuer and cloud account - see ROADMAP.md.
 
 <!-- COVERAGE:END -->
 

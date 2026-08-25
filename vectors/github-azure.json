@@ -1,7 +1,7 @@
 {
   "suite": "github-azure",
   "version": "0.1.0",
-  "description": "GitHub Actions OIDC subjects against classic Azure federated-identity-credential (FIC) subjects. Classic FIC is an EXACT, wildcard-free string match; a mismatch fails the token exchange silently with no error. Seed tranche: exact match, case-sensitivity, the pull_request over-permission CKV_AZURE_249 passes, the wildcard-as-literal trap (opposite of AWS), tag/environment scoping, and the classic-vs-immutable silent break.",
+  "description": "GitHub Actions OIDC subjects against classic Azure federated-identity-credential (FIC) subjects. Classic FIC is an EXACT, wildcard-free string match. The failure mode is SPLIT, and only half of it is silent: creating a FIC is unvalidated (Azure accepts a subject that can never match, with no warning), while the token exchange itself does error -- AADSTS700213, 'No matching federated identity record found for presented assertion subject', compared case-sensitively. Seed tranche: exact match, case-sensitivity, the pull_request over-permission CKV_AZURE_249 passes, the wildcard-as-literal trap (opposite of AWS), tag/environment scoping, and the classic-vs-immutable break.",
   "vectors": [
     {
       "id": "az-fic-exact-branch-match",
@@ -19,14 +19,15 @@
     },
     {
       "id": "az-fic-case-sensitive-mismatch",
-      "description": "Classic FIC requires the subject to exactly match the token sub. A case difference in the owner (here 'Octo-Org' vs 'octo-org') does not match, and the exchange fails silently with no error.",
+      "description": "Classic FIC requires the subject to exactly match the token sub. A case difference in the owner (here 'Octo-Org' vs 'octo-org') does not match. Azure accepted this subject when the FIC was written, without validating it; the exchange then fails with AADSTS700213, whose own text states the comparison is case-sensitive.",
       "issuer": "github",
       "subject": "repo:Octo-Org/octo-repo:ref:refs/heads/main",
       "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main" },
       "expect": "no-match",
       "status": "documented",
       "sources": [
-        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations"
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
+        "https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes"
       ]
     },
     {
@@ -45,14 +46,15 @@
     },
     {
       "id": "az-fic-wildcard-is-literal-no-match",
-      "description": "The wildcard trap, opposite to AWS. An admin writes 'repo:octo-org/*' as a FIC subject expecting org-wide access as they would get from an AWS StringLike condition. Classic FIC does not support wildcards, so '*' is a literal character: this subject matches NO real token and the credential silently never authenticates. Fails closed (not over-permissive) but is a portability and correctness trap.",
+      "description": "The wildcard trap, opposite to AWS. An admin writes 'repo:octo-org/*' as a FIC subject expecting org-wide access as they would get from an AWS StringLike condition. Classic FIC does not support wildcards, so '*' is a literal character: this subject matches NO real token. Azure still accepts it at creation without complaint, and every exchange then fails with AADSTS700213. Fails closed (not over-permissive) but is a portability and correctness trap.",
       "issuer": "github",
       "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
       "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "repo:octo-org/*" },
       "expect": "no-match",
       "status": "documented",
       "sources": [
-        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations"
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
+        "https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes"
       ]
     },
     {
@@ -85,7 +87,7 @@
     },
     {
       "id": "az-fic-immutable-subject-classic-fic",
-      "description": "The July 15 break, Azure side, and nastier than AWS because it is silent. A repo created after the immutable cutover mints an immutable subject, but the FIC still carries the classic (no-@id) subject. Exact match fails, and per Microsoft the exchange fails with NO error -- deployments simply stop authenticating with no diagnostic.",
+      "description": "The July 15 break, Azure side, and nastier than AWS because nothing warns you in advance. A repo created after the immutable cutover mints an immutable subject, but the FIC still carries the classic (no-@id) subject. Exact match fails and the exchange returns AADSTS700213. What is missing is any signal BEFORE that point: the FIC was accepted unvalidated at creation, so nothing flags the mismatch until deployments stop authenticating.",
       "issuer": "github",
       "subject": "repo:octo-org@123456/octo-repo@456789:ref:refs/heads/main",
       "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main" },
@@ -93,7 +95,8 @@
       "status": "documented",
       "sources": [
         "https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/",
-        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations"
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
+        "https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes"
       ]
     },
     {
@@ -124,14 +127,15 @@
     },
     {
       "id": "az-fic-trailing-space-mismatch",
-      "description": "Exact match is byte-for-byte: a trailing space in the FIC subject means it never matches the token sub. Another silent-failure footgun.",
+      "description": "Exact match is byte-for-byte: a trailing space in the FIC subject means it never matches the token sub. Another unvalidated-at-creation footgun: the space is invisible in the portal and nothing rejects it, but the exchange does report AADSTS700213.",
       "issuer": "github",
       "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
       "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main " },
       "expect": "no-match",
       "status": "documented",
       "sources": [
-        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations"
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
+        "https://learn.microsoft.com/en-us/entra/identity-platform/reference-error-codes"
       ]
     }
   ]

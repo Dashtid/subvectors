@@ -36,7 +36,7 @@ Sources:
 - AWS missing context keys ("A context key that is not present in the request is
   considered a mismatch"):
   https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition.html
-- Azure FIC subject matching (exact, no wildcards, silent failure on mismatch):
+- Azure FIC subject matching (exact, no wildcards; creation unvalidated, AADSTS700213 at exchange):
   https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations
 - GCP WIF attribute_condition (CEL accept/reject gate): see src/subvectors/cel.py
 """
@@ -96,8 +96,9 @@ def _azure_fic_exact(subject: str, pattern: str) -> bool:
     # Classic Azure federated identity credentials compare the configured
     # subject to the token's sub with an EXACT string match. Wildcards are not
     # supported in any FIC property value -- "*" is a literal character, so a
-    # subject like "repo:org/*" matches no real token and the exchange fails
-    # SILENTLY, with no error. (Wildcard/expression matching is a separate,
+    # subject like "repo:org/*" matches no real token. Azure does not validate
+    # the subject when the FIC is CREATED -- that is the silent half -- but the
+    # exchange itself does error (AADSTS700213). (Wildcard/expression matching is a separate,
     # preview-only "flexible FIC" consumer -- azure-fic-flexible, not yet here.)
     return subject == pattern
 

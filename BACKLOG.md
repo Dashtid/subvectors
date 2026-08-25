@@ -264,6 +264,18 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   (`feat/iam-trust-conditions`, tier-1); reassess 2026-09-30.
 - `[ ]` **Consumer-adoption outreach.** Where a tool's matching diverges from the suite (zizmor,
   Prowler, GitHound), offer a vector-derived test PR. This is the adoption signal to watch.
+  **First consumer recorded 2026-08-25: [subcheck](https://github.com/Dashtid/subcheck).** It no
+  longer hand-vendors subject strings - it pins the released corpus (`subvectors==0.2.1`, a dev
+  dependency) and runs a three-direction differential check (provenance / coverage / mis-parse) in
+  CI, plus a weekly canary against this repo's `main`.
+  **And the corpus immediately did its job.** The check found a real bug in that consumer: for the
+  documented combined customization subject
+  `repo:O/R:environment:prod:job_workflow_ref:...` (vector `gh-aws-custom-sub-combined-environment-jwr`),
+  subcheck's decoder let `environment` swallow the whole `job_workflow_ref` tail, so a policy
+  correctly pinning `environment: prod` failed against a token whose environment really was `prod`.
+  Fixed in subcheck 0.3.0. It is an own-consumer find rather than a third-party one, so it does not
+  count toward the "bugs found in shipping tools" metric - but it is the first evidence that the
+  corpus catches what code review did not, which is the whole premise.
 - `[ ]` **Prowler Entra-FIC gap** — Prowler ships no federated-identity-credential checks at all
   (verified), so Azure FIC subject grading is unrepresented there. Worth a vector-derived
   contribution once the Checkov and Cartography threads settle.

@@ -279,6 +279,31 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 - `[ ]` **Prowler Entra-FIC gap** — Prowler ships no federated-identity-credential checks at all
   (verified), so Azure FIC subject grading is unrepresented there. Worth a vector-derived
   contribution once the Checkov and Cartography threads settle.
+  **Re-verified 2026-08-26, and the ground moved.** Azure half still holds: `prowler/providers/
+  azure/services/entra/` has no FIC check (nearest is `entra_app_registration_credential_not_
+  expired`, about credential expiry, not subjects), and repo-wide code searches for
+  `federatedIdentityCredentials` / `federated_identity` return nothing.
+  **But Prowler has entered this space on GCP.** `iam_workload_identity_pool_provider_attribute_
+  condition` (merged, still in `changelog.d` = unreleased, added by maintainer `pedrooot`) FAILs a
+  WIF provider that trusts a hardcoded multi-tenant issuer set (GitHub Actions, GitLab.com,
+  accounts.google.com, app.terraform.io) with no `attributeCondition`.
+  **[!] Do NOT file "it passes a present-but-useless condition" as a bug.** That was this
+  session's first read and it is wrong: the check's own metadata `Notes` states verbatim *"This
+  check verifies that an attribute condition is present; it does not evaluate whether the
+  condition's expression is sufficiently restrictive."* A maintainer-documented boundary, not a
+  defect - filing it would be the stale-issue mistake the OSS norms exist to prevent.
+  **What that boundary actually is: the corpus's differentiator, stated by someone else.** The
+  suite already grades cited cases that are present-but-non-restrictive and would sail through:
+  `gh-gcp-trivial-condition-any-repo-danger` (`assertion.repository_owner_id != ''`, a pure
+  tautology admitting all of github.com), `gitlab-gcp-int-negation-always-true`
+  (`assertion.project_id != 20` - vacuously true, string claim vs int literal),
+  `tfc-gcp-workspace-name-shared-issuer-spoof` (no org restriction on a shared issuer), and
+  `gh-gcp-owner-only-org-wide-danger`. The first two are mechanically decidable without full CEL
+  evaluation, so a follow-up check is implementable rather than philosophical.
+  **This is the compounding test from CLAUDE.md answered live:** an incumbent shipped an
+  overlapping feature and the corpus became MORE consumable, not obsolete. It is also the
+  adoption signal to watch - but it is a NEW upstream thread, and the gating condition above
+  (Checkov + Cartography settling, still 0 merged) has not changed. Owner decision before acting.
 
 ## Repo hygiene / infra
 

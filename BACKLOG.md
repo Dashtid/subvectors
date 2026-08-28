@@ -211,6 +211,11 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 - `[~]` **Promote key vectors `documented` -> `observed`** — no longer optional/low-priority:
   **DECISION TAKEN 2026-08-22: cloud sandbox is IN SCOPE** (personal free-tier, personal gear;
   the observed:documented ratio is the corpus's real quality metric and it reads 0:133).
+  **[i] PREPPED 2026-08-25: turnkey now.** The schema gives `observed` teeth (a required
+  `observation` block: method/date/evidence, forbidden on `documented`; enforced by
+  `tests/test_vectors.py`), and [`docs/OBSERVED-PROMOTION.md`](docs/OBSERVED-PROMOTION.md) is the
+  runbook — exact `aws iam simulate-custom-policy` commands per experiment, setup, and the
+  promotion steps. What remains is human: a cloud login, then each experiment is minutes.
   Machine state (probed 2026-08-22): no AWS CLI, no gcloud; `az` 2.89.1 installed but logged out —
   so the session that runs this starts with account setup (~15 min), then each experiment is
   minutes. `aws iam simulate-custom-policy` creates NO resources and is the workhorse.

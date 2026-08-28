@@ -59,6 +59,44 @@ def test_vector_ids_are_globally_unique() -> None:
     assert not dupes, f"duplicate vector ids across the corpus: {dupes}"
 
 
+# --- the 'observed' contract: the status must carry its proof, not just a label ---
+
+_OBSERVED_BASE = {
+    "id": "probe-observed-contract",
+    "issuer": "github",
+    "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+    "condition": {"consumer": "aws-stringlike", "pattern": "repo:octo-org/octo-repo:*"},
+    "expect": "match",
+    "sources": ["https://docs.aws.amazon.com/IAM/latest/UserGuide/"],
+}
+_OBSERVATION = {
+    "method": "aws-iam-policy-simulator",
+    "date": "2026-08-25",
+    "evidence": "simulate-custom-policy StringLike repo:octo-org/octo-repo:* vs subject -> allowed",
+}
+
+
+def _validate_vector(vector: dict) -> None:
+    schema = _load(SCHEMA_PATH)
+    jsonschema.validate({"suite": "probe", "version": "0.0.0", "vectors": [vector]}, schema)
+
+
+def test_observed_without_observation_is_rejected() -> None:
+    with pytest.raises(jsonschema.ValidationError):
+        _validate_vector({**_OBSERVED_BASE, "status": "observed"})
+
+
+def test_observed_with_observation_validates() -> None:
+    _validate_vector({**_OBSERVED_BASE, "status": "observed", "observation": _OBSERVATION})
+
+
+def test_documented_may_not_carry_an_observation() -> None:
+    with pytest.raises(jsonschema.ValidationError):
+        _validate_vector(
+            {**_OBSERVED_BASE, "status": "documented", "observation": _OBSERVATION}
+        )
+
+
 @pytest.mark.parametrize("name,vector", _VECTOR_CASES, ids=_VECTOR_IDS)
 def test_matcher_reproduces_expected_result(name: str, vector: dict) -> None:
     consumer = vector["condition"]["consumer"]

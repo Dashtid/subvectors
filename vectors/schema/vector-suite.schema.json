@@ -67,8 +67,23 @@
           "minItems": 1,
           "items": { "type": "string", "format": "uri" },
           "description": "Primary-source URLs. Every vector is cited; none ship on vibes."
+        },
+        "observation": { "$ref": "#/$defs/observation" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "status": { "const": "observed" } },
+            "required": ["status"]
+          },
+          "then": {
+            "required": ["observation"]
+          },
+          "else": {
+            "properties": { "observation": false }
+          }
         }
-      }
+      ]
     },
     "condition": {
       "type": "object",
@@ -171,6 +186,38 @@
           "type": "array",
           "items": { "type": "string" },
           "description": "Catalog tags for the over-permission pattern(s), e.g. 'wildcard-repo'."
+        }
+      }
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["method", "date", "evidence"],
+      "description": "How this vector's 'expect' was confirmed against a live issuer/cloud. Required when status is 'observed', forbidden otherwise -- an 'observed' vector must carry its proof, not just a stronger label than 'documented'.",
+      "properties": {
+        "method": {
+          "enum": [
+            "aws-iam-policy-simulator",
+            "aws-sts-assume-role",
+            "azure-fic-token-exchange",
+            "gcp-wif-token-exchange",
+            "gcp-wif-provider-validation"
+          ],
+          "description": "How the result was obtained. 'aws-iam-policy-simulator' creates no cloud resources; the exchange/assume methods use a live credential; 'gcp-wif-provider-validation' records whether provider creation accepts or rejects a CEL expression."
+        },
+        "date": {
+          "type": "string",
+          "format": "date",
+          "description": "ISO date (YYYY-MM-DD) the observation was recorded."
+        },
+        "evidence": {
+          "type": "string",
+          "minLength": 1,
+          "description": "The exact request (pattern/subject, policy, or CEL) and the verbatim result (allowed/denied, matched/mismatched, or the API error code), enough for a reader to reproduce."
+        },
+        "tool_version": {
+          "type": "string",
+          "description": "CLI/API version where it pins the behavior, e.g. 'aws-cli/2.17'."
         }
       }
     }

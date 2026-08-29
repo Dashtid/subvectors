@@ -88,7 +88,10 @@ that `assertion.project_id == 20` is always-false when the claim is a JSON strin
 confirmed GCP's provider-creation API even **accepts** that expression rather than rejecting it at
 write time. Create a WIF provider with `--attribute-condition='assertion.project_id == 20'`; record
 whether creation succeeds. If GCP rejects it, the fail-open angle collapses to a footnote — so run
-this before leaning on it in the article.
+this before leaning on it anywhere public: an upstream PR, a vector's `judgment`, or the judgment
+catalog. (Reworded 2026-08-29: this line used to read "before leaning on it in the article". There
+is no article — that programme closed 2026-08-29 — but the verify-before-you-claim rule it encoded
+is unchanged, and now points at the artifacts that replaced it.)
 
 ## Promoting the vector
 

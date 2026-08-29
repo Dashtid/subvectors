@@ -122,7 +122,14 @@ substrate for follow-on work, or is donated to a neutral home.
       SHIPPED — 5 issuers total (github, gitlab, bitbucket, circleci, terraform-cloud).
 - [ ] Consumer-adoption pass: offer vector-derived test PRs to zizmor / Prowler / GitHound where
       their matching logic diverges from the suite.
-- [ ] Judgment catalog write-up: the graded over-permission patterns as a citable reference page.
+- [x] Judgment catalog write-up: the graded over-permission patterns as a citable reference page.
+      **SHIPPED: [`docs/JUDGMENT-CATALOG.md`](docs/JUDGMENT-CATALOG.md)** — all 65
+      `judgment.patterns` tags grouped into 10 canonical families, each with a definition,
+      mechanism, typical grade, and example vector; `tests/test_judgment_catalog.py` guards both
+      directions so the vocabulary cannot sprawl silently. [i] Note what this is and is not
+      (2026-08-29): a stable, citable **reference page**, not an article. It is exactly the
+      artifact-shaped proof this project trades in — someone can cite a pattern ID years from now.
+      No companion post is owed or planned.
 
 ## Upstream integration targets
 

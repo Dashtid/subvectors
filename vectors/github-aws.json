@@ -1,7 +1,7 @@
 {
   "suite": "github-aws",
-  "version": "0.3.0",
-  "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., not available in session), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns. 0.3.0 tranche: aws-all composite vectors modeling full IAM Condition blocks (keys ANDed, values ORed, operators mixed) including AWS's and GitHub's own documented trust-policy shapes.",
+  "version": "0.3.1",
+  "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., not available in session), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns. 0.3.0 tranche: aws-all composite vectors modeling full IAM Condition blocks (keys ANDed, values ORed, operators mixed) including AWS's and GitHub's own documented trust-policy shapes. 0.3.1: first observed promotions -- 5 vectors confirmed against the live IAM policy simulator (case-sensitivity, the *-spans-separators family, zero-width *), each carrying its observation block.",
   "vectors": [
     {
       "id": "gh-aws-exact-branch-stringequals",
@@ -395,7 +395,13 @@
       "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
       "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main*" },
       "expect": "match",
-      "status": "documented",
+      "status": "observed",
+      "observation": {
+        "method": "aws-iam-policy-simulator",
+        "date": "2026-08-29",
+        "evidence": "simulate-custom-policy: StringLike sub 'repo:octo-org/octo-repo:ref:refs/heads/main*' vs subject 'repo:octo-org/octo-repo:ref:refs/heads/main' -> EvalDecision=allowed: * matched the empty string. Companion: same pattern vs '...refs/heads/main2' -> allowed. Zero-width matching is confirmed, no longer an interpretation of 'any combination of characters'.",
+        "tool_version": "aws-cli/2.36.33"
+      },
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_resource.html"

@@ -38,9 +38,14 @@ What is actually open, in priority order:
 2. **Three upstream PRs open, zero merged** — checkov #7610 (CI never ran; fork-PR workflow runs
    await approval), checkov #7627, cartography #3088. The scoreboard below says merged PRs are
    the metric; it currently reads 0.
-3. **The `documented` → `observed` promotion**, which needs a live issuer/cloud and therefore a
-   scope decision (see BACKLOG). This is the highest-value work available and it is DECISION-BLOCKED,
-   not effort-blocked.
+3. **The `documented` → `observed` promotion — STARTED 2026-08-29: first 5 vectors observed** via
+   the IAM policy simulator (experiments 1-3 of the runbook, controls included; github-aws 0.3.1;
+   provenance now 128 documented / 5 observed). Settled empirically: StringEquals AND StringLike
+   are case-sensitive (the doc-vs-third-party contradiction closed in the docs' favor), `*`
+   crosses `:` and `/`, and zero-width `*` matching is confirmed rather than interpreted.
+   Remaining: experiment 4 (role-creation guardrail probe — needs a temporary
+   iam:CreateRole/DeleteRole attach on the probe user) and experiment 5 (GCP unquoted-int —
+   needs a GCP account). See docs/OBSERVED-PROMOTION.md.
 4. **PyPI release gate (added 2026-08-24) - CLOSED same day, v0.2.0 shipped.** The wheel now
    force-includes the whole `vectors/` tree (suites + schema + the corpus's CC0 LICENSE) and
    `subvectors.corpus` resolves it via `importlib.resources` (packaged install and source

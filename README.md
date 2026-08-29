@@ -17,8 +17,9 @@ must re-implement that comparison and judge those rules. They re-figure it out a
 it wrong.
 
 > Status: v0.2.x on PyPI - the corpus ships inside the wheel. An independent personal
-> project, built on personal time and personal equipment. All 133 vectors are
-> `documented` (source-cited); none are `observed` against a live issuer yet.
+> project, built on personal time and personal equipment. Every vector is source-cited;
+> as of 2026-08-29 the first 5 are `observed` against live AWS (IAM policy simulator) -
+> the generated [Coverage](#coverage) block carries the exact split.
 
 ## The proof this is needed (verified 2026-07-04)
 
@@ -90,7 +91,7 @@ Suites:
 - `bitbucket-aws` 0.1.0 - 6 vectors
 - `circleci-aws` 0.1.0 - 7 vectors
 - `circleci-gcp` 0.1.0 - 6 vectors
-- `github-aws` 0.3.0 - 32 vectors
+- `github-aws` 0.3.1 - 32 vectors
 - `github-azure-flexible` 0.1.0 - 8 vectors
 - `github-azure` 0.1.0 - 10 vectors
 - `github-gcp` 0.1.0 - 12 vectors
@@ -104,7 +105,7 @@ Suites:
 
 Judgments: 30 safe - 45 caution - 36 dangerous - 22 ungraded (mechanical no-match / contrast vectors carry no safety grade).
 
-Provenance: 129 `documented` - 4 `observed`.
+Provenance: 128 `documented` - 5 `observed`.
 
 <!-- COVERAGE:END -->
 

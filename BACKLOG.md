@@ -219,6 +219,20 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   Machine state (probed 2026-08-22): no AWS CLI, no gcloud; `az` 2.89.1 installed but logged out —
   so the session that runs this starts with account setup (~15 min), then each experiment is
   minutes. `aws iam simulate-custom-policy` creates NO resources and is the workhorse.
+  **[+] RUN 2026-08-29 — experiments 1-3 (the AWS-simulator half) complete.** aws-cli 2.36.33
+  installed via winget; IAM user `subvectors-probe` (IAMReadOnlyAccess only). All six simulator
+  calls returned the expected decision, controls included: (1) StringEquals AND StringLike are
+  case-sensitive (case-flipped pattern -> implicitDeny, same-case control -> allowed) — the
+  doc-vs-third-party contradiction settled in the docs' favor; (2) `*` crosses `:` and `/`
+  (org-wide pattern admitted a subject spanning both; other-org control denied); (3) zero-width
+  `*` confirmed (`main*` matched `main` exactly, and `main2`). Five vectors promoted with
+  observation blocks (github-aws 0.3.1): case-mismatch-rejected, org-wide-wildcard-repo,
+  repo-wide-wildcard-suffix, ref-wildcard-spans-nested-branch, branch-wildcard-zero-width.
+  Provenance: 128 documented / 5 observed. Harness note for the next run: AWS CLI v2 auto-parses
+  JSON-looking args, and `--policy-input-list` silently mis-handles both inline JSON and file://
+  — build the full request with `--cli-input-json` (policy as an escaped string). Remaining:
+  experiment 4 (needs a temporary iam:CreateRole/DeleteRole + OIDC-provider create/delete attach
+  on the probe user, then detach) and experiment 5 (needs a GCP account).
   Run in this order (each promotes vectors and each is independently publishable):
   1. **AWS `StringLike` case-sensitivity** — docs say case-sensitive; third-party references
      circulate the opposite. Simulator with upper/lowercased subject pairs. Settles a live

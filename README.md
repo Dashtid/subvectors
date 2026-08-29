@@ -104,7 +104,7 @@ Suites:
 
 Judgments: 30 safe - 45 caution - 36 dangerous - 22 ungraded (mechanical no-match / contrast vectors carry no safety grade).
 
-Provenance: 132 `documented` - 1 `observed`.
+Provenance: 129 `documented` - 4 `observed`.
 
 <!-- COVERAGE:END -->
 

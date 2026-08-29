@@ -39,7 +39,13 @@
       "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:*" },
       "expect": "match",
       "judgment": { "grade": "caution", "reason": "Repo-wide: every ref, tag, environment, and pull_request of this repo satisfies the condition.", "patterns": ["wildcard-suffix"] },
-      "status": "documented",
+      "status": "observed",
+      "observation": {
+        "method": "aws-iam-policy-simulator",
+        "date": "2026-08-29",
+        "evidence": "simulate-custom-policy: StringLike sub 'repo:octo-org/octo-repo:*' vs subject 'repo:octo-org/octo-repo:ref:refs/heads/main' -> EvalDecision=allowed: the * spanned the ':' and '/' delimiters inside 'ref:refs/heads/main'.",
+        "tool_version": "aws-cli/2.36.33"
+      },
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
         "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
@@ -53,7 +59,13 @@
       "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/*" },
       "expect": "match",
       "judgment": { "grade": "dangerous", "reason": "Org-wide trust: any repository under octo-org, including one created by anyone with repo-create rights, can assume the role. This is the pattern Checkov CKV_AZURE_249's repo regex passes.", "patterns": ["wildcard-repo", "org-wide"] },
-      "status": "documented",
+      "status": "observed",
+      "observation": {
+        "method": "aws-iam-policy-simulator",
+        "date": "2026-08-29",
+        "evidence": "simulate-custom-policy: StringLike sub 'repo:octo-org/*' vs subject 'repo:octo-org/unrelated-repo:ref:refs/heads/main' -> EvalDecision=allowed: the * consumed 'unrelated-repo:ref:refs/heads/main' across both the '/' and ':' delimiters. Control: same pattern vs 'repo:other-org/octo-repo:ref:refs/heads/main' -> implicitDeny.",
+        "tool_version": "aws-cli/2.36.33"
+      },
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
         "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
@@ -397,7 +409,13 @@
       "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/*" },
       "expect": "match",
       "judgment": { "grade": "caution", "reason": "Every branch of the repo -- protected or not, nested or not -- satisfies the condition; the trust boundary is anyone who can create a branch.", "patterns": ["wildcard-suffix", "unprotected-branch"] },
-      "status": "documented",
+      "status": "observed",
+      "observation": {
+        "method": "aws-iam-policy-simulator",
+        "date": "2026-08-29",
+        "evidence": "simulate-custom-policy: StringLike sub 'repo:octo-org/octo-repo:ref:refs/heads/*' vs subject 'repo:octo-org/octo-repo:ref:refs/heads/feature/x' -> EvalDecision=allowed: the * crossed the '/' inside the nested branch name 'feature/x'.",
+        "tool_version": "aws-cli/2.36.33"
+      },
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
         "https://git-scm.com/docs/git-check-ref-format"

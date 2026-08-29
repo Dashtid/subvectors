@@ -44,6 +44,27 @@ No `aws` CLI, no `gcloud`; `az` 2.89.1 is installed but logged out. So:
 
 Everything stays personal-account / free-tier — the IP-clean, personal-gear rule holds.
 
+## The harness (added 2026-08-29)
+
+For the AWS simulator experiments (1-3 below), don't type the commands by hand —
+[`scripts/observe_aws.py`](../scripts/observe_aws.py) drives the simulator **from the corpus
+itself**: it builds each policy from the vector's own `pattern`, presents the vector's own
+`subject`, and compares AWS's `EvalDecision` to the vector's `expect`.
+
+```bash
+python scripts/observe_aws.py --dry-run   # inspect the exact aws commands, no credentials needed
+python scripts/observe_aws.py            # run the curated 11-vector set (exps 1-3 + controls)
+```
+
+On AGREE it prints a paste-ready `observation` block; on DISAGREE it exits non-zero — that is a
+**finding** (the vector or the matcher is wrong about real AWS), not a flake. The curated default
+set covers: `gh-aws-case-mismatch-rejected` (exp 1); `gh-aws-org-wide-wildcard-repo`,
+`gh-aws-repo-wide-wildcard-suffix`, `gh-aws-pull-request-subject`,
+`gh-aws-ref-wildcard-spans-nested-branch` (exp 2); `gh-aws-branch-wildcard-zero-width`,
+`gh-aws-branch-prefix-collision`, `gh-aws-single-char-wildcard` (exp 3); plus
+`gh-aws-exact-branch-stringlike`, `gh-aws-stringequals-treats-star-literally`, and
+`gh-aws-multivalue-loose-value-poisons-list` as controls — **11 vectors from one login**.
+
 ## The experiments (ROADMAP order — each independently promotes vectors and is publishable)
 
 ### 1. AWS `StringLike` case-sensitivity  — `aws-iam-policy-simulator`

@@ -410,7 +410,13 @@
       "subject": "repo:Octo-Org/octo-repo:ref:refs/heads/main",
       "condition": { "consumer": "aws-stringequals", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main" },
       "expect": "no-match",
-      "status": "documented",
+      "status": "observed",
+      "observation": {
+        "method": "aws-iam-policy-simulator",
+        "date": "2026-08-29",
+        "evidence": "simulate-custom-policy: StringEquals sub 'repo:octo-org/octo-repo:ref:refs/heads/main' vs subject 'repo:Octo-Org/octo-repo:ref:refs/heads/main' -> EvalDecision=implicitDeny. Companion StringLike probe: pattern 'repo:Octo-Org/octo-repo:*' vs the all-lowercase subject -> implicitDeny, with the same-case control -> allowed -- so StringLike is likewise case-sensitive, settling the third-party-reference contradiction in the docs' favor.",
+        "tool_version": "aws-cli/2.36.33"
+      },
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
       ]

@@ -104,9 +104,7 @@ Suites:
 
 Judgments: 30 safe - 45 caution - 36 dangerous - 22 ungraded (mechanical no-match / contrast vectors carry no safety grade).
 
-Provenance: 133 `documented`.
-
-> No vector is `observed` yet: every expectation here is derived from primary documentation, not from a recorded live token exchange. Promoting a vector to `observed` requires a real issuer and cloud account - see ROADMAP.md.
+Provenance: 132 `documented` - 1 `observed`.
 
 <!-- COVERAGE:END -->
 

@@ -1,7 +1,7 @@
 {
   "suite": "github-aws",
-  "version": "0.3.1",
-  "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., not available in session), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns. 0.3.0 tranche: aws-all composite vectors modeling full IAM Condition blocks (keys ANDed, values ORed, operators mixed) including AWS's and GitHub's own documented trust-policy shapes. 0.3.1: first observed promotions -- 5 vectors confirmed against the live IAM policy simulator (case-sensitivity, the *-spans-separators family, zero-width *), each carrying its observation block.",
+  "version": "0.3.2",
+  "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., not available in session), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns. 0.3.0 tranche: aws-all composite vectors modeling full IAM Condition blocks (keys ANDed, values ORed, operators mixed) including AWS's and GitHub's own documented trust-policy shapes. 0.3.1: first observed promotions -- 5 vectors confirmed against the live IAM policy simulator (case-sensitivity, the *-spans-separators family, zero-width *), each carrying its observation block. 0.3.2: multivalue-loose-value-poisons-list promoted (6 observed) -- the simulator admits the poisoned OR-list, and iam:CreateRole ACCEPTS it (and even a literal '*' value) while rejecting a condition-less policy, so AWS's creation-time guardrail blocks the 2023 sub-less class but leaves the multi-value hole open.",
   "vectors": [
     {
       "id": "gh-aws-exact-branch-stringequals",
@@ -206,7 +206,13 @@
       },
       "expect": "match",
       "judgment": { "grade": "dangerous", "reason": "The second value is org-wide, so the list admits any repository in the org (including pull_request subjects) regardless of the tight first value: OR semantics mean the loosest value wins.", "patterns": ["multivalue-or", "wildcard-repo", "org-wide", "pull-request"] },
-      "status": "documented",
+      "status": "observed",
+      "observation": {
+        "method": "aws-iam-policy-simulator",
+        "date": "2026-08-30",
+        "evidence": "Two-part confirmation. (1) Evaluation, simulate-custom-policy: StringLike sub ['repo:octo-org/octo-repo:ref:refs/heads/main','repo:octo-org/*'] vs subject 'repo:octo-org/anything:pull_request' -> EvalDecision=allowed -- the org-wide second value admits an unrelated repo's pull_request subject; the tight first value is irrelevant (OR, loosest wins). (2) Creation, iam:CreateRole: AWS ACCEPTED a GitHub-OIDC role carrying this exact poisoned list, and also accepted ['repo:acme/x','*'] (a literal '*' value) -- while REJECTING a condition-less trust policy with MalformedPolicyDocument: 'must evaluate, using StringEquals, StringLike or StringEqualsIgnoreCase, token.actions.githubusercontent.com:sub or ...:job_workflow_ref which is not scoped to all.' So AWS's creation-time guardrail blocks the 2023 sub-less/all-scoped class but does NOT inspect the other values of an OR-list: the multi-value loose-value hole is open at creation, not only at evaluation. Role + provider created and deleted; get-role -> NoSuchEntity.",
+        "tool_version": "aws-cli/2.36.33"
+      },
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",

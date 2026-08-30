@@ -233,6 +233,23 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   — build the full request with `--cli-input-json` (policy as an escaped string). Remaining:
   experiment 4 (needs a temporary iam:CreateRole/DeleteRole + OIDC-provider create/delete attach
   on the probe user, then detach) and experiment 5 (needs a GCP account).
+  **[+] EXPERIMENT 4 RUN 2026-08-30 — the run's best finding.** Probed `iam:CreateRole` with a
+  GitHub-OIDC trust policy three ways: (a) the vector's poisoned list
+  `["repo:octo-org/octo-repo:ref:refs/heads/main", "repo:octo-org/*"]` -> **ACCEPTED**;
+  (b) the runbook's `["repo:acme/x", "*"]` with a literal `*` value -> **ACCEPTED**;
+  (c) no condition at all -> **REJECTED**, `MalformedPolicyDocument`: trust policy "must
+  evaluate, using StringEquals, StringLike or StringEqualsIgnoreCase,
+  token.actions.githubusercontent.com:sub or ...:job_workflow_ref which is not scoped to all."
+  So AWS checks that a `sub` condition EXISTS and is not `*`-scoped-to-all, but does NOT inspect
+  the remaining values of an OR-list — the 2023 sub-less bug is closed at creation, the 2026
+  multi-value one is open. `gh-aws-multivalue-loose-value-poisons-list` promoted to `observed`
+  with both the evaluation and creation halves in its evidence (github-aws 0.3.2, 127/6).
+  Incidental: `create-role` does NOT require the OIDC provider to exist first (probe A succeeded
+  before provider creation) — a role can be minted trusting a federated principal that is absent.
+  Cleanup verified: role and provider deleted, `get-role` -> NoSuchEntity, `list-roles`/
+  `list-open-id-connect-providers` both empty. **Feeder angle:** this is a concrete, reproducible
+  gap to raise with the Checkov AWS-OIDC check family, which reasons only about `sub` and would
+  not flag a list whose second value is org-wide.
   Run in this order (each promotes vectors and each is independently publishable):
   1. **AWS `StringLike` case-sensitivity** — docs say case-sensitive; third-party references
      circulate the opposite. Simulator with upper/lowercased subject pairs. Settles a live

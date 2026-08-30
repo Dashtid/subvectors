@@ -43,9 +43,17 @@ What is actually open, in priority order:
    provenance now 128 documented / 5 observed). Settled empirically: StringEquals AND StringLike
    are case-sensitive (the doc-vs-third-party contradiction closed in the docs' favor), `*`
    crosses `:` and `/`, and zero-width `*` matching is confirmed rather than interpreted.
-   Remaining: experiment 4 (role-creation guardrail probe — needs a temporary
-   iam:CreateRole/DeleteRole attach on the probe user) and experiment 5 (GCP unquoted-int —
-   needs a GCP account). See docs/OBSERVED-PROMOTION.md.
+   **Experiment 4 also done 2026-08-30** (6 observed; github-aws 0.3.2), and it produced the
+   run's sharpest finding: AWS's creation-time guardrail is REAL BUT SHALLOW. `iam:CreateRole`
+   REJECTS a condition-less GitHub-OIDC trust policy (`MalformedPolicyDocument`: the policy
+   "must evaluate ... `:sub` or `:job_workflow_ref` which is not scoped to all") — the 2023
+   sub-less class is blocked at creation — but it ACCEPTS a poisoned OR-list, including
+   `["repo:acme/x", "*"]` with a literal `*` value. AWS validates that a `sub` condition
+   *exists*, not that every value in it is scoped. So the multi-value loose-value hole is open
+   at CREATION, not merely at evaluation. Role + provider were created and deleted; `get-role`
+   confirms `NoSuchEntity`.
+   Remaining: experiment 5 (GCP unquoted-int — needs a GCP account); it is the one load-bearing
+   corpus claim still resting on spec alone. See docs/OBSERVED-PROMOTION.md.
 4. **PyPI release gate (added 2026-08-24) - CLOSED same day, v0.2.0 shipped.** The wheel now
    force-includes the whole `vectors/` tree (suites + schema + the corpus's CC0 LICENSE) and
    `subvectors.corpus` resolves it via `importlib.resources` (packaged install and source

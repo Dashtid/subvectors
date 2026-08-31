@@ -172,14 +172,37 @@ scoped to all"). The creation-time guardrail checks that a `sub` condition **exi
 values are scoped. Transcripts: `observations/2026-08-31/create-role-*.json`; both roles deleted with
 `get-role -> NoSuchEntity` recorded.
 
-Still untested, and the sharpest remaining question: a **single-value** `StringLike` condition whose
-only value is `"*"`. If AWS accepts that too, the guardrail is purely presence-based and the error
-text is misleading. If it rejects, AWS inspects the first value and not the rest — which is the same
-shape as the scanner bug this corpus fed upstream. One command:
+**[+] The single-`*` probe was run the same evening, and it lands the finding.**
+`StringLike ["*"]` **standing alone is REJECTED** with the same `MalformedPolicyDocument`. So AWS
+genuinely does reject a scoped-to-all `sub` value — but only when it stands alone. Move the identical
+`"*"` into second position behind a harmless value and the same policy is created.
+
+**AWS's own validator does not inspect every value of an OR-list.** That is the same structural
+defect the corpus feeds upstream to scanners, sitting in the cloud provider's own guardrail.
+
+| `sub` condition | Result |
+| --- | --- |
+| `StringLike ["repo:acme/x", "*"]` | accepted |
+| `StringLike ["*"]` | **rejected** |
+| *no condition* | rejected |
+
+Still unresolved, and one command away: does AWS stop at the **first** value, or merely require one
+non-scoped value **anywhere** in the list? Reverse the order to find out —
 
 ```bash
-python scripts/observe_aws.py --creation-probe --operator StringLike --values '*'
+python scripts/observe_aws.py --creation-probe --operator StringLike     --values '*' --values 'repo:acme/x' --label star-first
 ```
+
+Rejected -> first-value-only, exactly the shape of Checkov #7665. Accepted -> the guardrail is
+satisfied by any one non-scoped value and ignores the rest.
+
+[!] **Transcript collision, 2026-08-31 — fixed in the harness.** The single-`*` probe wrote to
+`create-role-ad-hoc.json`, the same filename the earlier `["repo:acme/x","*"]` probe had used, and
+silently overwrote it; the first result survived only because it was already committed. The two
+records are now `create-role-ad-hoc-star-only.json` and `create-role-ad-hoc-tight-plus-star.json`
+(contents untouched, recovered from git). The harness now derives an ad-hoc label from a hash of
+`(operator, values)`, accepts `--label` to name a run, and **refuses to overwrite a transcript that
+records a different probe** — a collision is an error, not a clobber.
 
 ### 5. GCP unquoted-int  — `gcp-wif-provider-validation` (needs GCP)
 

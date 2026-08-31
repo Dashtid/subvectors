@@ -317,10 +317,22 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   NoSuchEntity` recorded. The whole 11-vector simulator set was re-run in the same session, so the
   entire AWS tranche now carries committed transcripts under `observations/2026-08-31/`:
   provenance 122 documented / 11 observed (was 127/6).
-  **Next probe, one command, sharpest remaining question:** a single-value `StringLike` condition
-  whose only value is `"*"`. Accept -> the guardrail is purely presence-based and AWS's error text
-  is misleading; reject -> AWS inspects the first value and not the rest, the same shape as the
-  scanner bug this corpus fed upstream as Checkov #7665. Needs a live key.
+  **[+] Fourth probe run 2026-08-31 (github-aws 0.4.1) — it lands the finding.** `StringLike ["*"]`
+  STANDING ALONE is REJECTED with the same `MalformedPolicyDocument`. So AWS does reject a
+  scoped-to-all `sub` value, but only when it stands alone; the identical `"*"` in second position
+  behind a harmless value is ACCEPTED. **AWS's own creation validator does not inspect every value
+  of an OR-list** — the same structural defect the corpus feeds upstream to scanners, in the cloud
+  provider's guardrail. Strongest single result the project has produced.
+  **Next probe, one command, still unrun:** reverse the order —
+  `--operator StringLike --values '*' --values 'repo:acme/x' --label star-first`. Rejected -> AWS
+  stops at the first value, exactly the shape of Checkov #7665. Accepted -> any one non-scoped
+  value satisfies the guardrail and the rest are ignored. Needs a live key.
+  [!] **Harness bug found and fixed the same evening:** the single-`*` probe overwrote the earlier
+  ad-hoc transcript (both defaulted to `create-role-ad-hoc.json`); the first survived only because
+  it was already committed. Ad-hoc labels are now hashed from `(operator, values)`, `--label` names
+  a run, and `write_transcript` refuses to overwrite a record of a different probe. The two files
+  are `create-role-ad-hoc-star-only.json` and `create-role-ad-hoc-tight-plus-star.json`, contents
+  untouched.
   [!] **The first cut of this fix was wrong and the review caught it.** Making CKV_AWS_393 fail
   on any unsafe value *anywhere in the Condition* broke the OR/AND distinction: IAM ORs the
   values of ONE key but ANDs across operators and condition blocks, so a policy pinned tightly

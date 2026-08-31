@@ -44,6 +44,7 @@ from __future__ import annotations
 
 import argparse
 import datetime
+import hashlib
 import json
 import re
 import secrets
@@ -202,19 +203,62 @@ def _parse_json(text: str) -> Any:
         return text.strip()
 
 
+def probe_identity(record: dict) -> str:
+    """What this transcript is a record OF -- mode plus the exact inputs.
+
+    Two runs of the same probe may overwrite each other; two DIFFERENT probes
+    landing on one filename may not. On 2026-08-31 two ad-hoc creation probes
+    both wrote create-role-ad-hoc.json and the first result survived only in
+    git, so a collision is now an error rather than a silent clobber.
+    """
+    return json.dumps(
+        {
+            "mode": record.get("mode"),
+            "vector_id": record.get("vector_id"),
+            "operator": record.get("operator"),
+            "values": record.get("values"),
+            "pattern": record.get("pattern"),
+            "subject": record.get("subject"),
+        },
+        sort_keys=True,
+    )
+
+
 def write_transcript(
-    out_dir: Path, name: str, record: dict, *, timestamp: str | None = None
+    out_dir: Path,
+    name: str,
+    record: dict,
+    *,
+    timestamp: str | None = None,
+    force: bool = False,
 ) -> Path:
-    """Scrub, stamp and write one transcript. Returns its repo-relative path."""
+    """Scrub, stamp and write one transcript. Returns its repo-relative path.
+
+    Refuses to overwrite a transcript recording a DIFFERENT probe -- re-running
+    the same probe is fine, clobbering someone else's evidence is not.
+    """
     out_dir.mkdir(parents=True, exist_ok=True)
     path = out_dir / f"{name}.json"
+    identity = probe_identity(record)
+    if path.exists() and not force:
+        try:
+            existing = json.loads(path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            existing = {}
+        if existing and probe_identity(existing) != identity:
+            raise SystemExit(
+                f"error: {path} already records a different probe "
+                f"(operator={existing.get('operator')} values={existing.get('values')}). "
+                "Refusing to overwrite evidence -- pass --label to name this run."
+            )
     document = {
         "recorded_utc": timestamp or datetime.datetime.now(
             datetime.timezone.utc
         ).replace(microsecond=0).isoformat(),
+        "probe_identity": identity,
         **scrub(record),
     }
-    path.write_text(json.dumps(document, indent=2) + "\n", encoding="utf-8")
+    path.write_text(json.dumps(document, indent=2) + chr(10), encoding="utf-8")
     return path
 
 
@@ -340,7 +384,13 @@ def resolve_creation_probe(
             "creation probe needs a vector id, or both --operator and --values, "
             "or --no-condition"
         )
-    return args.operator, list(args.values), "ad-hoc"
+    values = list(args.values)
+    # An ad-hoc label must be unique per (operator, values) or two probes collide
+    # on one filename -- which is exactly what happened on 2026-08-31.
+    digest = hashlib.sha256(
+        json.dumps([args.operator, values], sort_keys=True).encode()
+    ).hexdigest()[:8]
+    return args.operator, values, getattr(args, "label", None) or f"ad-hoc-{digest}"
 
 
 def _creation_probe(
@@ -458,6 +508,10 @@ def main(argv: list[str] | None = None) -> int:
     creation.add_argument(
         "--no-condition", action="store_true",
         help="probe the condition-less trust policy (the 2023 bug class)",
+    )
+    creation.add_argument(
+        "--label", metavar="NAME",
+        help="name this probe's transcript (default: ad-hoc-<hash of operator+values>)",
     )
     creation.add_argument(
         "--yes", action="store_true", help="skip the creation-probe confirmation",

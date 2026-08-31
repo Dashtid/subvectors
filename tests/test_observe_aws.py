@@ -135,6 +135,34 @@ def test_transcript_scrubs_account_ids_everywhere(tmp_path: Path) -> None:
     assert blob.count(observe._ACCOUNT_PLACEHOLDER) == 2
 
 
+def test_transcript_refuses_to_clobber_a_different_probe(tmp_path: Path) -> None:
+    """The 2026-08-31 collision, as a guard."""
+    first = {"mode": "iam-create-role", "operator": "StringLike", "values": ["repo:acme/x", "*"]}
+    second = {"mode": "iam-create-role", "operator": "StringLike", "values": ["*"]}
+    observe.write_transcript(tmp_path, "create-role-ad-hoc", first)
+    with pytest.raises(SystemExit, match="different probe"):
+        observe.write_transcript(tmp_path, "create-role-ad-hoc", second)
+    kept = json.loads((tmp_path / "create-role-ad-hoc.json").read_text(encoding="utf-8"))
+    assert kept["values"] == ["repo:acme/x", "*"], "the first probe's evidence must survive"
+
+
+def test_transcript_allows_rerunning_the_same_probe(tmp_path: Path) -> None:
+    record = {"mode": "iam-create-role", "operator": "StringLike", "values": ["*"]}
+    observe.write_transcript(tmp_path, "create-role-x", record)
+    observe.write_transcript(tmp_path, "create-role-x", dict(record, accepted=False))
+    kept = json.loads((tmp_path / "create-role-x.json").read_text(encoding="utf-8"))
+    assert kept["accepted"] is False
+
+
+def test_transcript_records_its_probe_identity(tmp_path: Path) -> None:
+    path = observe.write_transcript(
+        tmp_path, "x", {"mode": "iam-create-role", "operator": "StringLike", "values": ["*"]}
+    )
+    document = json.loads(path.read_text(encoding="utf-8"))
+    assert "probe_identity" in document
+    assert "StringLike" in document["probe_identity"]
+
+
 def test_scrub_leaves_other_numbers_alone() -> None:
     """Repository ids and 13-digit strings are not account ids."""
     assert observe.scrub("repo:owner@123456/name@456789:ref") == "repo:owner@123456/name@456789:ref"
@@ -196,6 +224,7 @@ def _args(**overrides: object) -> argparse.Namespace:
         "operator": None,
         "values": None,
         "no_condition": False,
+        "label": None,
     }
     base.update(overrides)
     return argparse.Namespace(**base)
@@ -224,7 +253,43 @@ def test_creation_probe_accepts_an_explicit_ad_hoc_operator() -> None:
         _args(creation_probe="", operator="StringLike", values=["repo:acme/x", "*"]),
         observe._load_index(),
     )
-    assert (operator, values, label) == ("StringLike", ["repo:acme/x", "*"], "ad-hoc")
+    assert (operator, values) == ("StringLike", ["repo:acme/x", "*"])
+    assert label.startswith("ad-hoc-")
+
+
+def test_ad_hoc_labels_differ_per_probe() -> None:
+    """Two ad-hoc probes must not land on one transcript filename.
+
+    On 2026-08-31 ["repo:acme/x","*"] and ["*"] both wrote create-role-ad-hoc.json
+    and the first result survived only in git.
+    """
+    index = observe._load_index()
+    _, _, a = observe.resolve_creation_probe(
+        _args(creation_probe="", operator="StringLike", values=["repo:acme/x", "*"]), index
+    )
+    _, _, b = observe.resolve_creation_probe(
+        _args(creation_probe="", operator="StringLike", values=["*"]), index
+    )
+    _, _, c = observe.resolve_creation_probe(
+        _args(creation_probe="", operator="StringEquals", values=["repo:acme/x", "*"]), index
+    )
+    assert len({a, b, c}) == 3, "operator and values must both feed the label"
+
+
+def test_ad_hoc_label_is_stable_for_the_same_probe() -> None:
+    index = observe._load_index()
+    args = dict(creation_probe="", operator="StringLike", values=["repo:acme/x", "*"])
+    first = observe.resolve_creation_probe(_args(**args), index)[2]
+    second = observe.resolve_creation_probe(_args(**args), index)[2]
+    assert first == second
+
+
+def test_explicit_label_wins() -> None:
+    _, _, label = observe.resolve_creation_probe(
+        _args(creation_probe="", operator="StringLike", values=["*"], label="star-only"),
+        observe._load_index(),
+    )
+    assert label == "star-only"
 
 
 def test_creation_probe_rejects_an_unknown_vector() -> None:

@@ -155,19 +155,31 @@ an OR-list. Recorded in `gh-aws-multivalue-loose-value-poisons-list` (evaluation
 half). Incidental: `create-role` does not require the OIDC provider to exist first. Details and
 cleanup verification in `BACKLOG.md`.
 
-[!] **NEEDS RE-RUNNING (2026-08-31).** The probe was hand-run and the **condition operator was
-never recorded**, so the bare-`*` half of the result is unfalsifiable as written — see the
-`transcript` section above. github-aws 0.3.3 narrowed the vector's evidence to what was actually
-captured. The harness now covers this experiment (`--creation-probe`) and cannot run without a
-recorded operator, so the re-run is a one-liner once a fresh access key exists:
+**[+] RE-RUN 2026-08-31 THROUGH THE HARNESS — operator pinned, claim restored at full strength.**
+The 08-30 probe was hand-run and its condition operator was never recorded, which forced github-aws
+0.3.3 to narrow the claim. All three probes were repeated with transcripts:
+
+| Probe | Operator | Values | Result |
+| --- | --- | --- | --- |
+| the vector's own list | `StringLike` | `["repo:octo-org/octo-repo:ref:refs/heads/main", "repo:octo-org/*"]` | **ACCEPTED** |
+| bare-`*` list | `StringLike` | `["repo:acme/x", "*"]` | **ACCEPTED** |
+| condition-less | — | — | **REJECTED**, `MalformedPolicyDocument` |
+
+The operator was the load-bearing detail and it came back the strong way. **Under `StringLike` a bare
+`*` value is itself scoped to all** — so AWS accepts, inside an OR-list, exactly the shape its own
+rejection message says the policy must not have ("...`:sub` or `...:job_workflow_ref` which is not
+scoped to all"). The creation-time guardrail checks that a `sub` condition **exists**, not that its
+values are scoped. Transcripts: `observations/2026-08-31/create-role-*.json`; both roles deleted with
+`get-role -> NoSuchEntity` recorded.
+
+Still untested, and the sharpest remaining question: a **single-value** `StringLike` condition whose
+only value is `"*"`. If AWS accepts that too, the guardrail is purely presence-based and the error
+text is misleading. If it rejects, AWS inspects the first value and not the rest — which is the same
+shape as the scanner bug this corpus fed upstream. One command:
 
 ```bash
-python scripts/observe_aws.py --creation-probe --operator StringLike \
-    --values 'repo:acme/x' --values '*'
+python scripts/observe_aws.py --creation-probe --operator StringLike --values '*'
 ```
-
-Re-run all three probes (the vector's own list, the bare-`*` list, and `--no-condition`) so the
-whole finding rests on transcripts rather than on prose, then restore the full claim and cut 0.3.1.
 
 ### 5. GCP unquoted-int  — `gcp-wif-provider-validation` (needs GCP)
 

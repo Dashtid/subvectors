@@ -1,0 +1,67 @@
+{
+  "recorded_utc": "2026-08-31T20:03:25+00:00",
+  "mode": "simulate-custom-policy",
+  "vector_id": "gh-aws-multivalue-loose-value-poisons-list",
+  "operator": "StringLike",
+  "pattern": [
+    "repo:octo-org/octo-repo:ref:refs/heads/main",
+    "repo:octo-org/*"
+  ],
+  "subject": "repo:octo-org/anything:pull_request",
+  "expect": "match",
+  "tool_version": "aws-cli/2.36.33",
+  "argv": [
+    "aws",
+    "iam",
+    "simulate-custom-policy",
+    "--cli-input-json",
+    "{\"PolicyInputList\": [\"{\\\"Version\\\": \\\"2012-10-17\\\", \\\"Statement\\\": [{\\\"Effect\\\": \\\"Allow\\\", \\\"Action\\\": \\\"sts:AssumeRoleWithWebIdentity\\\", \\\"Resource\\\": \\\"*\\\", \\\"Condition\\\": {\\\"StringLike\\\": {\\\"token.actions.githubusercontent.com:sub\\\": [\\\"repo:octo-org/octo-repo:ref:refs/heads/main\\\", \\\"repo:octo-org/*\\\"]}}}]}\"], \"ActionNames\": [\"sts:AssumeRoleWithWebIdentity\"], \"ContextEntries\": [{\"ContextKeyName\": \"token.actions.githubusercontent.com:sub\", \"ContextKeyType\": \"string\", \"ContextKeyValues\": [\"repo:octo-org/anything:pull_request\"]}]}",
+    "--output",
+    "json"
+  ],
+  "request": {
+    "PolicyInputList": [
+      "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Action\": \"sts:AssumeRoleWithWebIdentity\", \"Resource\": \"*\", \"Condition\": {\"StringLike\": {\"token.actions.githubusercontent.com:sub\": [\"repo:octo-org/octo-repo:ref:refs/heads/main\", \"repo:octo-org/*\"]}}}]}"
+    ],
+    "ActionNames": [
+      "sts:AssumeRoleWithWebIdentity"
+    ],
+    "ContextEntries": [
+      {
+        "ContextKeyName": "token.actions.githubusercontent.com:sub",
+        "ContextKeyType": "string",
+        "ContextKeyValues": [
+          "repo:octo-org/anything:pull_request"
+        ]
+      }
+    ]
+  },
+  "exit_code": 0,
+  "response": {
+    "EvaluationResults": [
+      {
+        "EvalActionName": "sts:AssumeRoleWithWebIdentity",
+        "EvalResourceName": "*",
+        "EvalDecision": "allowed",
+        "MatchedStatements": [
+          {
+            "SourcePolicyId": "PolicyInputList.1",
+            "SourcePolicyType": "IAM Policy",
+            "StartPosition": {
+              "Line": 1,
+              "Column": 41
+            },
+            "EndPosition": {
+              "Line": 1,
+              "Column": 262
+            }
+          }
+        ],
+        "MissingContextValues": []
+      }
+    ]
+  },
+  "stderr": null,
+  "decision": "allowed",
+  "agrees": true
+}

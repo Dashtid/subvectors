@@ -16,10 +16,12 @@ subject, a GCP Workload Identity Federation attribute condition. Every security 
 must re-implement that comparison and judge those rules. They re-figure it out alone, and they get
 it wrong.
 
-> Status: v0.3.0 on PyPI - the corpus ships inside the wheel. An independent personal
-> project, built on personal time and personal equipment. Every vector is source-cited;
-> the first vectors are now `observed` against live AWS (IAM policy simulator, 2026-08-29/30) -
-> the generated [Coverage](#coverage) block carries the exact split.
+> Status: v0.4.0 on PyPI - the corpus ships inside the wheel. An independent personal
+> project, built on personal time and personal equipment. Every vector is source-cited, and
+> the AWS tranche is now `observed` against live AWS - each of those vectors links a committed
+> transcript under [`observations/`](observations/) holding the exact request and the verbatim
+> response, so the claim is auditable without an AWS account. The generated
+> [Coverage](#coverage) block carries the exact `documented`/`observed` split.
 
 ## The proof this is needed (verified 2026-07-04)
 
@@ -91,7 +93,7 @@ Suites:
 - `bitbucket-aws` 0.1.0 - 6 vectors
 - `circleci-aws` 0.1.0 - 7 vectors
 - `circleci-gcp` 0.1.0 - 6 vectors
-- `github-aws` 0.3.3 - 32 vectors
+- `github-aws` 0.4.0 - 32 vectors
 - `github-azure-flexible` 0.1.0 - 8 vectors
 - `github-azure` 0.1.0 - 10 vectors
 - `github-gcp` 0.1.0 - 12 vectors
@@ -105,7 +107,7 @@ Suites:
 
 Judgments: 30 safe - 45 caution - 36 dangerous - 22 ungraded (mechanical no-match / contrast vectors carry no safety grade).
 
-Provenance: 127 `documented` - 6 `observed`.
+Provenance: 122 `documented` - 11 `observed`.
 
 <!-- COVERAGE:END -->
 

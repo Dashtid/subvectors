@@ -307,10 +307,20 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   literal), and not to rely on the stronger reading until probe (b) is re-run. The vector stays
   `observed` — what was measured is unchanged; only the overclaim is gone. Note the overstated
   string shipped in PyPI 0.3.0, so a 0.3.1 release should follow the re-run.
-  **Still open: re-run probe (b) with the operator pinned.** Needs a fresh AWS access key (the
-  2026-08-29 probe key is deactivated). Record the full trust-policy JSON in the repo this time,
-  not just prose — `observation.evidence` being un-auditable prose is a corpus-wide gap, not
-  specific to this vector.
+  **[+] RE-RUN 2026-08-31 — closed, and the claim came back at full strength (github-aws 0.4.0).**
+  All three creation probes repeated through the harness with the operator recorded: the vector's
+  own list under `StringLike` -> ACCEPTED; `["repo:acme/x", "*"]` under `StringLike` -> ACCEPTED;
+  condition-less -> REJECTED (`MalformedPolicyDocument`). The operator was the load-bearing detail
+  and it landed the strong way — under `StringLike` a bare `*` IS scoped to all, so AWS accepts
+  inside an OR-list precisely the shape its own rejection message forbids. The guardrail checks
+  that a `sub` condition EXISTS, not that its values are scoped. Both roles deleted, `get-role ->
+  NoSuchEntity` recorded. The whole 11-vector simulator set was re-run in the same session, so the
+  entire AWS tranche now carries committed transcripts under `observations/2026-08-31/`:
+  provenance 122 documented / 11 observed (was 127/6).
+  **Next probe, one command, sharpest remaining question:** a single-value `StringLike` condition
+  whose only value is `"*"`. Accept -> the guardrail is purely presence-based and AWS's error text
+  is misleading; reject -> AWS inspects the first value and not the rest, the same shape as the
+  scanner bug this corpus fed upstream as Checkov #7665. Needs a live key.
   [!] **The first cut of this fix was wrong and the review caught it.** Making CKV_AWS_393 fail
   on any unsafe value *anywhere in the Condition* broke the OR/AND distinction: IAM ORs the
   values of ONE key but ANDs across operators and condition blocks, so a policy pinned tightly

@@ -1,7 +1,7 @@
 {
   "suite": "github-aws",
-  "version": "0.3.3",
-  "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., not available in session), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns. 0.3.0 tranche: aws-all composite vectors modeling full IAM Condition blocks (keys ANDed, values ORed, operators mixed) including AWS's and GitHub's own documented trust-policy shapes. 0.3.1: first observed promotions -- 5 vectors confirmed against the live IAM policy simulator (case-sensitivity, the *-spans-separators family, zero-width *), each carrying its observation block. 0.3.2: multivalue-loose-value-poisons-list promoted (6 observed) -- the simulator admits the poisoned OR-list, and iam:CreateRole ACCEPTS it (and even a literal '*' value) while rejecting a condition-less policy, so AWS's creation-time guardrail blocks the 2023 sub-less class but leaves the multi-value hole open.",
+  "version": "0.4.0",
+  "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., not available in session), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns. 0.3.0 tranche: aws-all composite vectors modeling full IAM Condition blocks (keys ANDed, values ORed, operators mixed) including AWS's and GitHub's own documented trust-policy shapes. 0.3.1: first observed promotions -- 5 vectors confirmed against the live IAM policy simulator (case-sensitivity, the *-spans-separators family, zero-width *), each carrying its observation block. 0.3.2: multivalue-loose-value-poisons-list promoted (6 observed) -- the simulator admits the poisoned OR-list, and iam:CreateRole ACCEPTS it (and even a literal '*' value) while rejecting a condition-less policy, so AWS's creation-time guardrail blocks the 2023 sub-less class but leaves the multi-value hole open. 0.4.0: the 2026-08-31 re-run put the whole AWS tranche on committed transcripts (observations/2026-08-31/) -- 11 observed, and the creation probe repeated with its condition operator recorded, which is what the 0.3.3 narrowing was waiting on.",
   "vectors": [
     {
       "id": "gh-aws-exact-branch-stringequals",
@@ -25,7 +25,14 @@
       "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main" },
       "expect": "match",
       "judgment": { "grade": "safe", "reason": "No wildcard present, so StringLike matches the exact subject only.", "patterns": ["exact-ref"] },
-      "status": "documented",
+      "status": "observed",
+      "observation": {
+        "method": "aws-iam-policy-simulator",
+        "date": "2026-08-31",
+        "evidence": "simulate-custom-policy: StringLike token.actions.githubusercontent.com:sub \"repo:octo-org/octo-repo:ref:refs/heads/main\" vs subject \"repo:octo-org/octo-repo:ref:refs/heads/main\" -> EvalDecision=allowed (aws-cli/2.36.33). Control: a StringLike pattern with no wildcard behaves as an exact match.",
+        "tool_version": "aws-cli/2.36.33",
+        "transcript": "observations/2026-08-31/gh-aws-exact-branch-stringlike.json"
+      },
       "sources": [
         "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect",
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
@@ -42,9 +49,10 @@
       "status": "observed",
       "observation": {
         "method": "aws-iam-policy-simulator",
-        "date": "2026-08-29",
-        "evidence": "simulate-custom-policy: StringLike sub 'repo:octo-org/octo-repo:*' vs subject 'repo:octo-org/octo-repo:ref:refs/heads/main' -> EvalDecision=allowed: the * spanned the ':' and '/' delimiters inside 'ref:refs/heads/main'.",
-        "tool_version": "aws-cli/2.36.33"
+        "date": "2026-08-31",
+        "evidence": "simulate-custom-policy: StringLike token.actions.githubusercontent.com:sub \"repo:octo-org/octo-repo:*\" vs subject \"repo:octo-org/octo-repo:ref:refs/heads/main\" -> EvalDecision=allowed (aws-cli/2.36.33). The trailing '*' spans the whole claim tail, so every event type and ref of the repo is admitted by one value.",
+        "tool_version": "aws-cli/2.36.33",
+        "transcript": "observations/2026-08-31/gh-aws-repo-wide-wildcard-suffix.json"
       },
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
@@ -62,9 +70,10 @@
       "status": "observed",
       "observation": {
         "method": "aws-iam-policy-simulator",
-        "date": "2026-08-29",
-        "evidence": "simulate-custom-policy: StringLike sub 'repo:octo-org/*' vs subject 'repo:octo-org/unrelated-repo:ref:refs/heads/main' -> EvalDecision=allowed: the * consumed 'unrelated-repo:ref:refs/heads/main' across both the '/' and ':' delimiters. Control: same pattern vs 'repo:other-org/octo-repo:ref:refs/heads/main' -> implicitDeny.",
-        "tool_version": "aws-cli/2.36.33"
+        "date": "2026-08-31",
+        "evidence": "simulate-custom-policy: StringLike token.actions.githubusercontent.com:sub \"repo:octo-org/*\" vs subject \"repo:octo-org/unrelated-repo:ref:refs/heads/main\" -> EvalDecision=allowed (aws-cli/2.36.33). '*' crosses both ':' and '/': one org-wide value admits an unrelated repository on any ref. Negative control on the 2026-08-29 run: the same pattern vs 'repo:other-org/octo-repo:ref:refs/heads/main' -> implicitDeny.",
+        "tool_version": "aws-cli/2.36.33",
+        "transcript": "observations/2026-08-31/gh-aws-org-wide-wildcard-repo.json"
       },
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
@@ -79,7 +88,14 @@
       "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:*" },
       "expect": "match",
       "judgment": { "grade": "dangerous", "reason": "The condition admits the pull_request subject, so unreviewed code proposed in a pull request can assume the role before it lands on any protected branch.", "patterns": ["pull-request", "wildcard-suffix"] },
-      "status": "documented",
+      "status": "observed",
+      "observation": {
+        "method": "aws-iam-policy-simulator",
+        "date": "2026-08-31",
+        "evidence": "simulate-custom-policy: StringLike token.actions.githubusercontent.com:sub \"repo:octo-org/octo-repo:*\" vs subject \"repo:octo-org/octo-repo:pull_request\" -> EvalDecision=allowed (aws-cli/2.36.33). A repo-wide wildcard admits the pull_request subject, i.e. unmerged proposed code, without the policy ever naming pull_request.",
+        "tool_version": "aws-cli/2.36.33",
+        "transcript": "observations/2026-08-31/gh-aws-pull-request-subject.json"
+      },
       "sources": [
         "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect",
         "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services"
@@ -132,7 +148,14 @@
       "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
       "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/mai?" },
       "expect": "match",
-      "status": "documented",
+      "status": "observed",
+      "observation": {
+        "method": "aws-iam-policy-simulator",
+        "date": "2026-08-31",
+        "evidence": "simulate-custom-policy: StringLike token.actions.githubusercontent.com:sub \"repo:octo-org/octo-repo:ref:refs/heads/mai?\" vs subject \"repo:octo-org/octo-repo:ref:refs/heads/main\" -> EvalDecision=allowed (aws-cli/2.36.33). '?' matches exactly one character, confirming StringLike's second wildcard alongside '*'.",
+        "tool_version": "aws-cli/2.36.33",
+        "transcript": "observations/2026-08-31/gh-aws-single-char-wildcard.json"
+      },
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
       ]
@@ -144,7 +167,14 @@
       "subject": "repo:octo-org/unrelated-repo:ref:refs/heads/main",
       "condition": { "consumer": "aws-stringequals", "claim": "sub", "pattern": "repo:octo-org/*" },
       "expect": "no-match",
-      "status": "documented",
+      "status": "observed",
+      "observation": {
+        "method": "aws-iam-policy-simulator",
+        "date": "2026-08-31",
+        "evidence": "simulate-custom-policy: StringEquals token.actions.githubusercontent.com:sub \"repo:octo-org/*\" vs subject \"repo:octo-org/unrelated-repo:ref:refs/heads/main\" -> EvalDecision=implicitDeny (aws-cli/2.36.33). Under StringEquals '*' is a literal character, not a wildcard -- the same pattern that admits the whole org under StringLike (gh-aws-org-wide-wildcard-repo) matches nothing. The operator, not the pattern, decides.",
+        "tool_version": "aws-cli/2.36.33",
+        "transcript": "observations/2026-08-31/gh-aws-stringequals-treats-star-literally.json"
+      },
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
       ]
@@ -209,9 +239,10 @@
       "status": "observed",
       "observation": {
         "method": "aws-iam-policy-simulator",
-        "date": "2026-08-30",
-        "evidence": "Two-part confirmation. (1) Evaluation, simulate-custom-policy: StringLike sub ['repo:octo-org/octo-repo:ref:refs/heads/main','repo:octo-org/*'] vs subject 'repo:octo-org/anything:pull_request' -> EvalDecision=allowed -- the org-wide second value admits an unrelated repo's pull_request subject; the tight first value is irrelevant (OR, loosest wins). (2) Creation, iam:CreateRole: AWS ACCEPTED a GitHub-OIDC role whose sub condition carried this exact poisoned list, and ACCEPTED a second role whose list carried a bare '*' among its values (['repo:acme/x','*']) -- while REJECTING a condition-less trust policy with MalformedPolicyDocument: 'must evaluate, using StringEquals, StringLike or StringEqualsIgnoreCase, token.actions.githubusercontent.com:sub or ...:job_workflow_ref which is not scoped to all.' So AWS's creation-time guardrail checks that a sub (or job_workflow_ref) condition exists and is not scoped to all, but does NOT inspect the other values of an OR-list: the multi-value loose-value hole is open at creation, not only at evaluation. Role + provider created and deleted; get-role -> NoSuchEntity. [!] LIMIT OF THIS OBSERVATION: the condition OPERATOR used in the two creation probes was not recorded at run time. The accept/reject outcomes above stand as recorded, but the strength of the bare-'*' result depends on it -- under StringLike a bare '*' value is itself scoped-to-all and its acceptance contradicts the quoted guardrail text directly, while under StringEquals '*' is an inert literal and the result is weaker. Do not rely on the stronger reading until probe (b) is re-run with the operator pinned.",
-        "tool_version": "aws-cli/2.36.33"
+        "date": "2026-08-31",
+        "evidence": "Two-part confirmation, both re-run 2026-08-31 with committed transcripts. (1) Evaluation, simulate-custom-policy: StringLike token.actions.githubusercontent.com:sub [\"repo:octo-org/octo-repo:ref:refs/heads/main\", \"repo:octo-org/*\"] vs subject \"repo:octo-org/anything:pull_request\" -> EvalDecision=allowed -- the org-wide second value admits an unrelated repo's pull_request subject; the tight first value is irrelevant (OR, loosest wins). (2) Creation, iam:CreateRole, with the condition operator recorded this time: AWS ACCEPTED a GitHub-OIDC role carrying this exact StringLike list (observations/2026-08-31/create-role-gh-aws-multivalue-loose-value-poisons-list.json), and ACCEPTED a StringLike list carrying a bare \"*\" among its values, [\"repo:acme/x\", \"*\"] (observations/2026-08-31/create-role-ad-hoc.json) -- while REJECTING a condition-less trust policy with MalformedPolicyDocument: 'must evaluate, using StringEquals, StringLike or StringEqualsIgnoreCase, token.actions.githubusercontent.com:sub or ...:job_workflow_ref which is not scoped to all' (observations/2026-08-31/create-role-no-condition.json). Under StringLike a bare \"*\" IS scoped to all, so AWS accepts inside an OR-list precisely the shape its own error text says the policy must not have: the creation guardrail checks that a sub condition EXISTS, not that its values are scoped. The 2023 sub-less class is closed at creation; the multi-value loose-value hole is open. Both roles created and deleted, get-role -> NoSuchEntity on each. (Supersedes the 2026-08-30 hand-run record, whose operator was never captured and whose claim github-aws 0.3.3 had to narrow.)",
+        "tool_version": "aws-cli/2.36.33",
+        "transcript": "observations/2026-08-31/gh-aws-multivalue-loose-value-poisons-list.json"
       },
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
@@ -388,7 +419,14 @@
       "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main*" },
       "expect": "match",
       "judgment": { "grade": "caution", "reason": "Intended as 'the main branch', but any branch whose name merely starts with 'main' satisfies it -- the condition trusts every current and future sibling branch matching the prefix, not the one branch the author meant.", "patterns": ["wildcard-suffix", "branch-prefix-collision", "unprotected-branch"] },
-      "status": "documented",
+      "status": "observed",
+      "observation": {
+        "method": "aws-iam-policy-simulator",
+        "date": "2026-08-31",
+        "evidence": "simulate-custom-policy: StringLike token.actions.githubusercontent.com:sub \"repo:octo-org/octo-repo:ref:refs/heads/main*\" vs subject \"repo:octo-org/octo-repo:ref:refs/heads/main-hotfix\" -> EvalDecision=allowed (aws-cli/2.36.33). A 'main*' pin silently admits every branch whose name merely starts with 'main', which any contributor able to push a branch can create.",
+        "tool_version": "aws-cli/2.36.33",
+        "transcript": "observations/2026-08-31/gh-aws-branch-prefix-collision.json"
+      },
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
         "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services"
@@ -404,9 +442,10 @@
       "status": "observed",
       "observation": {
         "method": "aws-iam-policy-simulator",
-        "date": "2026-08-29",
-        "evidence": "simulate-custom-policy: StringLike sub 'repo:octo-org/octo-repo:ref:refs/heads/main*' vs subject 'repo:octo-org/octo-repo:ref:refs/heads/main' -> EvalDecision=allowed: * matched the empty string. Companion: same pattern vs '...refs/heads/main2' -> allowed. Zero-width matching is confirmed, no longer an interpretation of 'any combination of characters'.",
-        "tool_version": "aws-cli/2.36.33"
+        "date": "2026-08-31",
+        "evidence": "simulate-custom-policy: StringLike token.actions.githubusercontent.com:sub \"repo:octo-org/octo-repo:ref:refs/heads/main*\" vs subject \"repo:octo-org/octo-repo:ref:refs/heads/main\" -> EvalDecision=allowed (aws-cli/2.36.33). '*' matched the empty string. Zero-width matching is confirmed, not an interpretation of 'any combination of characters'. Companion: the same pattern also admits '...refs/heads/main-hotfix' (gh-aws-branch-prefix-collision).",
+        "tool_version": "aws-cli/2.36.33",
+        "transcript": "observations/2026-08-31/gh-aws-branch-wildcard-zero-width.json"
       },
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
@@ -424,9 +463,10 @@
       "status": "observed",
       "observation": {
         "method": "aws-iam-policy-simulator",
-        "date": "2026-08-29",
-        "evidence": "simulate-custom-policy: StringLike sub 'repo:octo-org/octo-repo:ref:refs/heads/*' vs subject 'repo:octo-org/octo-repo:ref:refs/heads/feature/x' -> EvalDecision=allowed: the * crossed the '/' inside the nested branch name 'feature/x'.",
-        "tool_version": "aws-cli/2.36.33"
+        "date": "2026-08-31",
+        "evidence": "simulate-custom-policy: StringLike token.actions.githubusercontent.com:sub \"repo:octo-org/octo-repo:ref:refs/heads/*\" vs subject \"repo:octo-org/octo-repo:ref:refs/heads/feature/x\" -> EvalDecision=allowed (aws-cli/2.36.33). '*' crosses the '/' inside a nested branch name, so a refs/heads/* pin is not limited to top-level branches.",
+        "tool_version": "aws-cli/2.36.33",
+        "transcript": "observations/2026-08-31/gh-aws-ref-wildcard-spans-nested-branch.json"
       },
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
@@ -443,9 +483,10 @@
       "status": "observed",
       "observation": {
         "method": "aws-iam-policy-simulator",
-        "date": "2026-08-29",
-        "evidence": "simulate-custom-policy: StringEquals sub 'repo:octo-org/octo-repo:ref:refs/heads/main' vs subject 'repo:Octo-Org/octo-repo:ref:refs/heads/main' -> EvalDecision=implicitDeny. Companion StringLike probe: pattern 'repo:Octo-Org/octo-repo:*' vs the all-lowercase subject -> implicitDeny, with the same-case control -> allowed -- so StringLike is likewise case-sensitive, settling the third-party-reference contradiction in the docs' favor.",
-        "tool_version": "aws-cli/2.36.33"
+        "date": "2026-08-31",
+        "evidence": "simulate-custom-policy: StringEquals token.actions.githubusercontent.com:sub \"repo:octo-org/octo-repo:ref:refs/heads/main\" vs subject \"repo:Octo-Org/octo-repo:ref:refs/heads/main\" -> EvalDecision=implicitDeny (aws-cli/2.36.33). Companion StringLike probe on the 2026-08-29 run: pattern 'repo:Octo-Org/octo-repo:*' vs the all-lowercase subject -> implicitDeny, same-case control -> allowed -- so StringLike is likewise case-sensitive, settling the third-party-reference contradiction in the docs' favor.",
+        "tool_version": "aws-cli/2.36.33",
+        "transcript": "observations/2026-08-31/gh-aws-case-mismatch-rejected.json"
       },
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"

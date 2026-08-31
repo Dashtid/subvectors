@@ -1,0 +1,82 @@
+{
+  "recorded_utc": "2026-08-31T20:02:41+00:00",
+  "mode": "iam-create-role",
+  "probe": "gh-aws-multivalue-loose-value-poisons-list",
+  "operator": "StringLike",
+  "values": [
+    "repo:octo-org/octo-repo:ref:refs/heads/main",
+    "repo:octo-org/*"
+  ],
+  "role_name": "subvectors-probe-0779ba51",
+  "tool_version": "aws-cli/2.36.33",
+  "argv": [
+    "aws",
+    "iam",
+    "create-role",
+    "--role-name",
+    "subvectors-probe-0779ba51",
+    "--assume-role-policy-document",
+    "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Principal\": {\"Federated\": \"arn:aws:iam::<ACCOUNT-ID>:oidc-provider/token.actions.githubusercontent.com\"}, \"Action\": \"sts:AssumeRoleWithWebIdentity\", \"Condition\": {\"StringLike\": {\"token.actions.githubusercontent.com:sub\": [\"repo:octo-org/octo-repo:ref:refs/heads/main\", \"repo:octo-org/*\"]}}}]}",
+    "--output",
+    "json"
+  ],
+  "trust_policy": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Principal": {
+          "Federated": "arn:aws:iam::<ACCOUNT-ID>:oidc-provider/token.actions.githubusercontent.com"
+        },
+        "Action": "sts:AssumeRoleWithWebIdentity",
+        "Condition": {
+          "StringLike": {
+            "token.actions.githubusercontent.com:sub": [
+              "repo:octo-org/octo-repo:ref:refs/heads/main",
+              "repo:octo-org/*"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "exit_code": 0,
+  "accepted": true,
+  "response": {
+    "Role": {
+      "Path": "/",
+      "RoleName": "subvectors-probe-0779ba51",
+      "RoleId": "AROA2NF7EC6GEFJ2ZGCWC",
+      "Arn": "arn:aws:iam::<ACCOUNT-ID>:role/subvectors-probe-0779ba51",
+      "CreateDate": "2026-08-31T20:02:38+00:00",
+      "AssumeRolePolicyDocument": {
+        "Version": "2012-10-17",
+        "Statement": [
+          {
+            "Effect": "Allow",
+            "Principal": {
+              "Federated": "arn:aws:iam::<ACCOUNT-ID>:oidc-provider/token.actions.githubusercontent.com"
+            },
+            "Action": "sts:AssumeRoleWithWebIdentity",
+            "Condition": {
+              "StringLike": {
+                "token.actions.githubusercontent.com:sub": [
+                  "repo:octo-org/octo-repo:ref:refs/heads/main",
+                  "repo:octo-org/*"
+                ]
+              }
+            }
+          }
+        ]
+      }
+    }
+  },
+  "stderr": null,
+  "cleanup": {
+    "delete_exit_code": 0,
+    "delete_stderr": null,
+    "get_role_after_delete_exit_code": 254,
+    "get_role_after_delete_stderr": "aws: [ERROR]: An error occurred (NoSuchEntity) when calling the GetRole operation: The role with name subvectors-probe-0779ba51 cannot be found.",
+    "verified_absent": true
+  }
+}

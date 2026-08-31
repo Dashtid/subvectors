@@ -1,0 +1,64 @@
+{
+  "recorded_utc": "2026-08-31T20:03:19+00:00",
+  "mode": "simulate-custom-policy",
+  "vector_id": "gh-aws-branch-wildcard-zero-width",
+  "operator": "StringLike",
+  "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main*",
+  "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+  "expect": "match",
+  "tool_version": "aws-cli/2.36.33",
+  "argv": [
+    "aws",
+    "iam",
+    "simulate-custom-policy",
+    "--cli-input-json",
+    "{\"PolicyInputList\": [\"{\\\"Version\\\": \\\"2012-10-17\\\", \\\"Statement\\\": [{\\\"Effect\\\": \\\"Allow\\\", \\\"Action\\\": \\\"sts:AssumeRoleWithWebIdentity\\\", \\\"Resource\\\": \\\"*\\\", \\\"Condition\\\": {\\\"StringLike\\\": {\\\"token.actions.githubusercontent.com:sub\\\": [\\\"repo:octo-org/octo-repo:ref:refs/heads/main*\\\"]}}}]}\"], \"ActionNames\": [\"sts:AssumeRoleWithWebIdentity\"], \"ContextEntries\": [{\"ContextKeyName\": \"token.actions.githubusercontent.com:sub\", \"ContextKeyType\": \"string\", \"ContextKeyValues\": [\"repo:octo-org/octo-repo:ref:refs/heads/main\"]}]}",
+    "--output",
+    "json"
+  ],
+  "request": {
+    "PolicyInputList": [
+      "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Action\": \"sts:AssumeRoleWithWebIdentity\", \"Resource\": \"*\", \"Condition\": {\"StringLike\": {\"token.actions.githubusercontent.com:sub\": [\"repo:octo-org/octo-repo:ref:refs/heads/main*\"]}}}]}"
+    ],
+    "ActionNames": [
+      "sts:AssumeRoleWithWebIdentity"
+    ],
+    "ContextEntries": [
+      {
+        "ContextKeyName": "token.actions.githubusercontent.com:sub",
+        "ContextKeyType": "string",
+        "ContextKeyValues": [
+          "repo:octo-org/octo-repo:ref:refs/heads/main"
+        ]
+      }
+    ]
+  },
+  "exit_code": 0,
+  "response": {
+    "EvaluationResults": [
+      {
+        "EvalActionName": "sts:AssumeRoleWithWebIdentity",
+        "EvalResourceName": "*",
+        "EvalDecision": "allowed",
+        "MatchedStatements": [
+          {
+            "SourcePolicyId": "PolicyInputList.1",
+            "SourcePolicyType": "IAM Policy",
+            "StartPosition": {
+              "Line": 1,
+              "Column": 41
+            },
+            "EndPosition": {
+              "Line": 1,
+              "Column": 244
+            }
+          }
+        ],
+        "MissingContextValues": []
+      }
+    ]
+  },
+  "stderr": null,
+  "decision": "allowed",
+  "agrees": true
+}

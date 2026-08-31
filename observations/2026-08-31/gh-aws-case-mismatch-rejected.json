@@ -1,0 +1,51 @@
+{
+  "recorded_utc": "2026-08-31T20:03:12+00:00",
+  "mode": "simulate-custom-policy",
+  "vector_id": "gh-aws-case-mismatch-rejected",
+  "operator": "StringEquals",
+  "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main",
+  "subject": "repo:Octo-Org/octo-repo:ref:refs/heads/main",
+  "expect": "no-match",
+  "tool_version": "aws-cli/2.36.33",
+  "argv": [
+    "aws",
+    "iam",
+    "simulate-custom-policy",
+    "--cli-input-json",
+    "{\"PolicyInputList\": [\"{\\\"Version\\\": \\\"2012-10-17\\\", \\\"Statement\\\": [{\\\"Effect\\\": \\\"Allow\\\", \\\"Action\\\": \\\"sts:AssumeRoleWithWebIdentity\\\", \\\"Resource\\\": \\\"*\\\", \\\"Condition\\\": {\\\"StringEquals\\\": {\\\"token.actions.githubusercontent.com:sub\\\": [\\\"repo:octo-org/octo-repo:ref:refs/heads/main\\\"]}}}]}\"], \"ActionNames\": [\"sts:AssumeRoleWithWebIdentity\"], \"ContextEntries\": [{\"ContextKeyName\": \"token.actions.githubusercontent.com:sub\", \"ContextKeyType\": \"string\", \"ContextKeyValues\": [\"repo:Octo-Org/octo-repo:ref:refs/heads/main\"]}]}",
+    "--output",
+    "json"
+  ],
+  "request": {
+    "PolicyInputList": [
+      "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Action\": \"sts:AssumeRoleWithWebIdentity\", \"Resource\": \"*\", \"Condition\": {\"StringEquals\": {\"token.actions.githubusercontent.com:sub\": [\"repo:octo-org/octo-repo:ref:refs/heads/main\"]}}}]}"
+    ],
+    "ActionNames": [
+      "sts:AssumeRoleWithWebIdentity"
+    ],
+    "ContextEntries": [
+      {
+        "ContextKeyName": "token.actions.githubusercontent.com:sub",
+        "ContextKeyType": "string",
+        "ContextKeyValues": [
+          "repo:Octo-Org/octo-repo:ref:refs/heads/main"
+        ]
+      }
+    ]
+  },
+  "exit_code": 0,
+  "response": {
+    "EvaluationResults": [
+      {
+        "EvalActionName": "sts:AssumeRoleWithWebIdentity",
+        "EvalResourceName": "*",
+        "EvalDecision": "implicitDeny",
+        "MatchedStatements": [],
+        "MissingContextValues": []
+      }
+    ]
+  },
+  "stderr": null,
+  "decision": "implicitDeny",
+  "agrees": true
+}

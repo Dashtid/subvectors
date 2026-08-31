@@ -289,12 +289,22 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   create-time guardrail accepts the poisoned list (observed 2026-08-30). Repro on unfixed
   upstream main `d8aec9dba`: the role check passed `[tight, "*"]` — the exact shape CreateRole
   accepts. Fix committed on `fix/ckv-aws-358-multivalue-sub` in the local checkov clone
-  (commit `3089b4f35`): every value classified, FAILED on any unsafe value; mirrored fixtures
-  (`fail-multivalue-wildcard`, `fail-multivalue-abusable`, `pass-multivalue-pinned`) in both
-  suites; regression-guarded (reverting the check files alone fails the new assertions);
-  flake8 clean; commit body IS the PR body. Diligence 2026-08-31: no in-flight upstream
-  PR/issue on this, no file overlap with #7610/#7627. To ship: push the branch to the fork,
-  open the PR, then `bin/log-event.sh` it into oss-contributions the same day.
+  (commit `016de4404`): every value of a sub condition classified, FAILED on any unsafe value;
+  mirrored fixtures (`fail-multivalue-wildcard`, `fail-multivalue-abusable`,
+  `pass-multivalue-pinned`) in both suites; regression-guarded (reverting the two check files
+  alone fails the new assertions); flake8 clean; commit body IS the PR body. Diligence
+  2026-08-31: no in-flight upstream PR/issue on this, no file overlap with #7610/#7627.
+  [!] **The first cut of this fix was wrong and the review caught it.** Making CKV_AWS_393 fail
+  on any unsafe value *anywhere in the Condition* broke the OR/AND distinction: IAM ORs the
+  values of ONE key but ANDs across operators and condition blocks, so a policy pinned tightly
+  in `StringEquals` stays safe even beside a vacuous `StringLike sub = "*"` — the first cut
+  flagged it, a false positive, and diverged from CKV_AWS_358's own behaviour. Scoped back to
+  per-condition ("first sub condition decides", unchanged upstream semantics) and pinned with a
+  cross-operator parity fixture whose verdicts match unfixed `d8aec9dba` exactly. **Lesson for
+  the corpus: the multi-value vectors encode OR within a key; they do NOT license "any loose
+  value anywhere fails", and a scanner that conflates the two is wrong in the safe direction.**
+  To ship: push the branch to the fork, open the PR, then `bin/log-event.sh` it into
+  oss-contributions the same day.
 - `[ ]` **GitLab docs MR (ready to post): align Self-Managed AWS condition-key claim list.**
   Verified 2026-07-21: `doc/ci/secrets/id_token_authentication.md` line 191 says Self-Managed/
   Dedicated support "only the `sub` claim" as an AWS condition key, contradicting

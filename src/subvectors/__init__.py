@@ -5,4 +5,4 @@ The corpus (the ``vectors/`` tree) is the product. This package is only the
 correctness oracle that proves each vector's expected match result is real.
 """
 
-__version__ = "0.2.1"
+__version__ = "0.3.0"

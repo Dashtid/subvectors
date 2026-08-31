@@ -299,6 +299,18 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   source plus two AWS doc quotes. **Fix the observation before citing it anywhere public:**
   re-run probe (b) recording the operator, or narrow the evidence string to what was actually
   captured.
+  **NARROWED 2026-08-31 (github-aws 0.3.3).** Took the second option as the immediate fix: the
+  evidence block now states the accept/reject outcomes as recorded and carries an explicit
+  `[!] LIMIT OF THIS OBSERVATION` clause saying the operator was not captured, that the
+  bare-`*` result is strong under StringLike (a `*` value is itself scoped-to-all, so accepting
+  it contradicts AWS's own quoted guardrail text) and weak under StringEquals (`*` is an inert
+  literal), and not to rely on the stronger reading until probe (b) is re-run. The vector stays
+  `observed` — what was measured is unchanged; only the overclaim is gone. Note the overstated
+  string shipped in PyPI 0.3.0, so a 0.3.1 release should follow the re-run.
+  **Still open: re-run probe (b) with the operator pinned.** Needs a fresh AWS access key (the
+  2026-08-29 probe key is deactivated). Record the full trust-policy JSON in the repo this time,
+  not just prose — `observation.evidence` being un-auditable prose is a corpus-wide gap, not
+  specific to this vector.
   [!] **The first cut of this fix was wrong and the review caught it.** Making CKV_AWS_393 fail
   on any unsafe value *anywhere in the Condition* broke the OR/AND distinction: IAM ORs the
   values of ONE key but ANDs across operators and condition blocks, so a policy pinned tightly

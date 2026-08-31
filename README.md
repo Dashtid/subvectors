@@ -91,7 +91,7 @@ Suites:
 - `bitbucket-aws` 0.1.0 - 6 vectors
 - `circleci-aws` 0.1.0 - 7 vectors
 - `circleci-gcp` 0.1.0 - 6 vectors
-- `github-aws` 0.3.2 - 32 vectors
+- `github-aws` 0.3.3 - 32 vectors
 - `github-azure-flexible` 0.1.0 - 8 vectors
 - `github-azure` 0.1.0 - 10 vectors
 - `github-gcp` 0.1.0 - 12 vectors

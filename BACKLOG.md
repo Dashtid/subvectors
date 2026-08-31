@@ -282,18 +282,23 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 
 ## Upstream feeder PRs
 
-- `[~]` **CKV_AWS_358 + CKV_AWS_393 multi-value fix — PREPARED 2026-08-31, PR not yet opened.**
-  The feeder the experiment-4 finding motivates (see the run log above): both AWS GitHub-OIDC
-  checks inspected only ONE element of a multi-value `sub` list and passed on the first safe
-  value — IAM ORs the values of one key, so a single loose value admits everything, and AWS's
-  create-time guardrail accepts the poisoned list (observed 2026-08-30). Repro on unfixed
-  upstream main `d8aec9dba`: the role check passed `[tight, "*"]` — the exact shape CreateRole
-  accepts. Fix committed on `fix/ckv-aws-358-multivalue-sub` in the local checkov clone
-  (commit `016de4404`): every value of a sub condition classified, FAILED on any unsafe value;
-  mirrored fixtures (`fail-multivalue-wildcard`, `fail-multivalue-abusable`,
-  `pass-multivalue-pinned`) in both suites; regression-guarded (reverting the two check files
-  alone fails the new assertions); flake8 clean; commit body IS the PR body. Diligence
-  2026-08-31: no in-flight upstream PR/issue on this, no file overlap with #7610/#7627.
+- `[~]` **CKV_AWS_358 + CKV_AWS_393 multi-value fix — OPENED 2026-08-31 as Checkov PR #7665.**
+  https://github.com/bridgecrewio/checkov/pull/7665 (commit `b7a3443d5`, 6 files, MERGEABLE).
+  Thread tracked at `oss-contributions/checkov/7665-multivalue-sub/`. **The first feeder the
+  observed-promotion programme produced** — the corpus vector
+  `gh-aws-multivalue-loose-value-poisons-list` (promoted 2026-08-30) raised the question of
+  whether the scanners grading these policies read the whole value list; they do not. Both AWS
+  GitHub-OIDC checks inspected only ONE element and passed on the first safe value, so IAM's
+  OR-over-values makes the tight neighbour irrelevant. Repro on unfixed upstream main
+  `d8aec9db`: the role check passed `[tight, "*"]`. Fix classifies every value; mirrored
+  fixtures (`fail-multivalue-wildcard`, `fail-multivalue-abusable`, `pass-multivalue-pinned`)
+  in both suites; regression-guarded, flake8 clean, 22 tests green.
+  [!] **The `iam:CreateRole` result was CUT from the PR.** The 2026-08-30 probe recorded the
+  condition operator for the evaluation half but NOT for the `["repo:acme/x", "*"]` creation
+  half — the first thing a skeptical reviewer would ask. The PR rests only on Checkov's own
+  source plus two AWS doc quotes. **Fix the observation before citing it anywhere public:**
+  re-run probe (b) recording the operator, or narrow the evidence string to what was actually
+  captured.
   [!] **The first cut of this fix was wrong and the review caught it.** Making CKV_AWS_393 fail
   on any unsafe value *anywhere in the Condition* broke the OR/AND distinction: IAM ORs the
   values of ONE key but ANDs across operators and condition blocks, so a policy pinned tightly
@@ -303,8 +308,9 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   cross-operator parity fixture whose verdicts match unfixed `d8aec9dba` exactly. **Lesson for
   the corpus: the multi-value vectors encode OR within a key; they do NOT license "any loose
   value anywhere fails", and a scanner that conflates the two is wrong in the safe direction.**
-  To ship: push the branch to the fork, open the PR, then `bin/log-event.sh` it into
-  oss-contributions the same day.
+  Next: await the maintainer sweep (window closes 2026-09-03); rebase if #7610 lands first.
+  `CKV_GCP_125`'s first-match-only `re.search` over CEL disjuncts is the same bug class and is
+  the deliberate follow-up, held back so as not to triple this PR's review surface.
 - `[ ]` **GitLab docs MR (ready to post): align Self-Managed AWS condition-key claim list.**
   Verified 2026-07-21: `doc/ci/secrets/id_token_authentication.md` line 191 says Self-Managed/
   Dedicated support "only the `sub` claim" as an AWS condition key, contradicting

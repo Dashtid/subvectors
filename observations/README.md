@@ -20,4 +20,10 @@ anything — which is the standard this corpus asks of the tools it grades.
 policies over corpus vectors and fictional orgs; they carry no credentials and no real
 infrastructure. Failed and disagreeing runs are recorded too — a rejection is evidence.
 
+**Paths in `observation.transcript` are repo-relative.** Transcripts are provenance for auditors and
+are deliberately not shipped inside the PyPI wheel, so a `pip install` user resolves them against
+this repository — e.g. `observations/2026-08-31/gh-aws-branch-wildcard-zero-width.json` lives at
+`https://github.com/Dashtid/subvectors/blob/main/observations/2026-08-31/gh-aws-branch-wildcard-zero-width.json`.
+Cite a commit SHA rather than `main` if the link has to stay stable.
+
 Do not hand-edit files in here. If a transcript is wrong, re-run the experiment.

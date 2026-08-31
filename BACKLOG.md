@@ -48,9 +48,13 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   2026/01): STS now validates SELECT GitHub/GitLab/CircleCI/Google/OCI claims as trust-policy
   condition keys (GitHub: actor, actor_id, job_workflow_ref, repository, repository_id,
   repository_owner_id, workflow, ref, environment, enterprise_id -- not available in session;
-  the announcement also names resource control policies). Checkov's
-  AWS OIDC checks reason only about `sub`; GitHub's own AWS how-to still says custom claims are
-  unavailable in AWS (docs contradiction). Both are vector-backed upstream opportunities.
+  the announcement also names resource control policies). Checkov's AWS OIDC checks match only the
+  `token.actions.githubusercontent.com:sub` condition key (`gh_sub_condition` in
+  `checkov/common/util/oidc_utils.py`; verified against 3.3.16 / `d8aec9db`, 2026-08-31), so none
+  of the new keys are graded; GitHub's own AWS how-to still says custom claims are unavailable in
+  AWS (docs contradiction). Both are vector-backed upstream opportunities. Distinct from the
+  multi-value gap below: this one is about which condition KEYS are read, that one is about how a
+  single key's VALUE list is read.
 - `[x]` **GitLab path-reuse follow-up:** verified from primary sources and folded into
   `gitlab-aws-path-reuse-no-projectid` (0.1.1). The burn is broader than AWS's note says --
   GitLab's route-model callbacks burn EVERY path-vacating flow (delete, rename, transfer;
@@ -248,9 +252,14 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   Incidental: `create-role` does NOT require the OIDC provider to exist first (probe A succeeded
   before provider creation) — a role can be minted trusting a federated principal that is absent.
   Cleanup verified: role and provider deleted, `get-role` -> NoSuchEntity, `list-roles`/
-  `list-open-id-connect-providers` both empty. **Feeder angle:** this is a concrete, reproducible
-  gap to raise with the Checkov AWS-OIDC check family, which reasons only about `sub` and would
-  not flag a list whose second value is org-wide.
+  `list-open-id-connect-providers` both empty. **Feeder angle (re-scoped 2026-08-31 after reading
+  checkov source):** the Checkov gap is real but it is NOT this vector's list. `repo:org/*` is an
+  intentional pass in CKV_AWS_358/393 (code comment "this is a pass with a warning", PR #7221,
+  locked by a customer regression fixture), so `["repo:org/repo:ref:refs/heads/main",
+  "repo:org/*"]` passes for that reason and would be refuted in review. The demonstrable gap is a
+  value the check rejects standing alone becoming invisible inside a list — `["repo:org/repo:ref:
+  refs/heads/main", "*"]` PASSES CKV_AWS_393 (measured through checkov's `Runner`). See ROADMAP
+  "Upstream integration targets" for the per-check detail.
   Run in this order (each promotes vectors and each is independently publishable). Status:
   1-4 DONE (08-29/30, see above); 5 open (needs a GCP project); an Azure token-exchange
   observation (AADSTS700213) is the natural 6th — needs `az login` + a throwaway GitHub Actions
@@ -273,6 +282,19 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 
 ## Upstream feeder PRs
 
+- `[~]` **CKV_AWS_358 + CKV_AWS_393 multi-value fix — PREPARED 2026-08-31, PR not yet opened.**
+  The feeder the experiment-4 finding motivates (see the run log above): both AWS GitHub-OIDC
+  checks inspected only ONE element of a multi-value `sub` list and passed on the first safe
+  value — IAM ORs the values of one key, so a single loose value admits everything, and AWS's
+  create-time guardrail accepts the poisoned list (observed 2026-08-30). Repro on unfixed
+  upstream main `d8aec9dba`: the role check passed `[tight, "*"]` — the exact shape CreateRole
+  accepts. Fix committed on `fix/ckv-aws-358-multivalue-sub` in the local checkov clone
+  (commit `3089b4f35`): every value classified, FAILED on any unsafe value; mirrored fixtures
+  (`fail-multivalue-wildcard`, `fail-multivalue-abusable`, `pass-multivalue-pinned`) in both
+  suites; regression-guarded (reverting the check files alone fails the new assertions);
+  flake8 clean; commit body IS the PR body. Diligence 2026-08-31: no in-flight upstream
+  PR/issue on this, no file overlap with #7610/#7627. To ship: push the branch to the fork,
+  open the PR, then `bin/log-event.sh` it into oss-contributions the same day.
 - `[ ]` **GitLab docs MR (ready to post): align Self-Managed AWS condition-key claim list.**
   Verified 2026-07-21: `doc/ci/secrets/id_token_authentication.md` line 191 says Self-Managed/
   Dedicated support "only the `sub` claim" as an AWS condition key, contradicting

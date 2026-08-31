@@ -149,8 +149,21 @@ substrate for follow-on work, or is donated to a neutral home.
 Places where a shipping tool's matching logic diverges from the corpus. Each divergence is a
 concrete, vector-backed contribution:
 
-- **Checkov's OIDC check family** (CKV_AWS_358/393, CKV_AZURE_249, CKV_GCP_125/118) reasons only
-  about `sub`, and its subject regexes predate the immutable `@id` format.
+- **Checkov's OIDC check family** (CKV_AWS_358/393, CKV_AZURE_249, CKV_GCP_125) grades a
+  multi-value `sub` condition by a single value, so an OR-list can carry a value the check itself
+  rejects standing alone. Read against source at checkov 3.3.16 / `d8aec9db`, 2026-08-31, and
+  measured through checkov's own `Runner`:
+  - CKV_AWS_393 (`aws_iam_role.assume_role_policy`) returns on the first value that yields any
+    verdict, over JSON author order — `["repo:org/repo:ref:refs/heads/main", "*"]` PASSES.
+  - CKV_AWS_358 (`data.aws_iam_policy_document`) reads element `[0]` only, but the Terraform
+    parser sorts string values lexicographically before the check sees them
+    (`clean_parser_types_lst`), which incidentally catches `*`-leading poisons. The residual miss
+    is any unsafe value sorting after every safe one — of the abusable claims, `workflow:`.
+  - CKV_GCP_125 extracts the CEL `assertion.sub ==` comparison with a first-match-only
+    `re.search`, so disjuncts past the first are never inspected.
+  - CKV_AZURE_249 is not affected (its `subject` is scalar and a list fails closed).
+  No multi-value fixture exists anywhere in checkov's test suite. Separately, the subject regexes
+  predate the immutable `@id` format.
 - **Cartography** does not parse IAM trust-policy conditions at all, so a federated edge carries
   no `sub`/`aud` scoping.
 - **Prowler** has no Entra federated-identity-credential checks (verified), so Azure FIC subject

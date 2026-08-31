@@ -218,6 +218,11 @@
         "tool_version": {
           "type": "string",
           "description": "CLI/API version where it pins the behavior, e.g. 'aws-cli/2.17'."
+        },
+        "transcript": {
+          "type": "string",
+          "pattern": "^observations/[0-9]{4}-[0-9]{2}-[0-9]{2}/[A-Za-z0-9._-]+\\.json$",
+          "description": "Repo-relative path to the committed raw request/response record for this observation, written by scripts/observe_aws.py. Prose evidence loses detail -- the 2026-08-30 creation probe was recorded without its condition operator and the finding had to be narrowed. A transcript lets a reader audit the claim without an AWS account. Optional so hand-run historical observations stay valid; required in practice for anything the harness produces."
         }
       }
     }

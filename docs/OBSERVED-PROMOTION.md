@@ -23,8 +23,9 @@ how you confirmed it. `tests/test_vectors.py` enforces both directions.
   "observation": {
     "method": "aws-iam-policy-simulator",
     "date": "2026-08-25",
-    "evidence": "simulate-custom-policy: StringLike sub 'repo:octo-org/octo-repo:ref:refs/heads/main*' vs subject '...:main' -> evalDecision=allowed (aws-cli/2.17). AWS documents '*' only as 'any combination of characters'; zero-width is confirmed, not interpreted.",
-    "tool_version": "aws-cli/2.17"
+    "evidence": "simulate-custom-policy: StringLike sub 'repo:octo-org/octo-repo:ref:refs/heads/main*' vs subject '...:main' -> evalDecision=allowed (aws-cli/2.17). AWS documents '*' only as 'any combination of characters'; zero-width is confirmed, not interpreted. Raw request and response: observations/2026-08-25/gh-aws-branch-wildcard-zero-width.json",
+    "tool_version": "aws-cli/2.17",
+    "transcript": "observations/2026-08-25/gh-aws-branch-wildcard-zero-width.json"
   }
 }
 ```
@@ -32,6 +33,24 @@ how you confirmed it. `tests/test_vectors.py` enforces both directions.
 `method` is one of: `aws-iam-policy-simulator`, `aws-sts-assume-role`, `azure-fic-token-exchange`,
 `gcp-wif-token-exchange`, `gcp-wif-provider-validation`. `evidence` is the exact request and the
 verbatim result — enough for a reader to reproduce, not a summary.
+
+### `transcript` — why prose is not enough (added 2026-08-31)
+
+`evidence` is prose, and prose loses the detail you did not know mattered. The 2026-08-30 creation
+probe was hand-run and its **condition operator was never recorded** — and the strength of the whole
+finding turns on it: under `StringLike` a bare `*` value is itself scoped-to-all, so AWS accepting it
+contradicts AWS's own quoted guardrail text; under `StringEquals` it is an inert literal and the
+result is weak. github-aws 0.3.3 had to narrow a headline claim because of it, after the overstated
+string had already shipped in PyPI 0.3.0.
+
+So every harness run now writes a machine-readable transcript under `observations/<date>/` holding
+the exact request document, the verbatim response, the argv, the CLI version and the derived verdict.
+Transcripts are **committed**: a reader can audit a promoted vector without an AWS account and
+without re-running anything. AWS account ids are scrubbed to `<ACCOUNT-ID>` before anything reaches
+disk, so they are safe to commit by construction rather than by remembering to sanitize.
+
+`transcript` is optional in the schema so the hand-run 08-29/30 observations stay valid, but anything
+the harness produces carries one. A promotion without a transcript needs a reason.
 
 ## Machine setup (probed 2026-08-25)
 
@@ -56,10 +75,28 @@ itself**: it builds each policy from the vector's own `pattern`, presents the ve
 ```bash
 python scripts/observe_aws.py --dry-run   # inspect the exact aws commands, no credentials needed
 python scripts/observe_aws.py            # run the curated 11-vector set (exps 1-3 + controls)
+
+# experiment 4 -- creates one IAM role, always deletes it, always records the operator
+python scripts/observe_aws.py --creation-probe gh-aws-multivalue-loose-value-poisons-list
+python scripts/observe_aws.py --creation-probe --operator StringLike \
+    --values 'repo:acme/x' --values '*'
+python scripts/observe_aws.py --no-condition      # the 2023 sub-less bug class
 ```
 
-On AGREE it prints a paste-ready `observation` block; on DISAGREE it exits non-zero — that is a
-**finding** (the vector or the matcher is wrong about real AWS), not a flake.
+On AGREE it prints a paste-ready `observation` block (with the transcript path already filled in);
+on DISAGREE it exits non-zero — that is a **finding** (the vector or the matcher is wrong about real
+AWS), not a flake. Every call writes its transcript to `observations/<date>/` whether it succeeded,
+disagreed or errored: a failed run is evidence too.
+
+The creation probe **refuses to run on an implied operator** — it either derives it from the named
+vector's consumer or takes an explicit `--operator`, and either way the operator lands in the
+transcript. That is the 2026-08-30 defect encoded as a guard rather than a note. It prompts before
+creating anything (`--yes` to skip), always attempts `delete-role`, and records the `get-role`
+verification so an un-deleted probe role cannot pass silently.
+
+`tests/test_observe_aws.py` covers everything except the network hop — request shape, the
+`--cli-input-json` invocation, transcript writing, account-id scrubbing, and the operator guard — so
+the harness is no longer only exercised on a live run.
 
 [!] **AWS CLI v2 gotcha (learned the hard way on 2026-08-29):** the CLI auto-parses any argument
 that looks like JSON, and `--policy-input-list` is typed *list of strings* — so an inline policy
@@ -118,6 +155,20 @@ an OR-list. Recorded in `gh-aws-multivalue-loose-value-poisons-list` (evaluation
 half). Incidental: `create-role` does not require the OIDC provider to exist first. Details and
 cleanup verification in `BACKLOG.md`.
 
+[!] **NEEDS RE-RUNNING (2026-08-31).** The probe was hand-run and the **condition operator was
+never recorded**, so the bare-`*` half of the result is unfalsifiable as written — see the
+`transcript` section above. github-aws 0.3.3 narrowed the vector's evidence to what was actually
+captured. The harness now covers this experiment (`--creation-probe`) and cannot run without a
+recorded operator, so the re-run is a one-liner once a fresh access key exists:
+
+```bash
+python scripts/observe_aws.py --creation-probe --operator StringLike \
+    --values 'repo:acme/x' --values '*'
+```
+
+Re-run all three probes (the vector's own list, the bare-`*` list, and `--no-condition`) so the
+whole finding rests on transcripts rather than on prose, then restore the full claim and cut 0.3.1.
+
 ### 5. GCP unquoted-int  — `gcp-wif-provider-validation` (needs GCP)
 
 The one load-bearing claim in the whole corpus with an unverified empirical step. `cel.py` encodes
@@ -132,11 +183,19 @@ is unchanged, and now points at the artifacts that replaced it.)
 
 ## Promoting the vector
 
-1. Run the experiment; capture the verbatim result.
-2. Flip the vector's `status` to `observed` and add the `observation` block.
-3. `pytest -q` — the schema now requires the block, and the matcher must still reproduce `expect`.
+1. Run the experiment through the harness; it captures the verbatim result and writes the transcript.
+2. Flip the vector's `status` to `observed` and paste the printed `observation` block (it already
+   carries `transcript`).
+3. **Commit the transcript** under `observations/<date>/` in the same commit as the promotion. An
+   `observed` vector whose transcript is not in the repo is a claim a reader has to take on trust —
+   which is the thing this corpus exists not to do.
+4. `pytest -q` — the schema requires the block, and the matcher must still reproduce `expect`.
    A promotion that changes the *match result* is a finding, not a formatting change: fix the
    vector or the matcher, don't paper over it.
-4. Update the coverage/provenance line in `README.md` (the `documented`/`observed` split) — the
+5. Update the coverage/provenance line in `README.md` (the `documented`/`observed` split) — the
    drift gate guards it.
-5. One commit per experiment, ROADMAP updated. Weeknight-sized, as ever.
+6. One commit per experiment, ROADMAP updated. Weeknight-sized, as ever.
+
+**Never widen the prose beyond the transcript.** If a detail was not captured, either re-run to
+capture it or say in `evidence` that it was not captured and what turns on it. That rule exists
+because it was broken once, publicly, in a released artifact.

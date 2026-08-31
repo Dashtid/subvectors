@@ -1,0 +1,51 @@
+{
+  "recorded_utc": "2026-08-31T23:47:50+00:00",
+  "probe_identity": "{\"mode\": \"iam-create-role\", \"operator\": \"StringLike\", \"pattern\": null, \"subject\": null, \"values\": [\"*\", \"repo:acme/x\"], \"vector_id\": null}",
+  "mode": "iam-create-role",
+  "probe": "star-first",
+  "operator": "StringLike",
+  "values": [
+    "*",
+    "repo:acme/x"
+  ],
+  "role_name": "subvectors-probe-5a81b196",
+  "tool_version": "aws-cli/2.36.33",
+  "argv": [
+    "aws",
+    "iam",
+    "create-role",
+    "--role-name",
+    "subvectors-probe-5a81b196",
+    "--assume-role-policy-document",
+    "{\"Version\": \"2012-10-17\", \"Statement\": [{\"Effect\": \"Allow\", \"Principal\": {\"Federated\": \"arn:aws:iam::<ACCOUNT-ID>:oidc-provider/token.actions.githubusercontent.com\"}, \"Action\": \"sts:AssumeRoleWithWebIdentity\", \"Condition\": {\"StringLike\": {\"token.actions.githubusercontent.com:sub\": [\"*\", \"repo:acme/x\"]}}}]}",
+    "--output",
+    "json"
+  ],
+  "trust_policy": {
+    "Version": "2012-10-17",
+    "Statement": [
+      {
+        "Effect": "Allow",
+        "Principal": {
+          "Federated": "arn:aws:iam::<ACCOUNT-ID>:oidc-provider/token.actions.githubusercontent.com"
+        },
+        "Action": "sts:AssumeRoleWithWebIdentity",
+        "Condition": {
+          "StringLike": {
+            "token.actions.githubusercontent.com:sub": [
+              "*",
+              "repo:acme/x"
+            ]
+          }
+        }
+      }
+    ]
+  },
+  "exit_code": 254,
+  "accepted": false,
+  "response": null,
+  "stderr": "aws: [ERROR]: An error occurred (MalformedPolicyDocument) when calling the CreateRole operation: Trust policy with trusted principal arn:aws:iam::<ACCOUNT-ID>:oidc-provider/token.actions.githubusercontent.com must evaluate, using StringEquals, StringLike or StringEqualsIgnoreCase, token.actions.githubusercontent.com:sub or token.actions.githubusercontent.com:job_workflow_ref which is not scoped to all.",
+  "cleanup": {
+    "nothing_created": true
+  }
+}

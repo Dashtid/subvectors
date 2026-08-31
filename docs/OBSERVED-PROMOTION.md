@@ -172,29 +172,27 @@ scoped to all"). The creation-time guardrail checks that a `sub` condition **exi
 values are scoped. Transcripts: `observations/2026-08-31/create-role-*.json`; both roles deleted with
 `get-role -> NoSuchEntity` recorded.
 
-**[+] The single-`*` probe was run the same evening, and it lands the finding.**
-`StringLike ["*"]` **standing alone is REJECTED** with the same `MalformedPolicyDocument`. So AWS
-genuinely does reject a scoped-to-all `sub` value — but only when it stands alone. Move the identical
-`"*"` into second position behind a harmless value and the same policy is created.
+**[+] SETTLED 2026-08-31/09-01 — the guardrail reads only the first value.**
+`StringLike ["*"]` standing alone is REJECTED. So AWS does reject a scoped-to-all `sub` value. But
+the same `"*"` in second position, behind a harmless value, is ACCEPTED — and reversing those two
+values flips the verdict back to REJECTED.
 
-**AWS's own validator does not inspect every value of an OR-list.** That is the same structural
-defect the corpus feeds upstream to scanners, sitting in the cloud provider's own guardrail.
-
-| `sub` condition | Result |
+| `sub` condition (StringLike) | Result |
 | --- | --- |
-| `StringLike ["repo:acme/x", "*"]` | accepted |
-| `StringLike ["*"]` | **rejected** |
-| *no condition* | rejected |
+| `["repo:octo-org/octo-repo:ref:refs/heads/main", "repo:octo-org/*"]` | accepted |
+| `["repo:acme/x", "*"]` | accepted |
+| `["*", "repo:acme/x"]` | **rejected** |
+| `["*"]` | **rejected** |
+| *no condition* | **rejected** |
 
-Still unresolved, and one command away: does AWS stop at the **first** value, or merely require one
-non-scoped value **anywhere** in the list? Reverse the order to find out —
+AWS is not scanning for a non-scoped value — if it were, `["*", "repo:acme/x"]` would be accepted on
+its second element. **It reads element `[0]` and stops.** A scoped-to-all value is therefore
+invisible to the guardrail in any position but the first.
 
-```bash
-python scripts/observe_aws.py --creation-probe --operator StringLike     --values '*' --values 'repo:acme/x' --label star-first
-```
-
-Rejected -> first-value-only, exactly the shape of Checkov #7665. Accepted -> the guardrail is
-satisfied by any one non-scoped value and ignores the rest.
+That is the same first-value-only defect the corpus feeds upstream to scanners (Checkov #7665), in
+the cloud provider's own validator. All four rejections carry the identical `MalformedPolicyDocument`
+naming `:sub` or `:job_workflow_ref` "which is not scoped to all" — so the error text describes a
+check stricter than the one AWS actually performs.
 
 [!] **Transcript collision, 2026-08-31 — fixed in the harness.** The single-`*` probe wrote to
 `create-role-ad-hoc.json`, the same filename the earlier `["repo:acme/x","*"]` probe had used, and

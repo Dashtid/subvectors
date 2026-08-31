@@ -317,16 +317,16 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   NoSuchEntity` recorded. The whole 11-vector simulator set was re-run in the same session, so the
   entire AWS tranche now carries committed transcripts under `observations/2026-08-31/`:
   provenance 122 documented / 11 observed (was 127/6).
-  **[+] Fourth probe run 2026-08-31 (github-aws 0.4.1) — it lands the finding.** `StringLike ["*"]`
-  STANDING ALONE is REJECTED with the same `MalformedPolicyDocument`. So AWS does reject a
-  scoped-to-all `sub` value, but only when it stands alone; the identical `"*"` in second position
-  behind a harmless value is ACCEPTED. **AWS's own creation validator does not inspect every value
-  of an OR-list** — the same structural defect the corpus feeds upstream to scanners, in the cloud
-  provider's guardrail. Strongest single result the project has produced.
-  **Next probe, one command, still unrun:** reverse the order —
-  `--operator StringLike --values '*' --values 'repo:acme/x' --label star-first`. Rejected -> AWS
-  stops at the first value, exactly the shape of Checkov #7665. Accepted -> any one non-scoped
-  value satisfies the guardrail and the rest are ignored. Needs a live key.
+  **[+] SETTLED across five probes (github-aws 0.4.2) — AWS's creation guardrail reads only the
+  FIRST value of the sub condition's list.** `StringLike ["*"]` alone -> REJECTED, so AWS does
+  reject a scoped-to-all value; the same `"*"` in second position -> ACCEPTED; the same two values
+  REVERSED, `["*","repo:acme/x"]` -> REJECTED. AWS is not scanning for a non-scoped value -- if it
+  were, the reversed list would pass on its second element. It reads element `[0]` and stops, so a
+  scoped-to-all value is invisible in any position but the first. All four rejections carry the
+  identical `MalformedPolicyDocument` naming `:sub` "which is not scoped to all", so AWS's own error
+  text describes a stricter check than it performs. This is the same first-value-only defect the
+  corpus fed upstream as Checkov #7665, sitting in the cloud provider's validator -- the strongest
+  single result the project has produced, and it is entirely transcript-backed.
   [!] **Harness bug found and fixed the same evening:** the single-`*` probe overwrote the earlier
   ad-hoc transcript (both defaulted to `create-role-ad-hoc.json`); the first survived only because
   it was already committed. Ad-hoc labels are now hashed from `(operator, values)`, `--label` names

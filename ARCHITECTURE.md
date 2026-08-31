@@ -67,13 +67,15 @@ Three separable layers, deliberately kept apart:
 Two fields carry the honesty:
 - **`sources`** — every vector cites a primary source. Required by the schema.
 - **`status`** — `documented` (derived from docs) vs `observed` (confirmed against a real
-  issuer/cloud). **All vectors are currently `documented`.** Closing that gap is the highest-value
-  work available; see `BACKLOG.md`.
+  issuer/cloud; an `observed` vector must carry an `observation` block with method, date and
+  verbatim evidence — the schema enforces it). The first `observed` vectors landed 2026-08-29/30
+  via the AWS IAM policy simulator; the live split is in the README's generated
+  [Coverage](README.md#coverage) block (never hardcoded here — it went stale the first time).
 
 ## The files
 
 ```
-vectors/           <- THE PRODUCT. 13 suites, 127 vectors. CC0-licensed.
+vectors/           <- THE PRODUCT. One JSON suite per issuer x cloud (counts: README Coverage). CC0.
   github-aws.json        one file per (issuer x cloud) pair
   github-azure.json      github/gitlab/bitbucket/circleci/terraform x aws/azure/gcp
   ...

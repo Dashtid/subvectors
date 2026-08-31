@@ -210,7 +210,8 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   grammar (stays mutable, not `@id`-suffixed); custom subject-claim templates.
 - `[~]` **Promote key vectors `documented` -> `observed`** — no longer optional/low-priority:
   **DECISION TAKEN 2026-08-22: cloud sandbox is IN SCOPE** (personal free-tier, personal gear;
-  the observed:documented ratio is the corpus's real quality metric and it reads 0:133).
+  the observed:documented ratio is the corpus's real quality metric; it read 0:133 at decision time
+  and **6:127 after the 2026-08-29/30 runs** — experiments 1-4 done, 5 remains).
   **[i] PREPPED 2026-08-25: turnkey now.** The schema gives `observed` teeth (a required
   `observation` block: method/date/evidence, forbidden on `documented`; enforced by
   `tests/test_vectors.py`), and [`docs/OBSERVED-PROMOTION.md`](docs/OBSERVED-PROMOTION.md) is the
@@ -250,7 +251,10 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   `list-open-id-connect-providers` both empty. **Feeder angle:** this is a concrete, reproducible
   gap to raise with the Checkov AWS-OIDC check family, which reasons only about `sub` and would
   not flag a list whose second value is org-wide.
-  Run in this order (each promotes vectors and each is independently publishable):
+  Run in this order (each promotes vectors and each is independently publishable). Status:
+  1-4 DONE (08-29/30, see above); 5 open (needs a GCP project); an Azure token-exchange
+  observation (AADSTS700213) is the natural 6th — needs `az login` + a throwaway GitHub Actions
+  workflow minting a token against an Entra app FIC.
   1. **AWS `StringLike` case-sensitivity** — docs say case-sensitive; third-party references
      circulate the opposite. Simulator with upper/lowercased subject pairs. Settles a live
      contradiction; the most quotable single result.

@@ -75,7 +75,16 @@ def _eligible(vector: dict) -> str | None:
     return None
 
 
-def _build_command(vector: dict) -> list[str]:
+def _build_request(vector: dict) -> dict:
+    """The full simulate-custom-policy request, as one JSON document.
+
+    Sent via ``--cli-input-json`` deliberately. AWS CLI v2 auto-parses any
+    argument value that looks like JSON, and ``--policy-input-list`` is typed
+    list<string> -- so an inline policy document is mis-parsed (and file://
+    is mis-handled too; observed on the 2026-08-29 run). Wrapping the whole
+    request in one JSON object, with the policy as an escaped string inside
+    it, is the form that works.
+    """
     condition = vector["condition"]
     operator = _OPERATOR[condition["consumer"]]
     pattern = condition["pattern"]
@@ -91,18 +100,23 @@ def _build_command(vector: dict) -> list[str]:
             }
         ],
     }
-    context = [
-        {
-            "ContextKeyName": CONTEXT_KEY,
-            "ContextKeyType": "string",
-            "ContextKeyValues": [vector["subject"]],
-        }
-    ]
+    return {
+        "PolicyInputList": [json.dumps(policy)],
+        "ActionNames": ["sts:AssumeRoleWithWebIdentity"],
+        "ContextEntries": [
+            {
+                "ContextKeyName": CONTEXT_KEY,
+                "ContextKeyType": "string",
+                "ContextKeyValues": [vector["subject"]],
+            }
+        ],
+    }
+
+
+def _build_command(vector: dict) -> list[str]:
     return [
         "aws", "iam", "simulate-custom-policy",
-        "--policy-input-list", json.dumps(policy),
-        "--action-names", "sts:AssumeRoleWithWebIdentity",
-        "--context-entries", json.dumps(context),
+        "--cli-input-json", json.dumps(_build_request(vector)),
         "--output", "json",
     ]
 

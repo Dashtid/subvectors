@@ -28,8 +28,10 @@ Grammar (the whole language -- there is nothing else):
 - Single quotes escape by doubling (``''`` -> a literal ``'``).
 
 Per-issuer support (the token claims an expression may reference), from the same page:
-GitHub -> ``sub`` and ``job_workflow_ref``; GitLab -> ``sub`` only; Terraform Cloud ->
-``sub`` only. Flexible FIC is application-object-only and configurable via Microsoft
+GitHub -> ``sub``, ``job_workflow_ref``, ``repository_id`` and ``repository_owner_id``;
+GitLab -> ``sub`` only; Terraform Cloud -> ``sub`` only. Operators are per claim, not
+global: ``sub`` and ``job_workflow_ref`` take ``eq`` and ``matches``, while the two id
+claims take ``eq`` only. Flexible FIC is application-object-only and configurable via Microsoft
 Graph or the Azure portal only (no CLI/PowerShell/Terraform provider surface yet).
 
 Honest scope cut (as in cel.py): referencing a claim absent from ``claims`` raises
@@ -39,7 +41,16 @@ un-evaluated. This evaluator does NOT enforce the per-issuer claim/operator allo
 subject/claimsMatchingExpression mutual exclusion; it evaluates a well-formed
 ``value`` expression against a claim set.
 
-Source (preview; page updated 2026-06-15):
+That cut now carries more weight than it did, so it is worth being explicit. Since the
+2026-08-14 revision the page requires a GitHub expression to match ``sub`` AND at least
+one of ``repository_id`` / ``repository_owner_id`` -- "regardless of whether ``sub`` uses
+a name-based, customized, or immutable format". That is a rule about which credentials
+Entra will ACCEPT, not about which tokens an accepted credential MATCHES, so it stays out
+of this evaluator by the same reasoning as the operator allow-list. A sub-only expression
+still evaluates here exactly as it always did; whether you could create it is a separate
+question, answered in the vector prose (see ``vectors/github-azure-flexible.json``).
+
+Source (preview; page ms.date 2026-08-14, updated 2026-08-17):
 https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials
 """
 

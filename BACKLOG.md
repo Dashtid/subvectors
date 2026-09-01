@@ -169,31 +169,33 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 
 ## Corpus / product depth
 
-- `[ ]` **[!] STALE AGAINST THE SOURCE: every GitHub flexible-FIC vector models an expression Entra
-  now documents as invalid.** Found by the 2026-08-31 audit sweep and confirmed by fetching the live
-  page. Microsoft revised
-  `workload-identities-flexible-federated-identity-credentials` (ms.date **2026-08-14**, updated
-  2026-08-17; the suite description still stamps it **2026-06-15**) and it now says, twice and
-  verbatim: *"GitHub expressions must match `sub` and at least one immutable claim"* and *"For
-  GitHub, a flexible federated identity credential must match the `sub` claim and one or both of the
-  following immutable claims: `repository_id` ... `repository_owner_id` ... These claims are required
-  regardless of whether `sub` uses a name-based, customized, or immutable format."* Every documented
-  GitHub example now carries `and claims['repository_id'] eq '456789'`, and the operator table
-  restricts both id claims to `eq` only.
-  **All 8 vectors in `vectors/github-azure-flexible.json` are sub-only or sub+job_workflow_ref** — no
-  immutable claim anywhere — so a scanner author vendoring this suite learns that a bare
-  `claims['sub'] eq '...'` is a valid GitHub flexible FIC. It is not, per Entra's own docs. That is
-  the corpus teaching something false, which is the one failure mode this project exists to prevent.
-  **It is also a finding in its own right, and a good one:** the immutable-claim gap the corpus
-  documents as OPEN on Azure has been CLOSED by Microsoft — mandatorily — while it stays open on AWS
-  (verified 2026-07-30) and was already closed on GCP. That is a three-way contrast worth encoding,
-  and it strengthens the Checkov CKV_AZURE_249 angle rather than weakening it.
-  Not fixed in place because it is a design call, not an edit: the corpus has no "rejected at
-  creation" concept for Azure yet (AWS gained one via experiment 4), and the honest options differ.
-  Either (a) add the mandatory immutable claim to all 8 conditions and re-derive their `expect`,
-  (b) keep them and re-grade them as *creation-invalid* with a new judgment pattern, or (c) both:
-  keep the existing 8 as the historical preview shape, clearly stamped, and add a current-shape
-  tranche. **Re-read the live page before acting — it is a preview and it has already moved once.**
+- `[x]` **RESOLVED 2026-09-01 -- the GitHub flexible-FIC suite is current again, and the fix was route (c):
+  keep the historical shape, stamp it, add the current one.** Re-verified against the live page before
+  acting (it is preview and had already moved once): ms.date **2026-08-14**, updated 2026-08-17, and it
+  states twice that a GitHub expression must match `sub` plus at least one of `repository_id` /
+  `repository_owner_id`, "regardless of whether `sub` uses a name-based, customized, or immutable
+  format". The operator table restricts both id claims to `eq`.
+  **What shipped (suite 0.1.0 -> 0.2.0, 8 -> 12 vectors):**
+  - The suite description now carries the correct page stamp, the mandatory-claim rule with both verbatim
+    quotes, and the operator restriction. The old stamp said 2026-06-15.
+  - All 8 original vectors keep their match semantics -- those were never wrong -- and each is stamped
+    `0.1.0 SHAPE, PRE-2026-08-14`, so a reader vendoring one vector, not the suite, still learns that the
+    configuration is no longer creatable even though the matching is still true.
+  - Four new vectors carry the mandatory claim: `gh-flex-eq-exact-with-repository-id` (the tight
+    baseline), `gh-flex-branch-wildcard-with-repository-id` and `gh-flex-org-wide-wildcard-with-owner-id`
+    (both still `dangerous` -- the new rule makes a credential VALID, not SAFE, and owner-only pinning
+    constrains exactly the scope the wildcard already spans), and
+    `gh-flex-repository-id-mismatch-rejects` (the guard working: a byte-identical name-based sub from a
+    reclaimed path, refused on the id clause).
+  - **Creation-validity is deliberately NOT in `expect`.** `expect` is the matcher's answer; the
+    per-issuer claim/operator allow-list was already an explicit scope cut in ffl.py. So the rule lives
+    in vector prose, exactly where classic FIC's unvalidated-at-creation traps live in github-azure. No
+    new schema concept was invented for it.
+  - **The uncited inference is retired too.** `matches` anchoring is now stated as ffl.py's reading with
+    the page's silence acknowledged, in the suite description, in ffl.py's docstring, in CONTRIBUTING's
+    consumer table, and on the one vector whose declared result depends on it
+    (`gh-flex-question-width-excludes-longer`) plus its sibling. CONTRIBUTING invariant 2 holds again.
+  352 tests pass; README coverage regenerated.
 - `[x]` **Flexible FIC tranche** (`azure-fic-flexible` consumer): shipped `src/subvectors/ffl.py`
   (a minimal expression evaluator -- `claims['<name>'] <op> '<comparand>'` clauses joined by
   `and`; `eq` exact, `matches` an anchored non-path-aware glob with `?`=one char / `*`=multi),

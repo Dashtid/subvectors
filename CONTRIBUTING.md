@@ -53,7 +53,7 @@ Before writing anything, skim [`README.md`](README.md) and the schema at
 | `aws-stringequals` | `pattern` string or list | Exact, case-sensitive. `*`/`?` are literal. List = OR. |
 | `aws-all` | `of`: array of AWS sub-conditions | A full IAM Condition block: **AND** of AWS string sub-conditions (operators may differ; each may target a claim and use value lists). Only the two AWS string consumers may appear inside. |
 | `azure-fic-exact` | `pattern` string | Classic Azure FIC: exact string match on the targeted claim; wildcards are literal; a mismatch fails the exchange silently. |
-| `azure-fic-flexible` | `pattern` string (expression) | Preview flexible FIC: `claims['<name>'] <op> '<comparand>'` clauses joined by `and`; `eq` exact, `matches` an anchored, non-path-aware glob. Evaluated by [`src/subvectors/ffl.py`](src/subvectors/ffl.py). Address claims inside the expression (`claim` stays `sub`). Version-stamp preview semantics in the vector. |
+| `azure-fic-flexible` | `pattern` string (expression) | Preview flexible FIC: `claims['<name>'] <op> '<comparand>'` clauses joined by `and`; `eq` exact, `matches` a non-path-aware glob that ffl.py models as anchored to the whole claim (the preview page defines only the `?`/`*` wildcards and is silent on anchoring -- say so rather than asserting it). Evaluated by [`src/subvectors/ffl.py`](src/subvectors/ffl.py). Address claims inside the expression (`claim` stays `sub`). Version-stamp preview semantics in the vector. |
 | `gcp-cel` | `pattern` string (CEL) | GCP WIF `attribute_condition`, evaluated by [`src/subvectors/cel.py`](src/subvectors/cel.py). Address claims as `assertion.<name>`; `claim` stays `sub`. |
 
 For `gcp-cel` and `azure-fic-flexible`, a referenced claim absent from `claims` **raises** rather

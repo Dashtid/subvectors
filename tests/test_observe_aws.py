@@ -123,14 +123,14 @@ def test_transcript_is_written_and_stamped(tmp_path: Path) -> None:
 def test_transcript_scrubs_account_ids_everywhere(tmp_path: Path) -> None:
     """Transcripts are committed, so account ids must never reach disk."""
     record = {
-        "arn": "arn:aws:iam::715512878988:oidc-provider/token.actions.githubusercontent.com",
+        "arn": "arn:aws:iam::210987654321:oidc-provider/token.actions.githubusercontent.com",
         "nested": {"list": ["account 123456789012 here"]},
     }
     document = json.loads(
         observe.write_transcript(tmp_path, "scrub", record).read_text(encoding="utf-8")
     )
     blob = json.dumps(document)
-    assert "715512878988" not in blob
+    assert "210987654321" not in blob
     assert "123456789012" not in blob
     assert blob.count(observe._ACCOUNT_PLACEHOLDER) == 2
 
@@ -366,3 +366,41 @@ def test_creation_probe_rejects_a_positional_vector_id(capsys) -> None:
     code = observe.main(["gh-aws-org-wide-wildcard-repo", "--creation-probe", "--dry-run"])
     assert code == 2
     assert "--creation-probe" in capsys.readouterr().err
+
+
+def test_transcript_scrubs_aws_unique_ids_not_just_account_digits(tmp_path: Path) -> None:
+    """An AWS unique id leaks the account id as surely as the 12-digit form.
+
+    AROA/AKIA/ASIA... ids embed the account id in base32, so redacting only the
+    digits was not enough: two committed transcripts carried RoleIds from which
+    the account id was trivially recoverable.
+    """
+    record = {
+        "Role": {
+            "RoleId": "AROAEXAMPLE1234567890",
+            "Arn": "arn:aws:iam::210987654321:role/probe",
+        },
+        "AccessKeyId": "AKIAEXAMPLE1234567890",
+    }
+    document = json.loads(
+        observe.write_transcript(tmp_path, "unique-ids", record).read_text(encoding="utf-8")
+    )
+    blob = json.dumps(document)
+    assert "AROAEXAMPLE1234567890" not in blob
+    assert "AKIAEXAMPLE1234567890" not in blob
+    assert "210987654321" not in blob
+    assert blob.count(observe._UNIQUE_ID_PLACEHOLDER) == 2
+
+
+def test_committed_transcripts_carry_no_recoverable_account_id() -> None:
+    """Guard the product itself, not just the helper: scan what is on disk."""
+    import re
+
+    root = Path(__file__).resolve().parent.parent / "observations"
+    leaky = re.compile(r"(?<![0-9])[0-9]{12}(?![0-9])|(?:AROA|AKIA|ASIA|AIDA)[A-Z0-9]{12,}")
+    offenders = []
+    for path in sorted(root.rglob("*.json")):
+        for hit in leaky.findall(path.read_text(encoding="utf-8")):
+            if hit not in {"123456789012", "210987654321"}:
+                offenders.append(f"{path.name}: {hit}")
+    assert not offenders, f"recoverable AWS identifiers in committed transcripts: {offenders}"

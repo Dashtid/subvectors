@@ -65,7 +65,17 @@ CREATION_OPERATORS = ("StringLike", "StringEquals", "StringEqualsIgnoreCase")
 # A bare 12-digit run is an AWS account id. ARNs embed one, so scrubbing the
 # number scrubs the ARN too. Transcripts are committed; account ids are not.
 _ACCOUNT_RE = re.compile(r"(?<!\d)\d{12}(?!\d)")
+# AWS unique ids embed the account id in base32, so a RoleId/AccessKeyId leaks
+# it just as surely as the 12-digit form - and redacting only the digits let
+# two committed transcripts carry a recoverable account id. Prefixes per the
+# IAM unique-identifier reference (AROA role, AKIA/ASIA keys, AIDA user, and
+# the group/policy/instance-profile/managed-policy/public-key/server-cert/
+# context-provider families).
+_UNIQUE_ID_RE = re.compile(
+    r"\b(?:AROA|AKIA|ASIA|AIDA|AGPA|ANPA|ANVA|AIPA|ABIA|ACCA|APKA|ASCA)[A-Z0-9]{12,}\b"
+)
 _ACCOUNT_PLACEHOLDER = "<ACCOUNT-ID>"
+_UNIQUE_ID_PLACEHOLDER = "<AWS-UNIQUE-ID>"
 
 # One simulator session promotes all of these (docs/OBSERVED-PROMOTION.md exps 1-3
 # plus their control/neighbor vectors). Order follows the runbook.
@@ -89,14 +99,16 @@ DEFAULT_IDS = [
 
 
 def scrub(value: Any) -> Any:
-    """Replace AWS account ids anywhere in a JSON-ish structure.
+    """Replace AWS account ids and unique ids anywhere in a JSON-ish structure.
 
     Applied to every transcript before it touches disk. The corpus is public and
     .gitignore already forbids committing real cloud data; this makes the
     transcripts safe to commit rather than something to remember to sanitize.
     """
     if isinstance(value, str):
-        return _ACCOUNT_RE.sub(_ACCOUNT_PLACEHOLDER, value)
+        return _UNIQUE_ID_RE.sub(
+            _UNIQUE_ID_PLACEHOLDER, _ACCOUNT_RE.sub(_ACCOUNT_PLACEHOLDER, value)
+        )
     if isinstance(value, list):
         return [scrub(v) for v in value]
     if isinstance(value, dict):

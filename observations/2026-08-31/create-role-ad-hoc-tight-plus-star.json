@@ -46,7 +46,7 @@
     "Role": {
       "Path": "/",
       "RoleName": "subvectors-probe-affb0829",
-      "RoleId": "AROA2NF7EC6GPNGGLFIZ4",
+      "RoleId": "<AWS-UNIQUE-ID>",
       "Arn": "arn:aws:iam::<ACCOUNT-ID>:role/subvectors-probe-affb0829",
       "CreateDate": "2026-08-31T20:02:48+00:00",
       "AssumeRolePolicyDocument": {

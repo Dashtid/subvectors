@@ -153,3 +153,102 @@ def test_bracket_indexing_malformed_raises() -> None:
     for bad in ["assertion[] == 'x'", "assertion['a' == 'x'", "assertion[project] == 'x'", "assertion['a'] ['b']"]:
         with pytest.raises(CelError):
             evaluate(bad, NAMESPACED)
+
+
+# ---------------------------------------------------------------------------
+# String literal decoding (the spec's ESCAPE production).
+#
+# These are written against `evaluate`, not against the private `_unescape`, so
+# they pin the behaviour a vector actually gets. The literals are deliberately
+# spelled with explicit Python escapes rather than raw strings: getting confused
+# about which layer a backslash belongs to is precisely how the bug below
+# survived, and a test that is itself ambiguous proves nothing.
+# ---------------------------------------------------------------------------
+
+ESCAPE_CLAIMS = {"v": "x"}
+
+
+def _decodes_to(literal: str, expected: str) -> bool:
+    """True iff `literal` (a CEL literal, quotes included) decodes to `expected`."""
+    return evaluate("assertion.v == " + literal, {"v": expected}) is True
+
+
+def test_escaped_backslash_before_an_unescaped_quote_keeps_its_backslash() -> None:
+    """Regression: sequential str.replace ate a backslash it had just produced.
+
+    A double quote needs no escape inside a single-quoted CEL string, so
+    '  a \\ " b  ' is a legal literal meaning a, backslash, quote, b. Decoding by
+    replacing \\\\ -> \\ first and \\" -> " second turned the freshly written
+    backslash into the start of a new escape and dropped it, silently returning
+    a, quote, b. A matcher oracle that loses a character can pass a vector for
+    the wrong reason, so this is pinned in both quote directions.
+    """
+    assert _decodes_to("'a\\\\\"b'", 'a\\"b')
+    assert _decodes_to('"a\\\\\'b"', "a\\'b")
+    # The all-escaped spelling was correct before the fix and must stay correct.
+    assert _decodes_to("'a\\\\\\'b'", "a\\'b")
+
+
+def test_punctuation_and_whitespace_escapes_decode() -> None:
+    assert _decodes_to("'a\\nb'", "a\nb")
+    assert _decodes_to("'a\\tb'", "a\tb")
+    assert _decodes_to("'a\\rb'", "a\rb")
+    assert _decodes_to("'\\a\\b\\f\\v'", "\a\b\f\v")
+    assert _decodes_to("'\\?'", "?")
+    assert _decodes_to("'\\`'", "`")
+    assert _decodes_to("'\\\\'", "\\")
+
+
+def test_numeric_escapes_decode() -> None:
+    """\\xHH, \\XHH, \\uHHHH, \\UHHHHHHHH and three-digit octal all name a code point."""
+    assert _decodes_to("'\\x41'", "A")
+    assert _decodes_to("'\\X41'", "A")
+    assert _decodes_to("'\\u0041'", "A")
+    assert _decodes_to("'\\U0001F600'", "\U0001F600")
+    assert _decodes_to("'\\101'", "A")
+    assert _decodes_to("'\\000'", "\x00")
+
+
+def test_an_invalid_escape_is_a_parse_error() -> None:
+    """CEL: "a backslash outside of a valid escape sequence ... will result in a
+    parse error". Accepting one would let this oracle evaluate an expression that
+    GCP itself would refuse to save."""
+    for bad in [
+        "assertion.v == '\\q'",          # not an escape at all
+        "assertion.v == '\\x4'",         # \\x wants exactly two hex digits
+        "assertion.v == '\\u00'",        # \\u wants exactly four
+        "assertion.v == '\\999'",        # 9 is not an octal digit
+        "assertion.v == '\\U00110000'",  # above the Unicode range
+        "assertion.v == 'a\\'",          # dangling backslash
+    ]:
+        with pytest.raises(CelError):
+            evaluate(bad, ESCAPE_CLAIMS)
+
+
+def test_raw_string_literals_do_not_decode_escapes() -> None:
+    """r'...' is the idiomatic way to write a regex inside matches()."""
+    assert _decodes_to("r'a\\d+'", "a\\d+")
+    assert _decodes_to("R'a\\d+'", "a\\d+")
+    # A regex written raw and one written with doubled backslashes must agree.
+    claims = {"ref": "refs/heads/main"}
+    assert evaluate(r"assertion.ref.matches(r'^refs/heads/\w+$')", claims) is True
+    assert evaluate("assertion.ref.matches('^refs/heads/\\\\w+$')", claims) is True
+
+
+def test_triple_quoted_and_bytes_literals_are_refused_by_name() -> None:
+    """Both are real STRING_LIT forms; refusing them by name beats misreading them."""
+    for expr, wanted in [
+        ("assertion.v == '''x'''", "triple-quoted"),
+        ('assertion.v == """x"""', "triple-quoted"),
+        ("assertion.v == b'x'", "bytes"),
+        ("assertion.v == br'x'", "bytes"),
+    ]:
+        with pytest.raises(CelError) as exc:
+            evaluate(expr, ESCAPE_CLAIMS)
+        assert wanted in str(exc.value)
+
+
+def test_a_decoded_escape_reaches_the_comparison() -> None:
+    """End to end: the decoded value, not the source text, is what gets compared."""
+    assert evaluate("assertion.sep == '\\t'", {"sep": "\t"}) is True
+    assert evaluate("assertion.sep == '\\t'", {"sep": "\\t"}) is False

@@ -1,4 +1,4 @@
-"""A minimal CEL evaluator for GCP Workload Identity Federation attribute_conditions.
+r"""A minimal CEL evaluator for GCP Workload Identity Federation attribute_conditions.
 
 GCP does not string-match the token subject. A workload-identity-pool provider carries
 an ``attribute_condition`` written in CEL (Common Expression Language); the credential is
@@ -17,6 +17,14 @@ Semantics that are easy to get wrong, pinned to primary sources:
   https://docs.cloud.google.com/iam/docs/workload-identity-federation
 - ``matches(re)`` is RE2 and matches a SUBSTRING (unanchored) -- so it uses re.search, and a
   pattern must use ^ / $ to anchor. https://github.com/google/cel-spec/blob/master/doc/langdef.md
+- String literals follow the spec's ESCAPE production exactly, decoded in a single
+  left-to-right pass. This matters more than it looks: a double quote needs no escape
+  inside a single-quoted string, so a literal holding backslash-backslash-quote is
+  legal -- and decoding it by sequential replacement lost the backslash outright until
+  2026-09-02. An invalid escape such as ``\q`` is a parse error, as it is in CEL.
+  ``r``-prefixed raw literals are supported (the idiomatic way to write a regex inside
+  ``matches()``); the backslash is an ordinary character in them.
+  https://github.com/google/cel-spec/blob/master/doc/langdef.md
 - Token claim values relevant here are strings (issuers mint even numeric IDs and protection
   flags as quoted JSON strings, e.g. GitLab's "project_id": "20", "ref_protected": "false"),
   and the CEL JSON mapping keeps a JSON string a CEL string
@@ -39,7 +47,8 @@ support we do not verify): ordering comparisons < <= > >=, ternary ?:, string co
 arithmetic, timestamps, uint/double literals (int literals exist solely so the type-trap
 vectors can express the mistaken ``== 20`` form), macros (.all/.exists/.map/.filter), and the
 extract()/split() extensions that appear in attribute_MAPPING source expressions rather than
-admission conditions.
+admission conditions, and the triple-quoted and ``b``-prefixed bytes STRING_LIT forms (both
+are detected and refused by name rather than misread).
 """
 
 from __future__ import annotations
@@ -53,26 +62,123 @@ class CelError(ValueError):
     """Raised on a parse error, an unknown function, or a reference to an absent claim."""
 
 
+# Raw (``r``-prefixed) alternatives come FIRST so ``r'x'`` tokenizes as one raw
+# string rather than the identifier ``r`` followed by a string. A raw literal has
+# no escape rule at all -- per STRING_LIT its body is "any character except the
+# delimiter, CR or LF" -- so a backslash inside one cannot escape the closing
+# quote, and the alternatives are written to say exactly that.
 _TOKEN_RE = re.compile(
     r"(?P<ws>\s+)"
-    r"|(?P<str>'(?:[^'\\]|\\.)*'|\"(?:[^\"\\]|\\.)*\")"
+    r"|(?P<str>[rR]'[^'\r\n]*'"
+    r"|[rR]\"[^\"\r\n]*\""
+    r"|'(?:[^'\\\r\n]|\\.)*'"
+    r"|\"(?:[^\"\\\r\n]|\\.)*\")"
     r"|(?P<num>\d+)"
     r"|(?P<op>==|!=|&&|\|\||!|\(|\)|\[|\]|,|\.)"
     r"|(?P<ident>[A-Za-z_][A-Za-z0-9_]*)"
 )
 
+# Both are real STRING_LIT forms this oracle deliberately refuses. Detected before
+# tokenizing so they get a named refusal: without this, a triple-quoted literal
+# shreds into an empty string plus an identifier and surfaces as "unexpected
+# trailing tokens", which describes the symptom and not the cause.
+_TRIPLE_QUOTED_RE = re.compile(r"[rRbB]{0,2}(?:'''|\"\"\")")
+_BYTES_LIT_RE = re.compile(r"(?:[bB][rR]?|[rR][bB])['\"]")
+
 _STRING_METHODS = frozenset({"startsWith", "endsWith", "contains", "matches"})
+
+# ESCAPE, first alternative: the punctuation marks and whitespace codes that stand
+# for themselves or for a control character.
+_SIMPLE_ESCAPES = {
+    "a": "\a", "b": "\b", "f": "\f", "n": "\n", "r": "\r", "t": "\t", "v": "\v",
+    "\\": "\\", "?": "?", '"': '"', "'": "'", "`": "`",
+}
+_HEXDIGITS = frozenset("0123456789abcdefABCDEF")
+_OCTDIGITS = frozenset("01234567")
+
+
+def _decode_codepoint(body: str, start: int, count: int, base: int, literal: str) -> str:
+    """Read a fixed-width numeric escape and return the character it names."""
+    digits = body[start:start + count]
+    allowed = _HEXDIGITS if base == 16 else _OCTDIGITS
+    if len(digits) != count or any(d not in allowed for d in digits):
+        raise CelError(
+            f"malformed numeric escape in string literal {literal!r}: "
+            f"expected {count} base-{base} digits, got {digits!r}"
+        )
+    value = int(digits, base)
+    # \U can name a value above the Unicode range, and CEL strings are sequences
+    # of code points -- so that is a parse error too, not a silent replacement char.
+    if value > 0x10FFFF:
+        raise CelError(f"escape names a value outside Unicode in {literal!r}: {digits!r}")
+    return chr(value)
 
 
 def _unescape(literal: str) -> str:
+    r"""Decode a CEL string literal, scanning it once, left to right.
+
+    Scanning is not a style preference here. The previous implementation ran three
+    sequential ``str.replace`` passes, and a later pass could consume a backslash an
+    earlier one had just produced. A double quote needs no escape inside a
+    single-quoted string, so a literal holding backslash-backslash-quote is legal and
+    means backslash-quote; replacing ``\\`` first produced backslash-quote, which the
+    later ``\"`` pass then ate, silently returning a bare quote. A single pass cannot
+    re-read its own output.
+
+    Raises CelError on any invalid escape, matching CEL, where "a backslash outside
+    of a valid escape sequence ... will result in a parse error". Accepting one would
+    let this oracle evaluate an expression that GCP itself would refuse to save.
+    """
+    if literal[0] in "rR":
+        # Raw literal: the backslash is an ordinary character. No decoding at all.
+        return literal[2:-1]
     body = literal[1:-1]
-    return body.replace("\\\\", "\\").replace("\\'", "'").replace('\\"', '"')
+    out: list[str] = []
+    i = 0
+    while i < len(body):
+        ch = body[i]
+        if ch != "\\":
+            out.append(ch)
+            i += 1
+            continue
+        if i + 1 >= len(body):
+            raise CelError(f"string literal ends with a dangling backslash: {literal!r}")
+        code = body[i + 1]
+        if code in _SIMPLE_ESCAPES:
+            out.append(_SIMPLE_ESCAPES[code])
+            i += 2
+        elif code in "xX":
+            out.append(_decode_codepoint(body, i + 2, 2, 16, literal))
+            i += 4
+        elif code == "u":
+            out.append(_decode_codepoint(body, i + 2, 4, 16, literal))
+            i += 6
+        elif code == "U":
+            out.append(_decode_codepoint(body, i + 2, 8, 16, literal))
+            i += 10
+        elif code in "0123":
+            # Octal is three digits INCLUDING the leading one, range 000-377.
+            out.append(_decode_codepoint(body, i + 1, 3, 8, literal))
+            i += 4
+        else:
+            raise CelError(f"invalid escape sequence \\{code} in string literal {literal!r}")
+    return "".join(out)
 
 
 def _tokenize(expr: str) -> list[tuple[str, str]]:
     tokens: list[tuple[str, str]] = []
     pos = 0
     while pos < len(expr):
+        if _TRIPLE_QUOTED_RE.match(expr, pos):
+            raise CelError(
+                "triple-quoted string literals are not supported: an attribute_condition "
+                "is a single-line field and no realistic one uses them"
+            )
+        if _BYTES_LIT_RE.match(expr, pos):
+            raise CelError(
+                "bytes literals (b'...') are not supported: bytes is a distinct CEL type "
+                "and these conditions compare string claims"
+            )
         m = _TOKEN_RE.match(expr, pos)
         if m is None:
             raise CelError(f"unexpected character at offset {pos}: {expr[pos:pos + 12]!r}")

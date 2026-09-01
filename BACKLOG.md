@@ -398,8 +398,29 @@ named check, not as a fact. Verify before acting, the way the corpus asks of eve
   three components that are NOT recognised (`ref_protected`, `environment_protected`,
   `deployment_tier`), and cites the source file. Recorded as a known gap rather than a claim about
   what GitLab can mint.
-- `[ ]` **`cel.py` decodes string literals with sequential replaces**, which double-unescapes some
-  backslash sequences. Verified by the sweep against the CEL spec; no vector currently depends on it.
+- `[x]` **`cel.py` decoded string literals with sequential replaces. Worse than the sweep thought:
+  it lost a character.** Closed 2026-09-02, verified against the CEL spec's own ESCAPE production
+  (`cel-spec/doc/langdef.md`) rather than against the sweep's description. Three defects, each
+  reproduced by direct probe before any code was written:
+  1. **A silently wrong answer.** The spec allows an unescaped double quote inside a single-quoted
+     string, so a literal holding backslash-backslash-quote is legal and means backslash-quote.
+     Replacing `\\` -> `\` first and `\"` -> `"` second made the second pass eat the backslash the
+     first had just written, returning a bare quote. Not a double-unescape -- a lost character, in
+     the oracle that decides whether a GCP vector passes.
+  2. **Ten escape forms silently passed through** as backslash-plus-character: `\n \t \r \a \b \f
+     \v \? \` `, `\xHH`, `\uHHHH`, `\UHHHHHHHH` and three-digit octal.
+  3. **No error on an invalid escape.** CEL says a backslash outside a valid escape sequence "will
+     result in a parse error"; `'\q'` decoded happily here, so the oracle would evaluate an
+     expression GCP would refuse to save.
+  Fixed by scanning the literal once, left to right -- a single pass cannot re-read its own output,
+  which is the structural reason the replace-chain could not be made correct by reordering. Also
+  added the `[rR]` raw-string prefix (same STRING_LIT production, and the idiomatic way to write a
+  regex inside `matches()`), and gave triple-quoted and `b`-prefixed bytes literals a named refusal
+  instead of the confusing "unexpected trailing tokens" they used to produce. Seven tests, six of
+  which were confirmed to fail against the pre-fix decoder.
+  **No verdict moved:** no shipped vector contains a backslash in a CEL expression (checked across
+  all four `gcp-cel` suites), and all 378 tests passed before the new ones were added. This was
+  closing a trap before something fell into it, not repairing a wrong published result.
 - `[ ]` **No corpus coverage of GitHub's `%3A` encoding of `:` inside sub claim values** — the
   primary source was confirmed verbatim. A missing shape, so only worth adding if a consumer could
   ship a real bug without it (the repo's own bar for a new vector).

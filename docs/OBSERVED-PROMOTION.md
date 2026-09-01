@@ -214,6 +214,41 @@ catalog. (Reworded 2026-08-29: this line used to read "before leaning on it in t
 is no article — that programme closed 2026-08-29 — but the verify-before-you-claim rule it encoded
 is unchanged, and now points at the artifacts that replaced it.)
 
+## The loop, automated (added 2026-09-01)
+
+The 2026-08-29/30/31 runs repeated the same bookkeeping by hand every time, and every
+mistake that reached a published artifact was bookkeeping: a lost condition operator, a
+transcript silently overwritten, a stale coverage table, a version that moved in one file
+and not the other. Three scripts now carry that load. None of them decide anything.
+
+```bash
+# 1. observe -- writes a transcript per call, refuses an implied operator,
+#    refuses to overwrite a record of a different probe
+python scripts/observe_aws.py
+python scripts/observe_aws.py --creation-probe <vector-id>
+
+# 2. promote -- transcripts in, observation blocks out, suite version bumped
+python scripts/promote.py observations/<date> --dry-run
+python scripts/promote.py observations/<date> --suite-version 0.5.0
+
+# 3. release -- preflight, bump three files, tag, publish, verify PyPI
+python scripts/release.py 0.5.0 --dry-run
+python scripts/release.py 0.5.0 --notes-file notes.md
+```
+
+**What stays manual, deliberately.** The AWS key lifecycle (create it, delete it when
+done). The judgment call about whether a result is worth promoting. And the sentence in
+`observation.evidence` explaining what a result MEANS -- `promote.py` writes a factual
+one-liner and will not overwrite prose you have enriched, precisely so that the thinking
+is never generated.
+
+**What CI now enforces** (`tests/test_observations.py`): every `observed` vector's
+transcript exists in the repo; the transcript is about that vector (its recorded pattern,
+subject and operator must match); its verdict matches the vector's `expect`; no AWS
+account id appears anywhere under `observations/`; and every creation probe records both
+its operator and a verified role deletion. So provenance drift becomes a failing test
+rather than something a reader has to catch.
+
 ## Promoting the vector
 
 1. Run the experiment through the harness; it captures the verbatim result and writes the transcript.

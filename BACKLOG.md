@@ -169,6 +169,31 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
 
 ## Corpus / product depth
 
+- `[ ]` **[!] STALE AGAINST THE SOURCE: every GitHub flexible-FIC vector models an expression Entra
+  now documents as invalid.** Found by the 2026-08-31 audit sweep and confirmed by fetching the live
+  page. Microsoft revised
+  `workload-identities-flexible-federated-identity-credentials` (ms.date **2026-08-14**, updated
+  2026-08-17; the suite description still stamps it **2026-06-15**) and it now says, twice and
+  verbatim: *"GitHub expressions must match `sub` and at least one immutable claim"* and *"For
+  GitHub, a flexible federated identity credential must match the `sub` claim and one or both of the
+  following immutable claims: `repository_id` ... `repository_owner_id` ... These claims are required
+  regardless of whether `sub` uses a name-based, customized, or immutable format."* Every documented
+  GitHub example now carries `and claims['repository_id'] eq '456789'`, and the operator table
+  restricts both id claims to `eq` only.
+  **All 8 vectors in `vectors/github-azure-flexible.json` are sub-only or sub+job_workflow_ref** — no
+  immutable claim anywhere — so a scanner author vendoring this suite learns that a bare
+  `claims['sub'] eq '...'` is a valid GitHub flexible FIC. It is not, per Entra's own docs. That is
+  the corpus teaching something false, which is the one failure mode this project exists to prevent.
+  **It is also a finding in its own right, and a good one:** the immutable-claim gap the corpus
+  documents as OPEN on Azure has been CLOSED by Microsoft — mandatorily — while it stays open on AWS
+  (verified 2026-07-30) and was already closed on GCP. That is a three-way contrast worth encoding,
+  and it strengthens the Checkov CKV_AZURE_249 angle rather than weakening it.
+  Not fixed in place because it is a design call, not an edit: the corpus has no "rejected at
+  creation" concept for Azure yet (AWS gained one via experiment 4), and the honest options differ.
+  Either (a) add the mandatory immutable claim to all 8 conditions and re-derive their `expect`,
+  (b) keep them and re-grade them as *creation-invalid* with a new judgment pattern, or (c) both:
+  keep the existing 8 as the historical preview shape, clearly stamped, and add a current-shape
+  tranche. **Re-read the live page before acting — it is a preview and it has already moved once.**
 - `[x]` **Flexible FIC tranche** (`azure-fic-flexible` consumer): shipped `src/subvectors/ffl.py`
   (a minimal expression evaluator -- `claims['<name>'] <op> '<comparand>'` clauses joined by
   `and`; `eq` exact, `matches` an anchored non-path-aware glob with `?`=one char / `*`=multi),
@@ -177,7 +202,16 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   HONORS; the `????` fixed-width `?` footgun (both directions); the documented reusable-workflow
   `sub`+`job_workflow_ref` `and` pin; and the pull_request + subject-scanner blind spot (flexible
   FIC nulls `subject`). PREVIEW, version-stamped (page updated 2026-06-15, languageVersion 1).
-  Adversarial pass: 8/8 clean, 0 blockers. GitLab side ALSO shipped (`gitlab-azure-flexible.json`
+  Adversarial pass: 8/8 clean, 0 blockers. **[!] One uncited inference ships in this suite
+  (audit 2026-08-31):** all three flexible suite descriptions state `matches` is "anchored" as bare
+  fact, but the cited Microsoft page defines `matches` only as wildcard matching and is silent on
+  anchoring. `ffl.py` is honest about this in its docstring; the shipped JSON is not, which breaks
+  CONTRIBUTING invariant 2 (every factual claim cited by that vector's own sources). Exactly one
+  vector's declared result depends on it — `gh-flex-question-width-excludes-longer`, whose `no-match`
+  becomes a match under substring semantics — so a scanner author who implemented unanchored
+  `matches` would be graded WRONG by the answer key. Fix is prose, not code: carry ffl.py's caveat
+  into the suite descriptions and that vector (and its sibling `gh-flex-question-fixed-width-footgun`,
+  which asserts the same dependency twice), or settle it against a preview tenant and promote. GitLab side ALSO shipped (`gitlab-azure-flexible.json`
   0.1.0, 5 vectors): GitLab flexible FIC references ONLY `sub` (no job_workflow_ref, no
   project_id), so unlike GitHub there is no second claim to `and` in -- encoded as the
   path-reuse squatter that even an exact `eq` cannot exclude, and the project_id-led sub as the

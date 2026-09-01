@@ -1,6 +1,6 @@
 {
   "suite": "github-aws",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., not available in session), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns. 0.3.0 tranche: aws-all composite vectors modeling full IAM Condition blocks (keys ANDed, values ORed, operators mixed) including AWS's and GitHub's own documented trust-policy shapes. 0.3.1: first observed promotions -- 5 vectors confirmed against the live IAM policy simulator (case-sensitivity, the *-spans-separators family, zero-width *), each carrying its observation block. 0.3.2: multivalue-loose-value-poisons-list promoted (6 observed) -- the simulator admits the poisoned OR-list, and iam:CreateRole ACCEPTS it (and even a literal '*' value) while rejecting a condition-less policy, so AWS's creation-time guardrail blocks the 2023 sub-less class but leaves the multi-value hole open. 0.4.0: the 2026-08-31 re-run put the whole AWS tranche on committed transcripts (observations/2026-08-31/) -- 11 observed, and the creation probe repeated with its condition operator recorded, which is what the 0.3.3 narrowing was waiting on. 0.4.2: five creation probes settle the shape -- AWS's creation guardrail validates only the FIRST value of the sub condition's list and is order-dependent (\"*\" first is REJECTED, the same \"*\" second is ACCEPTED), the same first-value-only defect the corpus feeds upstream to scanners. 0.5.0: the ForAllValues/ForAnyValue set-operator tranche -- AWS directs that neither qualifier be used on a single-valued context key, and on a claim a token may omit (environment) ForAllValues under an Allow passes VACUOUSLY while ForAnyValue fails closed; neither tightens a poisoned OR-list, and a correct aud pin does not rescue the fail-open.",
   "vectors": [
     {
@@ -66,7 +66,7 @@
       "subject": "repo:octo-org/unrelated-repo:ref:refs/heads/main",
       "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/*" },
       "expect": "match",
-      "judgment": { "grade": "dangerous", "reason": "Org-wide trust: any repository under octo-org, including one created by anyone with repo-create rights, can assume the role. This is the pattern Checkov CKV_AZURE_249's repo regex passes.", "patterns": ["wildcard-repo", "org-wide"] },
+      "judgment": { "grade": "dangerous", "reason": "Org-wide trust: any repository under octo-org, including one created by anyone with repo-create rights, can assume the role. Checkov PASSES this shape deliberately, and in the AWS checks -- CKV_AWS_358 and CKV_AWS_393, not the Azure check: both fall through to gh_repo_regex, which matches 'octo-org/*', and the inline comments call it 'a pass with a warning' though no warning mechanism exists. Read against checkov 3.3.16 / d8aec9db, 2026-08-31.", "patterns": ["wildcard-repo", "org-wide"] },
       "status": "observed",
       "observation": {
         "method": "aws-iam-policy-simulator",
@@ -77,7 +77,10 @@
       },
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
-        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect",
+        "https://github.com/bridgecrewio/checkov/blob/d8aec9dba01c173dac52ebe1dece1ef0c1026eed/checkov/common/util/oidc_utils.py#L12",
+        "https://github.com/bridgecrewio/checkov/blob/d8aec9dba01c173dac52ebe1dece1ef0c1026eed/checkov/terraform/checks/data/aws/GithubActionsOIDCTrustPolicy.py#L88",
+        "https://github.com/bridgecrewio/checkov/blob/d8aec9dba01c173dac52ebe1dece1ef0c1026eed/checkov/terraform/checks/resource/aws/GithubActionsOIDCTrustPolicyOnRole.py#L137"
       ]
     },
     {
@@ -484,7 +487,7 @@
       "observation": {
         "method": "aws-iam-policy-simulator",
         "date": "2026-08-31",
-        "evidence": "simulate-custom-policy: StringEquals token.actions.githubusercontent.com:sub \"repo:octo-org/octo-repo:ref:refs/heads/main\" vs subject \"repo:Octo-Org/octo-repo:ref:refs/heads/main\" -> EvalDecision=implicitDeny (aws-cli/2.36.33). Companion StringLike probe on the 2026-08-29 run: pattern 'repo:Octo-Org/octo-repo:*' vs the all-lowercase subject -> implicitDeny, same-case control -> allowed -- so StringLike is likewise case-sensitive, settling the third-party-reference contradiction in the docs' favor.",
+        "evidence": "simulate-custom-policy: StringEquals token.actions.githubusercontent.com:sub \"repo:octo-org/octo-repo:ref:refs/heads/main\" vs subject \"repo:Octo-Org/octo-repo:ref:refs/heads/main\" -> EvalDecision=implicitDeny (aws-cli/2.36.33). The same question for StringLike was probed on the 2026-08-29 run and came back implicitDeny, with the same-case control allowed -- but that run predates the transcript harness, so it is carried as its own vector (gh-aws-stringlike-case-mismatch-rejected, still documented) rather than asserted here on evidence this file cannot show.",
         "tool_version": "aws-cli/2.36.33",
         "transcript": "observations/2026-08-31/gh-aws-case-mismatch-rejected.json"
       },
@@ -860,6 +863,23 @@
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-single-vs-multi-valued-context-keys.html",
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
+        "https://docs.github.com/en/actions/reference/security/oidc"
+      ]
+    },
+    {
+      "id": "gh-aws-stringlike-case-mismatch-rejected",
+      "description": "StringLike is case-sensitive too, not only StringEquals. AWS lists StringLike as 'Case-sensitive matching' alongside the exact operators and provides StringEqualsIgnoreCase as the separate case-insensitive form; third-party references circulate the opposite for the wildcard operator. Here a repo-wide wildcard pattern written with the organisation name capitalised does not admit the all-lowercase subject. The companion to gh-aws-case-mismatch-rejected, which settles the same question for StringEquals. Framed purely as AWS operator semantics: GitHub does not document what case org and repo names take inside sub, so no GitHub casing behaviour is asserted.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "condition": {
+        "consumer": "aws-stringlike",
+        "claim": "sub",
+        "pattern": "repo:Octo-Org/octo-repo:*"
+      },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
         "https://docs.github.com/en/actions/reference/security/oidc"
       ]
     }

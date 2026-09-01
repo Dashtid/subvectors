@@ -367,11 +367,25 @@ named check, not as a fact. Verify before acting, the way the corpus asks of eve
   ship a real bug without it (the repo's own bar for a new vector).
 - `[ ]` **`gh-aws-environment-subject-exact` grades `safe`** on an assumption (environment protection
   rules gate who can mint the subject) that the judgment catalog marks conditional.
-- `[ ]` **Checkov claims in the corpus are attributed to the wrong vector** (CKV_AZURE_249 cited on an
-  AWS vector) and are uncited on their own vectors.
-- `[ ]` **The headline observed result — AWS StringLike case-sensitivity — has no transcript.** It
-  predates the transcript harness. Cheap to re-run now that the harness records everything, and it is
-  the single most quotable result the project has.
+- `[x]` **Checkov claims in the corpus were attributed to the wrong check and were uncited.**
+  Verified by hand against checkov 3.3.16 / `d8aec9db` and fixed 2026-09-01. `gh-aws-org-wide-wildcard-repo`
+  is an AWS vector and named CKV_AZURE_249; the AWS checks are CKV_AWS_358 and CKV_AWS_393, both of
+  which fall through to the same `gh_repo_regex` and pass `octo-org/*` DELIBERATELY ("a pass with a
+  warning" in the inline comments, though no warning mechanism exists). All three Checkov claims now
+  carry commit-pinned permalinks with line numbers, read out of the pinned commit before they were
+  written, and each is version-stamped. `az-fic-pull-request-danger` also discloses that
+  checkov#7627 proposes changing the behaviour it describes, so the claim is explicitly
+  version-scoped. The one citation that existed pointed at a `main` blob path, which moves; it is
+  now pinned. This mattered more than it looks: PR #7665 invites a maintainer to follow a corpus
+  link straight to these sentences.
+- `[~]` **The StringLike half of the case-sensitivity result had no vector and no transcript.**
+  It existed only as a sentence inside `gh-aws-case-mismatch-rejected`'s evidence — a measured claim
+  with nothing to audit, which is the exact shape that forced the 0.3.3 narrowing. Half-fixed
+  2026-09-01: `gh-aws-stringlike-case-mismatch-rejected` is now a first-class `documented` vector
+  and is in the harness default set, so one run promotes it with a transcript like everything else;
+  the observed vector's prose no longer asserts the companion result on evidence it cannot show.
+  Remaining: run it (needs a live key). The StringEquals half already has its transcript from the
+  2026-08-31 re-run.
 
 ## Upstream feeder PRs
 

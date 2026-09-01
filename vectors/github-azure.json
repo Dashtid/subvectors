@@ -32,16 +32,17 @@
     },
     {
       "id": "az-fic-pull-request-danger",
-      "description": "A FIC whose subject is exactly the pull_request subject matches pull_request-triggered tokens. CKV_AZURE_249 PASSES this configuration; it admits code from pull requests (potentially forks).",
+      "description": "A FIC whose subject is exactly the pull_request subject matches pull_request-triggered tokens. CKV_AZURE_249 PASSES this configuration (checkov 3.3.16 / d8aec9db); it admits code from pull requests, potentially from forks.",
       "issuer": "github",
       "subject": "repo:octo-org/octo-repo:pull_request",
       "condition": { "consumer": "azure-fic-exact", "claim": "sub", "pattern": "repo:octo-org/octo-repo:pull_request" },
       "expect": "match",
-      "judgment": { "grade": "dangerous", "reason": "The FIC admits the pull_request subject, so pull-request code (potentially from a fork) can assume this identity. Checkov CKV_AZURE_249 does not flag it.", "patterns": ["pull-request"] },
+      "judgment": { "grade": "dangerous", "reason": "The FIC admits the pull_request subject, so pull-request code (potentially from a fork) can assume this identity. Checkov CKV_AZURE_249 does not flag it: it reads the subject's segments but never compares the event segment against pull_request. Read against checkov 3.3.16 / d8aec9db, 2026-08-31; checkov#7627 proposes flagging it and was still open on that date, so this claim is version-scoped.", "patterns": ["pull-request"] },
       "status": "documented",
       "sources": [
         "https://learn.microsoft.com/en-us/entra/workload-id/workload-identity-federation-considerations",
-        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect"
+        "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/about-security-hardening-with-openid-connect",
+        "https://github.com/bridgecrewio/checkov/blob/d8aec9dba01c173dac52ebe1dece1ef0c1026eed/checkov/terraform/checks/resource/azure/GithubActionsOIDCTrustPolicy.py"
       ]
     },
     {

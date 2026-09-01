@@ -175,11 +175,11 @@
       "claims": { "sub": "repo:octo-org@123456/octo-repo@456789:ref:refs/heads/main", "repository": "octo-org/octo-repo", "repository_owner": "octo-org", "repository_id": "456789", "repository_owner_id": "123456", "ref": "refs/heads/main", "event_name": "push" },
       "condition": { "consumer": "gcp-cel", "pattern": "assertion.sub == 'repo:octo-org/octo-repo:ref:refs/heads/main'" },
       "expect": "no-match",
-      "judgment": { "grade": "caution", "reason": "Classic-format sub pin silently denies once the token carries the immutable @-format sub - an availability break like Azure classic FIC. Pinning assertion.repository_id sidesteps it; this sub shape is also what CKV_GCP_125 parses.", "patterns": ["classic-sub", "immutable-break"] },
+      "judgment": { "grade": "caution", "reason": "Classic-format sub pin silently denies once the token carries the immutable @-format sub - an availability break like Azure classic FIC. Pinning assertion.repository_id sidesteps it; this sub shape is also what CKV_GCP_125 parses -- its extractor regexes assertion.sub == '<value>' and the classic form is what it expects (checkov 3.3.16 / d8aec9db, 2026-08-31).", "patterns": ["classic-sub", "immutable-break"] },
       "status": "documented",
       "sources": [
         "https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/",
-        "https://github.com/bridgecrewio/checkov/blob/main/checkov/terraform/checks/resource/gcp/GithubActionsOIDCTrustPolicy.py"
+        "https://github.com/bridgecrewio/checkov/blob/d8aec9dba01c173dac52ebe1dece1ef0c1026eed/checkov/terraform/checks/resource/gcp/GithubActionsOIDCTrustPolicy.py#L23"
       ]
     }
   ]

@@ -82,6 +82,7 @@ _UNIQUE_ID_PLACEHOLDER = "<AWS-UNIQUE-ID>"
 DEFAULT_IDS = [
     # experiment 1 -- case sensitivity
     "gh-aws-case-mismatch-rejected",
+    "gh-aws-stringlike-case-mismatch-rejected",
     # experiment 2 -- '*' crosses ':' and '/'
     "gh-aws-org-wide-wildcard-repo",
     "gh-aws-repo-wide-wildcard-suffix",

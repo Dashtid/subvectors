@@ -314,6 +314,42 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
      unverified empirical step: cel.py's cross-type semantics are spec-confirmed, but if GCP
      rejects the expression at write time the fail-open angle collapses to a footnote.
 
+## Audit sweep 2026-08-31 — survivors still to triage
+
+A 29-agent sweep (5 lenses: matcher, evaluators, grammars, corpus, observations; every finding then
+adversarially verified, roughly half refuted). Two were verified by hand and acted on already: the
+recoverable account id (fixed, `d62f8bb`) and the flexible-FIC staleness (recorded above).
+**The rest below are sweep output that I have NOT verified myself** — treat each as a lead with a
+named check, not as a fact. Verify before acting, the way the corpus asks of everyone else.
+
+- `[ ]` **CircleCI-on-AWS vectors model `aud: sts.amazonaws.com`, which may not be what CircleCI
+  mints.** AWS's condition-keys page does show `"oidc.circleci.com/org/12345:aud": "sts.amazonaws.com"`
+  verbatim, so the vectors are citable — but the verifier flags that CircleCI's own token may carry
+  the org UUID as `aud` instead. Check CircleCI's OIDC docs for what the token actually contains
+  before changing anything; if both are true, that doc contradiction is itself a vector.
+- `[ ]` **GitLab suites assert `ref_protected` "cannot appear in the sub"; GitLab may let you put it
+  there** via `ci_id_token_sub_claim_components`. If true, several `judgment.reason` texts recommend
+  a workaround for a limitation that does not exist. Check the allowed component list in
+  `project_ci_cd_setting.rb` — the same file already settled the `project_id`-led question.
+- `[ ]` **`github.py: parse_repo_segment` requires a trailing `:`**, so `repo:octo-org/octo-repo` and
+  `repo:octo-org@1/octo-repo@2` return `None`. Confirmed by running it. Whether that matters depends
+  on whether a context-less subject is a shape GitHub can mint — if it cannot, this is correct
+  strictness and the docstring should say so.
+- `[ ]` **`gitlab.py`'s docstring claims broader coverage than the parser has** (2 of GitLab's sub
+  shapes recognised). Docstring correction, not a parser change.
+- `[ ]` **`cel.py` decodes string literals with sequential replaces**, which double-unescapes some
+  backslash sequences. Verified by the sweep against the CEL spec; no vector currently depends on it.
+- `[ ]` **No corpus coverage of GitHub's `%3A` encoding of `:` inside sub claim values** — the
+  primary source was confirmed verbatim. A missing shape, so only worth adding if a consumer could
+  ship a real bug without it (the repo's own bar for a new vector).
+- `[ ]` **`gh-aws-environment-subject-exact` grades `safe`** on an assumption (environment protection
+  rules gate who can mint the subject) that the judgment catalog marks conditional.
+- `[ ]` **Checkov claims in the corpus are attributed to the wrong vector** (CKV_AZURE_249 cited on an
+  AWS vector) and are uncited on their own vectors.
+- `[ ]` **The headline observed result — AWS StringLike case-sensitivity — has no transcript.** It
+  predates the transcript harness. Cheap to re-run now that the harness records everything, and it is
+  the single most quotable result the project has.
+
 ## Upstream feeder PRs
 
 - `[~]` **CKV_AWS_358 + CKV_AWS_393 multi-value fix — OPENED 2026-08-31 as Checkov PR #7665.**

@@ -108,7 +108,35 @@ def bump(version: str, dry_run: bool) -> list[str]:
     return touched
 
 
-def verify_pypi(version: str, attempts: int = 12, delay: int = 10) -> bool:
+def wait_for_publish_workflow(tag: str, attempts: int = 60, delay: int = 10) -> str | None:
+    """Block until the Release run for `tag` finishes. Returns its conclusion.
+
+    This is the step that can genuinely fail, and it can sit `queued` on GitHub's
+    runner queue for minutes. Polling PyPI while that is still pending reports a
+    failure for a publish that has not been attempted -- which is exactly what
+    happened cutting 0.5.2.
+    """
+    for _ in range(attempts):
+        raw = run("gh", "run", "list", "--workflow=release.yml", "--limit", "5",
+                  "--json", "headBranch,status,conclusion", check=False)
+        if raw:
+            for entry in json.loads(raw):
+                if entry.get("headBranch") != tag:
+                    continue
+                if entry["status"] == "completed":
+                    return entry["conclusion"]
+                break
+        time.sleep(delay)
+    return None
+
+
+def verify_pypi(version: str, attempts: int = 18, delay: int = 10) -> bool:
+    """Poll the JSON API until the new version is visible.
+
+    Separate from the workflow wait and deliberately shorter: once the publish has
+    succeeded this is only CDN propagation. A 404 here after a successful run is a
+    stale edge, not a failed release -- pip may still 404 for a little longer.
+    """
     url = f"https://pypi.org/pypi/subvectors/{version}/json"
     for _ in range(attempts):
         try:
@@ -158,14 +186,28 @@ def main(argv: list[str] | None = None) -> int:
     create += ["--notes-file", str(args.notes_file)] if args.notes_file else ["--generate-notes"]
     print("[+] release: " + run(*create))
 
-    print("[i] waiting for the publish workflow to reach PyPI")
-    if not verify_pypi(version):
+    print(f"[i] waiting for the {tag} publish workflow (it can sit queued)")
+    conclusion = wait_for_publish_workflow(tag)
+    if conclusion is None:
         print(
-            f"[-] {version} is not on PyPI yet. Check "
-            "`gh run list --workflow=release.yml` before assuming it failed.",
+            f"[-] the {tag} Release run did not finish in time. It is probably still "
+            "queued -- check `gh run list --workflow=release.yml`; the tag and release "
+            "are already pushed, so nothing needs redoing.",
             file=sys.stderr,
         )
         return 1
+    if conclusion != "success":
+        print(f"[-] the {tag} publish workflow concluded {conclusion}", file=sys.stderr)
+        return 1
+    print("[+] publish workflow succeeded")
+
+    if not verify_pypi(version):
+        print(
+            f"[!] {version} published but is not visible on the PyPI JSON API yet. "
+            "That is CDN propagation, not a failed release.",
+            file=sys.stderr,
+        )
+        return 0
     print(f"[+] pypi.org/project/subvectors/{version}/ is live")
     return 0
 

@@ -39,11 +39,12 @@
       "subject": "project_path:mygroup/myproject:ref_type:branch:ref:feature-x",
       "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] matches 'project_path:mygroup/myproject:ref_type:branch:ref:*'" },
       "expect": "match",
-      "judgment": { "grade": "dangerous", "reason": "Any branch of the project satisfies the rule -- an attacker-pushed feature branch included -- and GitLab flexible FIC cannot add a ref_protected or pipeline_source guard, because only sub is a supported claim. Narrow the ref, or enforce protection in the pipeline.", "patterns": ["wildcard-ref", "unprotected-ref"] },
+      "judgment": { "grade": "dangerous", "reason": "Any branch of the project satisfies the rule -- an attacker-pushed feature branch included -- and Azure flexible FIC supports only the sub claim, so no second-claim guard can be ANDed here -- but that does not make a protection guard impossible, as the corpus previously implied: GitLab permits ref_protected as a COMPONENT of the sub (ALLOWED_SUB_CLAIM_COMPONENTS, verified 2026-09-02), so reconfiguring ci_id_token_sub_claim_components moves the guard inside the one claim Azure will match on. pipeline_source has no such route -- it is not an allowed component. Narrow the ref, or enforce protection in the pipeline.", "patterns": ["wildcard-ref", "unprotected-ref"] },
       "status": "documented",
       "sources": [
         "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
-        "https://docs.gitlab.com/ci/secrets/id_token_authentication/"
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
+        "https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/models/project_ci_cd_setting.rb"
       ]
     },
     {

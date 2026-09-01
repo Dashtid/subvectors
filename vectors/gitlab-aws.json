@@ -101,16 +101,17 @@
     },
     {
       "id": "gitlab-aws-any-branch-no-refprotected",
-      "description": "Project pinned, but ref:* admits any branch, including an attacker-pushed feature branch. No ref_protected guard is expressible in a single-key sub condition.",
+      "description": "Project pinned, but ref:* admits any branch, including an attacker-pushed feature branch. A ref_protected guard is expressible two ways, and this vector uses neither: as a separate gitlab.com:ref_protected condition key, or -- less widely known -- as a component of the sub itself, since GitLab's ALLOWED_SUB_CLAIM_COMPONENTS admits ref_protected alongside project_path, project_id, ref_type, ref, environment_protected and deployment_tier.",
       "issuer": "gitlab",
       "subject": "project_path:mygroup/myproject:ref_type:branch:ref:feature-x",
       "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "project_path:mygroup/myproject:ref_type:branch:ref:*" },
       "expect": "match",
-      "judgment": { "grade": "dangerous", "reason": "Any branch of the project satisfies the condition, so a Developer (or anyone who can push a branch) runs a pipeline that assumes the role. ref_protected is a separate claim; add a gitlab.com:ref_protected=true condition key and narrow ref.", "patterns": ["wildcard-ref", "unprotected-ref"] },
+      "judgment": { "grade": "dangerous", "reason": "Any branch of the project satisfies the condition, so a Developer (or anyone who can push a branch) runs a pipeline that assumes the role. Two fixes exist: add a gitlab.com:ref_protected=true condition key ANDed with a narrowed ref, or reconfigure the project's ci_id_token_sub_claim_components to carry ref_protected inside the sub, which GitLab permits (verified against ALLOWED_SUB_CLAIM_COMPONENTS, 2026-09-02). The corpus previously asserted the second was impossible.", "patterns": ["wildcard-ref", "unprotected-ref"] },
       "status": "documented",
       "sources": [
         "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
-        "https://docs.gitlab.com/ci/cloud_services/"
+        "https://docs.gitlab.com/ci/cloud_services/",
+        "https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/models/project_ci_cd_setting.rb"
       ]
     },
     {

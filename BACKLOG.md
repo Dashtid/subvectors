@@ -345,15 +345,34 @@ recoverable account id (fixed, `d62f8bb`) and the flexible-FIC staleness (record
 **The rest below are sweep output that I have NOT verified myself** — treat each as a lead with a
 named check, not as a fact. Verify before acting, the way the corpus asks of everyone else.
 
-- `[ ]` **CircleCI-on-AWS vectors model `aud: sts.amazonaws.com`, which may not be what CircleCI
-  mints.** AWS's condition-keys page does show `"oidc.circleci.com/org/12345:aud": "sts.amazonaws.com"`
-  verbatim, so the vectors are citable — but the verifier flags that CircleCI's own token may carry
-  the org UUID as `aud` instead. Check CircleCI's OIDC docs for what the token actually contains
-  before changing anything; if both are true, that doc contradiction is itself a vector.
-- `[ ]` **GitLab suites assert `ref_protected` "cannot appear in the sub"; GitLab may let you put it
-  there** via `ci_id_token_sub_claim_components`. If true, several `judgment.reason` texts recommend
-  a workaround for a limitation that does not exist. Check the allowed component list in
-  `project_ci_cd_setting.rb` — the same file already settled the `project_id`-led question.
+- `[x]` **CircleCI-on-AWS `aud`: BOTH sources are right, and the contradiction is now a vector.**
+  Verified 2026-09-02 from both primary sources. AWS's OIDC condition-keys page (CircleCI tab)
+  shows, verbatim, `"oidc.circleci.com/org/12345:aud": "sts.amazonaws.com"` in its example trust
+  policy. CircleCI documents the same claim as *"The audience. By default, this is
+  `ORGANIZATION_ID`, a string containing a UUID that identifies the job's project's organization.
+  To customize the audience you can generate an OIDC token with a custom audience."* So AWS's
+  copy-paste example pins an audience the default CircleCI token does not carry: the `aud`
+  StringEquals is false, the ANDed block fails, and the credential is refused however correct the
+  project-id pin is. Fails closed, so nothing is over-permitted -- it is an availability break in a
+  documented example, silent at the STS call rather than at policy creation. Encoded as
+  `circleci-aws-docs-aud-contradiction-denies` (circleci-aws 0.2.0). The existing vectors that pin
+  `aud: sts.amazonaws.com` are NOT wrong: they model the custom-audience case, which is what AWS's
+  example implicitly assumes.
+- `[x]` **GitLab `ref_protected` in the sub: the corpus was WRONG, now corrected.**
+  Verified 2026-09-02 against GitLab source, not just docs. `ALLOWED_SUB_CLAIM_COMPONENTS` in
+  `app/models/project_ci_cd_setting.rb` is `project_path, project_id, ref_type, ref, ref_protected,
+  environment_protected, deployment_tier` -- so `ref_protected` **can** be a component of the sub,
+  configured per project through `ci_id_token_sub_claim_components` (`SUB_CLAIM_LEADING_COMPONENTS`
+  still forces `project_path` or `project_id` first, which is what settled the earlier project_id
+  question). Two texts asserted the opposite and are fixed: `gitlab-aws-any-branch-no-refprotected`
+  claimed no such guard is expressible in a single-key sub condition, and `gl-flex-matches-any-branch`
+  concluded that Azure flexible FIC therefore cannot carry one. The Azure-side limitation is real
+  (only `sub` is supported there) but the conclusion was not: moving `ref_protected` inside the sub
+  routes around it. `pipeline_source` has no such route -- it is not an allowed component, so that
+  half of the claim stands. Both vectors now cite the source file.
+  **Follow-up worth its own slice:** the corpus has no vector for a customised GitLab sub carrying
+  `ref_protected`, and `gitlab.py` would need to parse that shape. Also unmodelled:
+  `environment_protected` and `deployment_tier` as sub components.
 - `[ ]` **`github.py: parse_repo_segment` requires a trailing `:`**, so `repo:octo-org/octo-repo` and
   `repo:octo-org@1/octo-repo@2` return `None`. Confirmed by running it. Whether that matters depends
   on whether a context-less subject is a shape GitHub can mint — if it cannot, this is correct

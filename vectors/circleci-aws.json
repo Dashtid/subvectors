@@ -1,6 +1,6 @@
 {
   "suite": "circleci-aws",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CircleCI CI OIDC tokens against AWS IAM role trust-policy conditions (StringEquals / StringLike). CircleCI is the structural opposite of the other issuers in this corpus. (1) PER-ORG ISSUER: iss = https://oidc.circleci.com/org/<ORG_ID> and the registered AWS OIDC provider (arn:...:oidc-provider/oidc.circleci.com/org/<ORG_ID>) are BOTH org-specific, so a token minted by another CircleCI org carries a different issuer and fails validation before any condition is evaluated -- cross-org spoofing is blocked structurally, unlike the single shared issuers of GitHub (token.actions.githubusercontent.com), GitLab (gitlab.com), and Terraform Cloud (app.terraform.io), where cross-tenant isolation rests entirely on the sub/aud conditions. (2) IMMUTABLE-BY-CONSTRUCTION SUB: sub = org/<ORG_ID>/project/<PROJECT_ID>/user/<USER_ID>, all three UUIDs (the V2 token appends /vcs-origin/<origin>/vcs-ref/<ref> for VCS-triggered jobs; absent for custom-webhook triggers). Because the segments are opaque UUIDs, pinning the sub is rename-proof by default -- the OPPOSITE of Terraform Cloud's name-based sub. (3) AWS surfaced exactly ONE CircleCI custom condition key, oidc.circleci.com/project-id (the project UUID), referenced as oidc.circleci.com/org/<ORG_ID>:oidc.circleci.com/project-id; AWS's documented example pins it plus aud. The token's default aud is the org UUID (aud is the only customizable claim); for AWS it is set to sts.amazonaws.com, and the trust policy must pin whichever aud the job actually mints. (4) The SSH-RERUN escalation: oidc.circleci.com/ssh-rerun marks a token minted from an interactive SSH debug session; such a token still satisfies a normal project/sub-scoped policy, and it cannot be reliably excluded in-policy (only project-id is a registered AWS key, and ssh-rerun was historically absent from the issuer's claims_supported, with a user-reported condition failure), so CircleCI's guidance is to disable SSH debugging at the org/project level. The AWS condition key is oidc.circleci.com/org/<ORG_ID>:sub (host-agnostic in the matcher, which matches the raw sub string), so claim stays 'sub' for sub conditions; project-id and aud are matched as their own claims.",
   "vectors": [
     {
@@ -138,6 +138,46 @@
       "sources": [
         "https://circleci.com/docs/openid-connect-tokens/",
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "circleci-aws-docs-aud-contradiction-denies",
+      "description": "AWS's own documented CircleCI trust policy pins an audience CircleCI's default token does not carry. The AWS OIDC condition-keys page shows, verbatim, \"oidc.circleci.com/org/12345:aud\": \"sts.amazonaws.com\" alongside a project-id pin. CircleCI documents the same claim as: \"The audience. By default, this is ORGANIZATION_ID, a string containing a UUID that identifies the job's project's organization. To customize the audience you can generate an OIDC token with a custom audience.\" So a job using the default token against AWS's copy-paste policy presents aud = the org UUID, the StringEquals on aud is false, and the ANDed block fails -- the credential is refused however correct the project-id pin is. An availability break, and one that reads as a permissions bug at 2am.",
+      "issuer": "circleci",
+      "subject": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555",
+      "claims": {
+        "sub": "org/2a3b4c5d-1111-2222-3333-444455556666/project/76543210-ba98-fedc-3210-edcba0987654/user/aaaa1111-bbbb-2222-cccc-333344445555",
+        "aud": "2a3b4c5d-1111-2222-3333-444455556666",
+        "oidc.circleci.com/project-id": "76543210-ba98-fedc-3210-edcba0987654"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          {
+            "consumer": "aws-stringequals",
+            "claim": "aud",
+            "pattern": "sts.amazonaws.com"
+          },
+          {
+            "consumer": "aws-stringequals",
+            "claim": "oidc.circleci.com/project-id",
+            "pattern": "76543210-ba98-fedc-3210-edcba0987654"
+          }
+        ]
+      },
+      "expect": "no-match",
+      "judgment": {
+        "grade": "caution",
+        "reason": "Fails closed, so it over-permits nothing -- but it is a documented example that does not work as written, and the failure is silent at the STS call rather than at policy creation. The fix is either to generate a custom-audience token or to pin aud to the organization UUID; the corpus's other CircleCI aud vectors model the former.",
+        "patterns": [
+          "multi-key-and",
+          "aud-pinned"
+        ]
+      },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://circleci.com/docs/openid-connect-tokens/"
       ]
     }
   ]

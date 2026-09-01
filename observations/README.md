@@ -15,10 +15,18 @@ headline claim after the overstated version had already shipped in PyPI 0.3.0. A
 transcript lets any reader audit a promoted vector without an AWS account and without re-running
 anything — which is the standard this corpus asks of the tools it grades.
 
-**Safety.** AWS account ids are replaced with `<ACCOUNT-ID>` before anything is written to disk (see
-`scrub()` in the harness, pinned by `tests/test_observe_aws.py`). Transcripts hold synthetic
-policies over corpus vectors and fictional orgs; they carry no credentials and no real
-infrastructure. Failed and disagreeing runs are recorded too — a rejection is evidence.
+**Safety.** AWS account ids are replaced with `<ACCOUNT-ID>`, and AWS unique ids (`AROA...`,
+`AKIA...`, and the rest of the prefix family) with `<AWS-UNIQUE-ID>`, before anything is written to
+disk (see `scrub()` in the harness). Transcripts hold synthetic policies over corpus vectors and
+fictional orgs; they carry no credentials and no real infrastructure. Failed and disagreeing runs
+are recorded too — a rejection is evidence.
+
+[!] **Why unique ids are scrubbed too, learned the hard way 2026-08-31.** The first version redacted
+only the 12-digit account-id form. AWS unique ids embed the account id in base32, so two committed
+transcripts carried `RoleId`s from which it was trivially recoverable — the repo promised "no real
+cloud data" while shipping exactly that. Two guards now exist and they are not the same claim:
+one asserts `scrub()` is correct, and one scans the **committed tree** for anything recoverable.
+The first passing is not evidence of the second.
 
 **Paths in `observation.transcript` are repo-relative.** Transcripts are provenance for auditors and
 are deliberately not shipped inside the PyPI wheel, so a `pip install` user resolves them against

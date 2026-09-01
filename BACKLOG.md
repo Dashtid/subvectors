@@ -373,12 +373,31 @@ named check, not as a fact. Verify before acting, the way the corpus asks of eve
   **Follow-up worth its own slice:** the corpus has no vector for a customised GitLab sub carrying
   `ref_protected`, and `gitlab.py` would need to parse that shape. Also unmodelled:
   `environment_protected` and `deployment_tier` as sub components.
-- `[ ]` **`github.py: parse_repo_segment` requires a trailing `:`**, so `repo:octo-org/octo-repo` and
-  `repo:octo-org@1/octo-repo@2` return `None`. Confirmed by running it. Whether that matters depends
-  on whether a context-less subject is a shape GitHub can mint — if it cannot, this is correct
-  strictness and the docstring should say so.
-- `[ ]` **`gitlab.py`'s docstring claims broader coverage than the parser has** (2 of GitLab's sub
-  shapes recognised). Docstring correction, not a parser change.
+- `[x]` **`parse_repo_segment` rejected a subject GitHub documents how to mint. A real bug.**
+  It required a trailing `:`, so `repo:octo-org/octo-repo` returned None. GitHub's sub-customization
+  docs give `include_claim_keys: ["repo"]` as the template that "lets you grant cloud access to all
+  the workflows in a specific repository, across all branches/tags and environments" -- which mints
+  exactly that bare form. Not correct strictness: the grammar refused the documented shape for
+  repo-wide access. Fixed 2026-09-02 (the context segment is now optional, wildcards in the
+  owner/repo positions still rejected) with four grammar tests, and encoded as
+  `gh-aws-repo-only-customized-sub-admits-everything` -- a wildcard-free StringEquals pin that
+  nonetheless admits every branch, tag, environment and pull_request of the repo, so the
+  over-permission lives in what the subject OMITS and pattern-shape heuristics see nothing.
+- `[x]` **github.py overstated its own wildcard guarantee** (found while fixing the above, not
+  caused by it). The module docstring said any value containing `*` or `?` "is not a valid subject
+  here and returns None"; in fact only the owner and repo positions exclude wildcards, and
+  `repo:octo-org/octo-repo:*` has always returned a concrete segment. Narrowed the promise rather
+  than the parser: a consumer grading the corpus's most common dangerous pattern genuinely wants to
+  know which repository it names, and refusing to answer would be the wrong trade for a docstring's
+  sake. Both behaviours now pinned by tests so the narrowing is a decision, not a drift.
+- `[x]` **`gitlab.py`'s docstring claimed broader coverage than the parser has.** Corrected
+  2026-09-02, and the ref_protected finding made it sharper than the sweep knew: GitLab's sub is
+  configurable per project and `ALLOWED_SUB_CLAIM_COMPONENTS` admits seven components in
+  configurable combinations, so "BOTH documented forms" understated the space badly. The docstring
+  now says exactly what is handled (the default shape and its project_id-led variant), names the
+  three components that are NOT recognised (`ref_protected`, `environment_protected`,
+  `deployment_tier`), and cites the source file. Recorded as a known gap rather than a claim about
+  what GitLab can mint.
 - `[ ]` **`cel.py` decodes string literals with sequential replaces**, which double-unescapes some
   backslash sequences. Verified by the sweep against the CEL spec; no vector currently depends on it.
 - `[ ]` **No corpus coverage of GitHub's `%3A` encoding of `:` inside sub claim values** — the

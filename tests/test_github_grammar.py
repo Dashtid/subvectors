@@ -80,3 +80,52 @@ def test_parser_scope_is_the_owner_repo_segment_only() -> None:
     seg = parse_repo_segment("repo:octo-org/octo-repo:*")
     assert seg is not None
     assert (seg.owner, seg.repo) == ("octo-org", "octo-repo")
+
+
+# --- the repo-only customized sub (documented, and previously rejected) ------
+#
+# GitHub's sub-customization docs give include_claim_keys: ["repo"] as the
+# template for granting "cloud access to all the workflows in a specific
+# repository, across all branches/tags and environments". That mints a bare
+# `repo:ORG/REPO` with no context segment. parse_repo_segment required a
+# trailing colon and returned None for it until 2026-09-02 -- rejecting a
+# subject GitHub documents how to produce.
+
+
+def test_repo_only_subject_parses():
+    segment = parse_repo_segment("repo:octo-org/octo-repo")
+    assert segment is not None
+    assert (segment.owner, segment.repo) == ("octo-org", "octo-repo")
+    assert segment.immutable is False
+
+
+def test_repo_only_immutable_subject_parses():
+    segment = parse_repo_segment("repo:octo-org@123456/octo-repo@456789")
+    assert segment is not None
+    assert (segment.owner_id, segment.repo_id) == ("123456", "456789")
+    assert segment.immutable is True
+
+
+def test_repo_only_and_contextful_subjects_agree_on_the_segment():
+    bare = parse_repo_segment("repo:octo-org/octo-repo")
+    full = parse_repo_segment("repo:octo-org/octo-repo:ref:refs/heads/main")
+    assert (bare.owner, bare.repo) == (full.owner, full.repo)
+
+
+def test_a_wildcard_in_the_owner_or_repo_position_is_still_rejected():
+    """The optional context segment must not let owner/repo patterns through."""
+    assert parse_repo_segment("repo:octo-org/*") is None
+    assert parse_repo_segment("repo:*/octo-repo") is None
+
+
+def test_a_wildcard_after_the_repo_segment_still_yields_the_segment():
+    """Deliberate, and narrower than the module docstring used to claim.
+
+    `repo:octo-org/octo-repo:*` is a trust-policy pattern, not a minted subject
+    -- but its owner/repo half is concrete, and a consumer grading the most
+    common dangerous pattern in the corpus wants to know which repository it
+    names. Pinned so the narrowing is a decision, not a drift.
+    """
+    segment = parse_repo_segment("repo:octo-org/octo-repo:*")
+    assert segment is not None
+    assert (segment.owner, segment.repo) == ("octo-org", "octo-repo")

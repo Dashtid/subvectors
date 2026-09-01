@@ -11,9 +11,15 @@ claim survives a rename. They become mandatory for repositories created after
 every new repository's token -- the exact defect this project exists to catch
 (e.g. Checkov's gh_repo_regex, which has no ``@`` in its character class).
 
-This operates on concrete *subjects*, not trust-policy *patterns*: a value
-containing ``*`` or ``?`` is a wildcard condition, not a minted subject, so it
-is not a valid subject here and returns None.
+This operates on concrete *subjects*, not trust-policy *patterns* -- but the
+guarantee is narrower than it looks, and was overstated here until 2026-09-02.
+A wildcard in the OWNER or REPO position returns None (``repo:octo-org/*``,
+``repo:*/octo-repo``). A wildcard *after* the repo segment is not inspected:
+``repo:octo-org/octo-repo:*`` returns the concrete octo-org/octo-repo segment,
+deliberately, because a consumer grading that pattern wants to know which
+repository it names. A caller that needs "is this whole value a pattern?" must
+test the whole string; this function only promises that the segment it returns
+is wildcard-free.
 
 Sources:
 - Immutable subject claims:
@@ -37,7 +43,13 @@ _REPO_RE = re.compile(
     r"(?P<owner>[^/@:*?]+)(?:@(?P<owner_id>\d+))?"
     r"/"
     r"(?P<repo>[^/@:*?]+)(?:@(?P<repo_id>\d+))?"
-    r":"
+    # The context segment is OPTIONAL. GitHub's sub customization documents
+    # include_claim_keys: ["repo"] as the template for granting "cloud access to
+    # all the workflows in a specific repository, across all branches/tags and
+    # environments" -- which mints a bare `repo:ORG/REPO` with nothing after it.
+    # Requiring the trailing colon rejected that subject outright (fixed
+    # 2026-09-02), and it is precisely the repo-wide shape worth grading.
+    r"(?::|$)"
 )
 
 
@@ -65,9 +77,14 @@ class RepoSegment:
 def parse_repo_segment(subject: str) -> RepoSegment | None:
     """Parse the leading ``repo:owner/repo:`` segment of a GitHub subject.
 
-    Returns a :class:`RepoSegment`, or None if ``subject`` is not a
-    ``repo:``-scoped concrete subject (e.g. a wildcard pattern, or a subject
-    scoped by a different leading claim such as ``repository_owner:``).
+    Returns a :class:`RepoSegment`, or None if the leading segment is not a
+    concrete ``repo:owner/repo``: a wildcard in the owner or repo position, or a
+    subject scoped by a different leading claim such as ``repository_owner:``.
+
+    The context segment after the repo is OPTIONAL (GitHub's documented
+    ``include_claim_keys: ["repo"]`` customization mints a bare
+    ``repo:ORG/REPO``) and is not examined, so a trailing wildcard such as
+    ``repo:octo-org/octo-repo:*`` still yields its concrete segment.
     """
     m = _REPO_RE.match(subject)
     if m is None:

@@ -1,6 +1,7 @@
 """GitLab CI/CD OIDC subject grammar (the leading project_path / project_id segment).
 
-Recognizes a GitLab ID-token subject in BOTH documented forms:
+Recognizes the two DEFAULT-SHAPED forms of a GitLab ID-token subject -- which is
+less than the full space GitLab permits, see the note below:
 
     default (name-based)   project_path:mygroup/myproject:ref_type:branch:ref:main
     immutable (id-based)    project_id:20:ref_type:branch:ref:main
@@ -18,10 +19,21 @@ Two more divergences from the GitHub grammar:
 - ref_type (branch|tag) and the SHORT ref name are separate colon segments, where
   GitHub fuses them into one ``ref:refs/heads/main`` segment.
 
+[!] COVERAGE LIMIT (recorded 2026-09-02). GitLab's sub is configurable per project
+through ``ci_id_token_sub_claim_components``, and
+``ALLOWED_SUB_CLAIM_COMPONENTS`` admits seven components -- project_path,
+project_id, ref_type, ref, ref_protected, environment_protected and
+deployment_tier -- in configurable combinations, with only the leading component
+constrained (project_path or project_id). This parser handles the default shape
+and its project_id-led variant; a sub carrying ref_protected,
+environment_protected or deployment_tier is NOT recognised. That is a known gap,
+not a claim about what GitLab can mint.
+
 Operates on concrete *subjects*, not trust-policy *patterns*: a value containing
 ``*`` or ``?`` is a wildcard condition, not a minted subject, so it returns None.
 
 Sources:
+- Allowed sub claim components: https://gitlab.com/gitlab-org/gitlab/-/blob/master/app/models/project_ci_cd_setting.rb
 - Sub format, ref_type/ref, project_id/namespace_id as separate claims:
   https://docs.gitlab.com/ci/secrets/id_token_authentication/
 - Configurable sub components (ci_id_token_sub_claim_components):

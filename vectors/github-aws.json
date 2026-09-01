@@ -1,6 +1,6 @@
 {
   "suite": "github-aws",
-  "version": "0.5.1",
+  "version": "0.5.2",
   "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., not available in session), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns. 0.3.0 tranche: aws-all composite vectors modeling full IAM Condition blocks (keys ANDed, values ORed, operators mixed) including AWS's and GitHub's own documented trust-policy shapes. 0.3.1: first observed promotions -- 5 vectors confirmed against the live IAM policy simulator (case-sensitivity, the *-spans-separators family, zero-width *), each carrying its observation block. 0.3.2: multivalue-loose-value-poisons-list promoted (6 observed) -- the simulator admits the poisoned OR-list, and iam:CreateRole ACCEPTS it (and even a literal '*' value) while rejecting a condition-less policy, so AWS's creation-time guardrail blocks the 2023 sub-less class but leaves the multi-value hole open. 0.4.0: the 2026-08-31 re-run put the whole AWS tranche on committed transcripts (observations/2026-08-31/) -- 11 observed, and the creation probe repeated with its condition operator recorded, which is what the 0.3.3 narrowing was waiting on. 0.4.2: five creation probes settle the shape -- AWS's creation guardrail validates only the FIRST value of the sub condition's list and is order-dependent (\"*\" first is REJECTED, the same \"*\" second is ACCEPTED), the same first-value-only defect the corpus feeds upstream to scanners. 0.5.0: the ForAllValues/ForAnyValue set-operator tranche -- AWS directs that neither qualifier be used on a single-valued context key, and on a claim a token may omit (environment) ForAllValues under an Allow passes VACUOUSLY while ForAnyValue fails closed; neither tightens a poisoned OR-list, and a correct aud pin does not rescue the fail-open.",
   "vectors": [
     {
@@ -881,6 +881,32 @@
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
         "https://docs.github.com/en/actions/reference/security/oidc"
+      ]
+    },
+    {
+      "id": "gh-aws-repo-only-customized-sub-admits-everything",
+      "description": "GitHub's own template for repository-wide access, and the reason an exact match is not the same as a tight one. Setting include_claim_keys to ['repo'] mints a sub of exactly repo:ORG/REPO with no ref, environment or event segment at all -- the documented example 'lets you grant cloud access to all the workflows in a specific repository, across all branches/tags and environments'. A StringEquals pin on that value is a wildcard-free, exact-match condition that nonetheless admits every branch, every tag, every environment and every pull_request run of the repository. The over-permission lives in what the subject OMITS, so a scanner grading conditions by looking for '*' in the pattern sees nothing to flag.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo",
+      "condition": {
+        "consumer": "aws-stringequals",
+        "claim": "sub",
+        "pattern": "repo:octo-org/octo-repo"
+      },
+      "expect": "match",
+      "judgment": {
+        "grade": "dangerous",
+        "reason": "Repo-wide trust with no ref or event guard: a pull_request run on an unmerged branch satisfies this condition exactly as the default branch does. Equivalent in reach to the repo-wide wildcard gh-aws-repo-wide-wildcard-suffix, but written without a wildcard, so pattern-shape heuristics do not see it. Narrowing requires adding claim keys back to the sub, not tightening the pattern.",
+        "patterns": [
+          "repo-wide",
+          "no-event-guard",
+          "pull-request"
+        ]
+      },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/reference/security/oidc",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
       ]
     }
   ]

@@ -1,6 +1,6 @@
 {
   "suite": "github-aws",
-  "version": "0.5.2",
+  "version": "0.6.0",
   "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., not available in session), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns. 0.3.0 tranche: aws-all composite vectors modeling full IAM Condition blocks (keys ANDed, values ORed, operators mixed) including AWS's and GitHub's own documented trust-policy shapes. 0.3.1: first observed promotions -- 5 vectors confirmed against the live IAM policy simulator (case-sensitivity, the *-spans-separators family, zero-width *), each carrying its observation block. 0.3.2: multivalue-loose-value-poisons-list promoted (6 observed) -- the simulator admits the poisoned OR-list, and iam:CreateRole ACCEPTS it (and even a literal '*' value) while rejecting a condition-less policy, so AWS's creation-time guardrail blocks the 2023 sub-less class but leaves the multi-value hole open. 0.4.0: the 2026-08-31 re-run put the whole AWS tranche on committed transcripts (observations/2026-08-31/) -- 11 observed, and the creation probe repeated with its condition operator recorded, which is what the 0.3.3 narrowing was waiting on. 0.4.2: five creation probes settle the shape -- AWS's creation guardrail validates only the FIRST value of the sub condition's list and is order-dependent (\"*\" first is REJECTED, the same \"*\" second is ACCEPTED), the same first-value-only defect the corpus feeds upstream to scanners. 0.5.0: the ForAllValues/ForAnyValue set-operator tranche -- AWS directs that neither qualifier be used on a single-valued context key, and on a claim a token may omit (environment) ForAllValues under an Allow passes VACUOUSLY while ForAnyValue fails closed; neither tightens a poisoned OR-list, and a correct aud pin does not rescue the fail-open.",
   "vectors": [
     {
@@ -502,7 +502,7 @@
       "subject": "repo:octo-org/octo-repo:environment:Production",
       "condition": { "consumer": "aws-stringequals", "claim": "sub", "pattern": "repo:octo-org/octo-repo:environment:Production" },
       "expect": "match",
-      "judgment": { "grade": "safe", "reason": "Scoped to one environment of one repo, with GitHub-side enforcement (reviewer approval, branch restrictions) gating who can mint the subject -- stronger than a bare branch-name filter, which any non-environment, non-pull_request job on that branch satisfies.", "patterns": ["environment-scoped", "exact-ref"] },
+      "judgment": { "grade": "safe", "reason": "Scoped to one environment of one repo -- stronger than a bare branch-name filter, which any non-environment, non-pull_request job on that branch satisfies. Safe ASSUMING the environment configures protection rules (required reviewers, deploy-branch restrictions): those are optional repo-side state the trust policy cannot see, and an environment with none is mintable by anyone who can push a workflow change. The catalog grades this family safe when the rules exist and caution otherwise; the same assumption is stated on gh-aws-custom-sub-combined-environment-jwr.", "patterns": ["environment-scoped", "exact-ref"] },
       "status": "documented",
       "sources": [
         "https://docs.github.com/en/actions/reference/security/oidc",
@@ -901,6 +901,114 @@
           "repo-wide",
           "no-event-guard",
           "pull-request"
+        ]
+      },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/reference/security/oidc",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-environment-colon-encoded-exact",
+      "description": "GitHub percent-encodes a colon that appears INSIDE a metadata value: 'Any `:` within the metadata values will be replaced with `%3A` in the subject claim.' An environment named Production:V1 therefore mints the subject GitHub prints verbatim under 'Filtering for metadata containing :' -- repo:octo-org/octo-repo:environment:Production%3AV1, with the value's colon encoded and the four structural colons left literal. The encoding is what keeps the colon-delimited subject grammar unambiguous, so a correct pin is written against the ENCODED form.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:environment:Production%3AV1",
+      "condition": {
+        "consumer": "aws-stringequals",
+        "claim": "sub",
+        "pattern": "repo:octo-org/octo-repo:environment:Production%3AV1"
+      },
+      "expect": "match",
+      "judgment": {
+        "grade": "safe",
+        "reason": "Exact pin on one environment of one repo, spelled the way the token is actually minted. Grade assumes the environment configures protection rules (required reviewers, deploy-branch restrictions) -- optional repo-side state the trust policy cannot see, and the same assumption gh-aws-environment-subject-exact rests on.",
+        "patterns": [
+          "environment-scoped",
+          "exact-ref",
+          "percent-encoded"
+        ]
+      },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/reference/security/oidc",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-environment-colon-literal-pin-denies",
+      "description": "The mistake the encoding rule exists to prevent. An admin reads the environment name off the GitHub UI as 'Production:V1' and pins it literally, producing a condition value with FIVE colons against a subject that has four. StringEquals is byte-exact, so nothing matches and every deployment from that environment is refused. Fails closed, which is why it surfaces as a broken pipeline rather than a breach -- and why the natural next move is the wildcard in gh-aws-environment-colon-wildcard-fix-widens.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:environment:Production%3AV1",
+      "condition": {
+        "consumer": "aws-stringequals",
+        "claim": "sub",
+        "pattern": "repo:octo-org/octo-repo:environment:Production:V1"
+      },
+      "expect": "no-match",
+      "judgment": {
+        "grade": "caution",
+        "reason": "Availability break, not exposure: the intended job is denied and nothing unintended is admitted. Graded caution rather than safe because the failure gives no hint of its cause -- the policy and the environment name look identical to a reader -- and the usual remedy is to loosen the pattern.",
+        "patterns": [
+          "environment-scoped",
+          "always-false",
+          "percent-encoded"
+        ]
+      },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/reference/security/oidc",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-environment-colon-wildcard-fix-widens",
+      "description": "The repair that turns an availability break into an exposure. After the literal pin denies (gh-aws-environment-colon-literal-pin-denies), the obvious fix is to stop fighting the encoding and wildcard the tail: StringLike on repo:octo-org/octo-repo:environment:Production*. That admits the intended Production%3AV1 -- and every other environment whose name starts with 'Production', because IAM's * is not delimiter-aware. The subject here is a DIFFERENT environment of the same repo, admitted by a pattern written to name exactly one.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:environment:Production-sandbox",
+      "condition": {
+        "consumer": "aws-stringlike",
+        "claim": "sub",
+        "pattern": "repo:octo-org/octo-repo:environment:Production*"
+      },
+      "expect": "match",
+      "judgment": {
+        "grade": "dangerous",
+        "reason": "The trust boundary silently moves from one environment to a name prefix: anyone able to add an environment called Production-anything, or a job referencing one, can assume the role. Environment protection rules are configured per environment, so the new environment need not carry any -- the compensating control the original pin depended on does not extend to the environments the wildcard picked up.",
+        "patterns": [
+          "wildcard-suffix",
+          "environment-scoped",
+          "percent-encoded"
+        ]
+      },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/reference/security/oidc",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
+        "https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments"
+      ]
+    },
+    {
+      "id": "gh-aws-docs-customized-sub-omits-the-repo",
+      "description": "GitHub's second percent-encoding example, quoted as a condition value to copy: 'configure the sub condition to require that claims must include a specific value for environment and repository_owner. For example: \"sub\": \"environment:production%3Aeastus:repository_owner:octo-org\"'. The encoding is right and the pin is org-wide: the customized subject names an environment and an owner and never names the REPOSITORY, so every repo under octo-org with an environment called production:eastus satisfies it -- including one created after the policy was written. Same shape as gh-aws-repo-only-customized-sub-admits-everything, inverted: there the repo was pinned and the context omitted, here the context is pinned and the repo omitted.",
+      "issuer": "github",
+      "subject": "environment:production%3Aeastus:repository_owner:octo-org",
+      "condition": {
+        "consumer": "aws-stringequals",
+        "claim": "sub",
+        "pattern": "environment:production%3Aeastus:repository_owner:octo-org"
+      },
+      "expect": "match",
+      "judgment": {
+        "grade": "dangerous",
+        "reason": "Org-wide by omission, in a wildcard-free StringEquals. A scanner that grades conditions by looking for '*' in the pattern sees an exact pin and flags nothing, while the boundary is 'anyone in the org who can name an environment'. Sub customization is repository-level, so each repo chooses its own claim keys -- a repo whose sub is customized this way opts itself into the role.",
+        "patterns": [
+          "org-wide",
+          "environment-scoped",
+          "custom-sub",
+          "no-repo-scope",
+          "scanner-blindspot",
+          "percent-encoded"
         ]
       },
       "status": "documented",

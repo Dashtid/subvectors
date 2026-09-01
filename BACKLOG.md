@@ -337,13 +337,19 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
      unverified empirical step: cel.py's cross-type semantics are spec-confirmed, but if GCP
      rejects the expression at write time the fail-open angle collapses to a footnote.
 
-## Audit sweep 2026-08-31 — survivors still to triage
+## Audit sweep 2026-08-31 — all leads triaged (closed 2026-09-02)
 
 A 29-agent sweep (5 lenses: matcher, evaluators, grammars, corpus, observations; every finding then
 adversarially verified, roughly half refuted). Two were verified by hand and acted on already: the
 recoverable account id (fixed, `d62f8bb`) and the flexible-FIC staleness (recorded above).
-**The rest below are sweep output that I have NOT verified myself** — treat each as a lead with a
-named check, not as a fact. Verify before acting, the way the corpus asks of everyone else.
+Every lead below started as sweep output that had NOT been verified by hand, and each was treated
+as a lead with a named check rather than a fact — verified before acting, the way the corpus asks
+of everyone else. **All are now closed.** The rule earned its keep: the sweep described the
+`cel.py` defect as a double-unescape when it actually LOST a character, called the GitLab
+`ref_protected` item a docstring problem when the corpus itself was wrong, and rated the `%3A`
+gap as probably-not-worth-a-vector when GitHub's own second example turned out to be an
+org-wide pin. Three of the six would have been mis-fixed if taken at face value.
+One new item was opened by this work rather than closed by it — the `%` collision probe.
 
 - `[x]` **CircleCI-on-AWS `aud`: BOTH sources are right, and the contradiction is now a vector.**
   Verified 2026-09-02 from both primary sources. AWS's OIDC condition-keys page (CircleCI tab)
@@ -421,11 +427,49 @@ named check, not as a fact. Verify before acting, the way the corpus asks of eve
   **No verdict moved:** no shipped vector contains a backslash in a CEL expression (checked across
   all four `gcp-cel` suites), and all 378 tests passed before the new ones were added. This was
   closing a trap before something fell into it, not repairing a wrong published result.
-- `[ ]` **No corpus coverage of GitHub's `%3A` encoding of `:` inside sub claim values** — the
-  primary source was confirmed verbatim. A missing shape, so only worth adding if a consumer could
-  ship a real bug without it (the repo's own bar for a new vector).
-- `[ ]` **`gh-aws-environment-subject-exact` grades `safe`** on an assumption (environment protection
-  rules gate who can mint the subject) that the judgment catalog marks conditional.
+- `[x]` **GitHub's `%3A` encoding is now covered -- four vectors, and it cleared the corpus's own
+  bar for a new shape.** Closed 2026-09-02. Re-verified the rule verbatim on GitHub's OIDC reference
+  ("Any `:` within the metadata values will be replaced with `%3A` in the subject claim") rather than
+  trusting the sweep, which mattered: the page prints two example values, and the second one turns
+  out to be the interesting artifact.
+  The bar was "only worth adding if a consumer could ship a real bug without it". It does, by a chain
+  rather than a single shape:
+  - `gh-aws-environment-colon-encoded-exact` -- the correct pin, written against the encoded form.
+  - `gh-aws-environment-colon-literal-pin-denies` -- the naive spelling read off the GitHub UI.
+    Fails CLOSED, so it surfaces as a broken pipeline with no hint of its cause; policy and
+    environment name look identical to a reader.
+  - `gh-aws-environment-colon-wildcard-fix-widens` -- the repair that converts that availability
+    break into an exposure. `environment:Production*` admits the intended environment and every
+    other one whose name starts with Production, and protection rules are per-environment, so the
+    compensating control the original pin leaned on does not extend to what the wildcard picked up.
+    This is the reason the tranche is worth having: the encoding surprise CAUSES the over-permission.
+  - `gh-aws-docs-customized-sub-omits-the-repo` -- GitHub's own second example, given as a condition
+    value to copy: `"sub": "environment:production%3Aeastus:repository_owner:octo-org"`. The encoding
+    is right and the pin never names the REPOSITORY, so every repo in the org with an environment of
+    that name satisfies it. Wildcard-free, so a scanner grading by `*` in the pattern flags nothing.
+    Inverse of `gh-aws-repo-only-customized-sub-admits-everything`: there the repo was pinned and the
+    context omitted; here the context is pinned and the repo omitted.
+  New controlled-vocabulary tag `percent-encoded`, filed under the environment family.
+  **Not shipped, recorded instead:** the rule as documented is a single-character substitution, not
+  percent-encoding -- nothing says `%` itself is escaped as `%25`. If it is not, an environment named
+  literally `Production%3AV1` mints the same subject as one named `Production:V1`, and a pin on one
+  admits the other. GitHub documents no character allowlist for environment names (only "not case
+  sensitive, may not exceed 255 characters, unique within the repository"), so this is an inference,
+  and the corpus does not ship inferences. Needs a probe: create both environments in a scratch repo
+  and compare the minted subjects. See the open item below.
+- `[x]` **`gh-aws-environment-subject-exact` stated its assumption as a fact.** Closed 2026-09-02.
+  The catalog's rule for this family is explicit -- "only as strong as that environment's protection
+  rules ... **Safe** when those exist, **caution** otherwise" -- and the vector's reason asserted the
+  enforcement outright ("with GitHub-side enforcement ... gating who can mint the subject") while its
+  sibling `gh-aws-custom-sub-combined-environment-jwr` states the very same thing as an assumption.
+  Same corpus, same claim, two standards of proof. The grade stays `safe`, which the catalog
+  sanctions; the reason now names what it rests on and says plainly that an environment with no
+  protection rules is mintable by anyone who can push a workflow change.
+- `[ ]` **Probe: is `%` escaped in the `%3A` substitution?** Create two environments in a scratch
+  repository, one named `Production:V1` and one named `Production%3AV1`, run a job in each and
+  compare the minted `sub`. If they collide, a trust policy pinned to the first admits the second,
+  and that is a vector (and arguably a GitHub report). Cheap -- no cloud account needed, only a repo
+  and a workflow that prints the token's claims. Blocked on nothing.
 - `[x]` **Checkov claims in the corpus were attributed to the wrong check and were uncited.**
   Verified by hand against checkov 3.3.16 / `d8aec9db` and fixed 2026-09-01. `gh-aws-org-wide-wildcard-repo`
   is an AWS vector and named CKV_AZURE_249; the AWS checks are CKV_AWS_358 and CKV_AWS_393, both of

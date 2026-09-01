@@ -155,6 +155,7 @@ Scoped to a named deployment environment: only as strong as that environment's p
 | --- | --- | --- | --- |
 | `environment-scoped` | Scoped to a deployment environment (as strong as its rules) | safe/caution | `gh-aws-environment-key-absent-claim-rejected` |
 | `absent-key` | A condition key absent from the token → mismatch (fail-closed) | safe | `gh-aws-environment-key-absent-claim-rejected` |
+| `percent-encoded` | A `:` inside a metadata value is minted as `%3A`; the pin must match the encoded form | safe/dangerous | `gh-aws-environment-colon-literal-pin-denies` |
 
 ### Type-level / expression traps — `type-trap`
 

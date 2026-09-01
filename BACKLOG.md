@@ -55,6 +55,27 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   AWS (docs contradiction). Both are vector-backed upstream opportunities. Distinct from the
   multi-value gap below: this one is about which condition KEYS are read, that one is about how a
   single key's VALUE list is read.
+- `[x]` **AWS set-operator tranche (`ForAllValues:` / `ForAnyValue:`)** -- github-aws 0.5.0, 7
+  vectors, matcher `qualifier` support, schema property, 2 catalog tags. Closes the flank on the
+  multi-value finding: the obvious reply to Checkov #7665 is "what about ForAllValues?", and the
+  corpus previously had no answer -- the qualifiers appeared once, in passing, inside one
+  judgment's prose. Verified against AWS's own page before writing a line
+  (`reference_policies_condition-single-vs-multi-valued-context-keys`), which is unusually blunt:
+  "Do not use condition set operators ForAllValues or ForAnyValue with single-valued context keys.
+  Using condition set operators with single-valued context keys can lead to overly permissive
+  policies." Three results worth having: (1) **ForAllValues under an Allow fails OPEN** -- it "also
+  returns true if there are no context keys in the request", so an environment scope written with
+  it admits every job that references no environment, the ordinary case; the plain operator fails
+  closed on the identical token. (2) **Neither qualifier tightens a poisoned OR-list** -- they range
+  over the values the REQUEST supplies, not the policy's value list, which is exactly the
+  misreading the syntax invites. (3) **A correct `aud` pin does not rescue it**: a clause that is
+  true on an absent claim contributes nothing to an AND, so the block is no stronger than the aud
+  pin alone. Matcher note: `all()`/`any()` over an empty sequence reproduce AWS's documented
+  asymmetry exactly, so the implementation is three lines and the comment is longer than the code.
+  **Open probe (needs a live key):** does `iam:CreateRole`'s guardrail accept a trust policy whose
+  only `sub` condition is `ForAllValues:StringLike`? Its error text names StringEquals, StringLike
+  and StringEqualsIgnoreCase but says nothing about qualifiers. If a qualified condition satisfies
+  it, that is a second creation-guardrail hole next to the first-value-only one.
 - `[x]` **GitLab path-reuse follow-up:** verified from primary sources and folded into
   `gitlab-aws-path-reuse-no-projectid` (0.1.1). The burn is broader than AWS's note says --
   GitLab's route-model callbacks burn EVERY path-vacating flow (delete, rename, transfer;

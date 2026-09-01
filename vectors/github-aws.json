@@ -1,7 +1,7 @@
 {
   "suite": "github-aws",
-  "version": "0.4.2",
-  "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., not available in session), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns. 0.3.0 tranche: aws-all composite vectors modeling full IAM Condition blocks (keys ANDed, values ORed, operators mixed) including AWS's and GitHub's own documented trust-policy shapes. 0.3.1: first observed promotions -- 5 vectors confirmed against the live IAM policy simulator (case-sensitivity, the *-spans-separators family, zero-width *), each carrying its observation block. 0.3.2: multivalue-loose-value-poisons-list promoted (6 observed) -- the simulator admits the poisoned OR-list, and iam:CreateRole ACCEPTS it (and even a literal '*' value) while rejecting a condition-less policy, so AWS's creation-time guardrail blocks the 2023 sub-less class but leaves the multi-value hole open. 0.4.0: the 2026-08-31 re-run put the whole AWS tranche on committed transcripts (observations/2026-08-31/) -- 11 observed, and the creation probe repeated with its condition operator recorded, which is what the 0.3.3 narrowing was waiting on. 0.4.2: five creation probes settle the shape -- AWS's creation guardrail validates only the FIRST value of the sub condition's list and is order-dependent (\"*\" first is REJECTED, the same \"*\" second is ACCEPTED), the same first-value-only defect the corpus feeds upstream to scanners.",
+  "version": "0.5.0",
+  "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., not available in session), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns. 0.3.0 tranche: aws-all composite vectors modeling full IAM Condition blocks (keys ANDed, values ORed, operators mixed) including AWS's and GitHub's own documented trust-policy shapes. 0.3.1: first observed promotions -- 5 vectors confirmed against the live IAM policy simulator (case-sensitivity, the *-spans-separators family, zero-width *), each carrying its observation block. 0.3.2: multivalue-loose-value-poisons-list promoted (6 observed) -- the simulator admits the poisoned OR-list, and iam:CreateRole ACCEPTS it (and even a literal '*' value) while rejecting a condition-less policy, so AWS's creation-time guardrail blocks the 2023 sub-less class but leaves the multi-value hole open. 0.4.0: the 2026-08-31 re-run put the whole AWS tranche on committed transcripts (observations/2026-08-31/) -- 11 observed, and the creation probe repeated with its condition operator recorded, which is what the 0.3.3 narrowing was waiting on. 0.4.2: five creation probes settle the shape -- AWS's creation guardrail validates only the FIRST value of the sub condition's list and is order-dependent (\"*\" first is REJECTED, the same \"*\" second is ACCEPTED), the same first-value-only defect the corpus feeds upstream to scanners. 0.5.0: the ForAllValues/ForAnyValue set-operator tranche -- AWS directs that neither qualifier be used on a single-valued context key, and on a claim a token may omit (environment) ForAllValues under an Allow passes VACUOUSLY while ForAnyValue fails closed; neither tightens a poisoned OR-list, and a correct aud pin does not rescue the fail-open.",
   "vectors": [
     {
       "id": "gh-aws-exact-branch-stringequals",
@@ -635,6 +635,232 @@
       "sources": [
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
         "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services"
+      ]
+    },
+    {
+      "id": "gh-aws-forallvalues-absent-environment-fails-open",
+      "description": "The ForAllValues fail-open. An admin scopes a trust policy to one deployment environment but writes the set-operator form, ForAllValues:StringEquals. The qualifier ranges over the values the REQUEST supplies for the key, and AWS states it 'also returns true if there are no context keys in the request'. A job that references no environment mints a token with no environment claim, so the set is empty and the condition passes vacuously -- the opposite of the plain-operator form (gh-aws-environment-key-absent-claim-rejected), which fails closed on the same token. AWS's guidance is explicit on both counts: 'Do not use condition set operators ForAllValues or ForAnyValue with single-valued context keys', and 'Use caution if you use ForAllValues with an Allow effect, as it can be overly permissive'.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:ref:refs/heads/main"
+      },
+      "condition": {
+        "consumer": "aws-stringequals",
+        "claim": "environment",
+        "qualifier": "ForAllValues",
+        "pattern": "Production"
+      },
+      "expect": "match",
+      "judgment": {
+        "grade": "dangerous",
+        "reason": "The condition reads as an environment pin and enforces nothing: every job that does not reference an environment satisfies it, which is the ordinary case. AWS's documented remedy is an accompanying Null check on the key with a false value; without one the Allow is unbounded on this axis.",
+        "patterns": [
+          "set-operator",
+          "forallvalues-fail-open",
+          "environment-scoped"
+        ]
+      },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-single-vs-multi-valued-context-keys.html",
+        "https://docs.github.com/en/actions/reference/security/oidc"
+      ]
+    },
+    {
+      "id": "gh-aws-foranyvalue-absent-environment-rejected",
+      "description": "The asymmetry that makes the fail-open a choice rather than an accident: the same absent-claim token against ForAnyValue instead of ForAllValues. AWS: 'For no matching context key or if the key does not exist, the condition returns false.' Identical policy intent, identical token, opposite verdict -- the qualifier alone decides whether an absent claim opens or closes the door.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:ref:refs/heads/main"
+      },
+      "condition": {
+        "consumer": "aws-stringequals",
+        "claim": "environment",
+        "qualifier": "ForAnyValue",
+        "pattern": "Production"
+      },
+      "expect": "no-match",
+      "judgment": {
+        "grade": "caution",
+        "reason": "Fails closed on the absent claim, so it is the safer of the two qualifiers -- but AWS still directs that neither set operator be used on a single-valued context key, and the plain operator expresses the same intent with no qualifier semantics to misread.",
+        "patterns": [
+          "set-operator",
+          "absent-key",
+          "environment-scoped"
+        ]
+      },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-single-vs-multi-valued-context-keys.html",
+        "https://docs.github.com/en/actions/reference/security/oidc"
+      ]
+    },
+    {
+      "id": "gh-aws-forallvalues-environment-present-listed",
+      "description": "The case the author had in mind, and the reason the fail-open goes unnoticed: when the environment claim IS present and is one of the listed values, ForAllValues behaves exactly like the plain operator. Every value the request supplies matches a value in the policy, so the condition holds. The policy is only wrong on the token it was never tested against.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:environment:Production",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:environment:Production",
+        "environment": "Production"
+      },
+      "condition": {
+        "consumer": "aws-stringequals",
+        "claim": "environment",
+        "qualifier": "ForAllValues",
+        "pattern": [
+          "Production",
+          "Staging"
+        ]
+      },
+      "expect": "match",
+      "judgment": {
+        "grade": "caution",
+        "reason": "Correct on this token and indistinguishable from the safe form here, which is precisely why the absent-claim behaviour (gh-aws-forallvalues-absent-environment-fails-open) survives review.",
+        "patterns": [
+          "set-operator",
+          "environment-scoped",
+          "multivalue-or"
+        ]
+      },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-single-vs-multi-valued-context-keys.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
+        "https://docs.github.com/en/actions/reference/security/oidc"
+      ]
+    },
+    {
+      "id": "gh-aws-forallvalues-environment-unlisted-rejected",
+      "description": "Mechanical contrast: the environment claim is present but is not one of the policy's values, so the request value fails to match any policy value and ForAllValues is false. Establishes that the qualifier does discriminate when the key exists -- the fail-open is specific to the empty set, not a blanket pass.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:environment:Sandbox",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:environment:Sandbox",
+        "environment": "Sandbox"
+      },
+      "condition": {
+        "consumer": "aws-stringequals",
+        "claim": "environment",
+        "qualifier": "ForAllValues",
+        "pattern": [
+          "Production",
+          "Staging"
+        ]
+      },
+      "expect": "no-match",
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-single-vs-multi-valued-context-keys.html"
+      ]
+    },
+    {
+      "id": "gh-aws-forallvalues-does-not-tighten-poisoned-or-list",
+      "description": "The misreading, stated as a vector. ForAllValues looks like it should mean 'the subject must satisfy ALL the listed values', which would neutralise a poisoned OR-list. It does not: the qualifier ranges over the values in the REQUEST, not the values in the policy, and a sub claim is single-valued. So the policy's values are still ORed and the loosest one still sets the boundary -- this org-wide second value admits an unrelated repository's pull_request subject exactly as it does without the qualifier (gh-aws-multivalue-loose-value-poisons-list).",
+      "issuer": "github",
+      "subject": "repo:octo-org/anything:pull_request",
+      "condition": {
+        "consumer": "aws-stringlike",
+        "claim": "sub",
+        "qualifier": "ForAllValues",
+        "pattern": [
+          "repo:octo-org/octo-repo:ref:refs/heads/main",
+          "repo:octo-org/*"
+        ]
+      },
+      "expect": "match",
+      "judgment": {
+        "grade": "dangerous",
+        "reason": "A qualifier that reads like a tightening does nothing of the kind: the org-wide value still admits any repository in the org, including pull_request subjects. Weaker than the unqualified form, because it also carries the absent-key fail-open.",
+        "patterns": [
+          "set-operator",
+          "multivalue-or",
+          "org-wide",
+          "pull-request"
+        ]
+      },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-single-vs-multi-valued-context-keys.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
+        "https://docs.github.com/en/actions/reference/security/oidc"
+      ]
+    },
+    {
+      "id": "gh-aws-foranyvalue-poisoned-or-list-still-admits",
+      "description": "The same poisoned list under ForAnyValue. AWS: the condition 'returns true if any one of the context key values in the request matches any one of the context key values in the policy'. With one request value and two policy values that is plain OR, so neither qualifier changes which values are compared -- only what happens when the claim is missing.",
+      "issuer": "github",
+      "subject": "repo:octo-org/anything:pull_request",
+      "condition": {
+        "consumer": "aws-stringlike",
+        "claim": "sub",
+        "qualifier": "ForAnyValue",
+        "pattern": [
+          "repo:octo-org/octo-repo:ref:refs/heads/main",
+          "repo:octo-org/*"
+        ]
+      },
+      "expect": "match",
+      "judgment": {
+        "grade": "dangerous",
+        "reason": "Neither set operator constrains the policy's own value list; the org-wide value admits the whole organisation either way. The only remedy for a poisoned OR-list is removing the loose value.",
+        "patterns": [
+          "set-operator",
+          "multivalue-or",
+          "org-wide",
+          "pull-request"
+        ]
+      },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-single-vs-multi-valued-context-keys.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
+        "https://docs.github.com/en/actions/reference/security/oidc"
+      ]
+    },
+    {
+      "id": "gh-aws-all-forallvalues-absent-environment-behind-aud",
+      "description": "A correctly pinned aud does not rescue the fail-open. The Condition block ANDs an exact aud pin with a ForAllValues environment scope, which is the shape a careful admin writes. Because context keys in a block are ANDed and every one must resolve to true, the aud pin holds and the environment condition passes vacuously on a token carrying no environment claim -- so the block as a whole admits a job the environment clause was written to exclude. Contrast gh-aws-all-documented-aud-sub-policy, where both ANDed keys genuinely constrain.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:ref:refs/heads/main",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:ref:refs/heads/main",
+        "aud": "sts.amazonaws.com"
+      },
+      "condition": {
+        "consumer": "aws-all",
+        "of": [
+          {
+            "consumer": "aws-stringequals",
+            "claim": "aud",
+            "pattern": "sts.amazonaws.com"
+          },
+          {
+            "consumer": "aws-stringequals",
+            "claim": "environment",
+            "qualifier": "ForAllValues",
+            "pattern": "Production"
+          }
+        ]
+      },
+      "expect": "match",
+      "judgment": {
+        "grade": "dangerous",
+        "reason": "AND across condition keys only helps when each key actually constrains. A clause that returns true on an absent claim contributes nothing to the conjunction, so the block is no stronger than its aud pin alone -- and an aud pin admits every repository on the issuer.",
+        "patterns": [
+          "multi-key-and",
+          "aud-pinned",
+          "set-operator",
+          "forallvalues-fail-open"
+        ]
+      },
+      "status": "documented",
+      "sources": [
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-single-vs-multi-valued-context-keys.html",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_condition-logic-multiple-context-keys-or-values.html",
+        "https://docs.github.com/en/actions/reference/security/oidc"
       ]
     }
   ]

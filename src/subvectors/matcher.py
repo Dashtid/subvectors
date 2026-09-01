@@ -118,6 +118,14 @@ _LIST_PATTERN_CONSUMERS = frozenset({"aws-stringlike", "aws-stringequals"})
 # consumers into an ANDed condition block.
 SUPPORTED_CONSUMERS = frozenset(_CONSUMERS) | {"gcp-cel", "azure-fic-flexible", "aws-all"}
 
+# AWS set-operator qualifiers. They compare the SET of values the request supplies
+# for a context key against the set of values in the policy -- so they are about
+# the request context, not about the policy's value list, which is the misreading
+# they invite. AWS: "Do not use condition set operators ForAllValues or
+# ForAnyValue with single-valued context keys. Using condition set operators with
+# single-valued context keys can lead to overly permissive policies."
+SUPPORTED_QUALIFIERS = frozenset({"ForAllValues", "ForAnyValue"})
+
 
 def satisfies(subject: str, condition: dict, claims: dict | None = None) -> bool:
     """Return True iff ``subject`` satisfies ``condition``.
@@ -202,6 +210,35 @@ def satisfies(subject: str, condition: dict, claims: dict | None = None) -> bool
             f"only defined for AWS conditions (logical OR)"
         )
     value = claims.get(claim)
+    qualifier = condition.get("qualifier")
+    if qualifier is not None:
+        if consumer not in _LIST_PATTERN_CONSUMERS:
+            raise ValueError(
+                "ForAllValues/ForAnyValue are AWS set operators; "
+                f"consumer {consumer!r} has no set semantics"
+            )
+        if qualifier not in SUPPORTED_QUALIFIERS:
+            raise ValueError(
+                f"unknown qualifier {qualifier!r}; "
+                f"supported: {sorted(SUPPORTED_QUALIFIERS)}"
+            )
+        # The qualifier ranges over the values the REQUEST supplies for the key,
+        # each of which must (ForAllValues) or may (ForAnyValue) match one of the
+        # policy's values. Python's all()/any() over an empty sequence reproduce
+        # AWS's documented asymmetry exactly, and that asymmetry is the whole
+        # security story: ForAllValues "also returns true if there are no context
+        # keys in the request", while for ForAnyValue "if the key does not exist,
+        # the condition returns false". So on a key the token may simply omit,
+        # ForAllValues under an Allow fails OPEN and ForAnyValue fails closed.
+        if value is None:
+            context_values: list[str] = []
+        elif isinstance(value, list):
+            context_values = value
+        else:
+            context_values = [value]
+        policy_values = [pattern] if isinstance(pattern, str) else pattern
+        per_value = [any(match_fn(v, p) for p in policy_values) for v in context_values]
+        return all(per_value) if qualifier == "ForAllValues" else any(per_value)
     if value is None:
         return False
     if isinstance(pattern, str):

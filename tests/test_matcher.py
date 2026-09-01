@@ -251,3 +251,110 @@ def test_aws_all_rejects_non_aws_even_after_a_failing_subcondition() -> None:
     }
     with pytest.raises(ValueError):
         satisfies("x", condition)
+
+
+# --- AWS set operators (ForAllValues / ForAnyValue) -----------------------
+#
+# The security story is entirely in the empty-set case. AWS: ForAllValues "also
+# returns true if there are no context keys in the request"; ForAnyValue returns
+# false "if the key does not exist". Same policy intent, same token, opposite
+# verdict -- so on any claim a token may omit, the qualifier alone decides
+# whether an Allow fails open or closed.
+
+_ENV_ALL = {
+    "consumer": "aws-stringequals",
+    "claim": "environment",
+    "qualifier": "ForAllValues",
+    "pattern": "Production",
+}
+_ENV_ANY = {**_ENV_ALL, "qualifier": "ForAnyValue"}
+_SUBJECT = "repo:octo-org/octo-repo:ref:refs/heads/main"
+
+
+def test_forallvalues_passes_vacuously_when_the_claim_is_absent():
+    """The fail-open, pinned. This is the whole finding."""
+    assert satisfies(_SUBJECT, _ENV_ALL, {"sub": _SUBJECT}) is True
+
+
+def test_foranyvalue_fails_closed_when_the_claim_is_absent():
+    assert satisfies(_SUBJECT, _ENV_ANY, {"sub": _SUBJECT}) is False
+
+
+def test_plain_operator_fails_closed_on_the_same_absent_claim():
+    """Without a qualifier an absent key is a mismatch -- the contrast that matters."""
+    plain = {"consumer": "aws-stringequals", "claim": "environment", "pattern": "Production"}
+    assert satisfies(_SUBJECT, plain, {"sub": _SUBJECT}) is False
+
+
+def test_both_qualifiers_agree_when_the_claim_is_present_and_listed():
+    claims = {"sub": _SUBJECT, "environment": "Production"}
+    assert satisfies(_SUBJECT, _ENV_ALL, claims) is True
+    assert satisfies(_SUBJECT, _ENV_ANY, claims) is True
+
+
+def test_both_qualifiers_agree_when_the_claim_is_present_and_unlisted():
+    claims = {"sub": _SUBJECT, "environment": "Sandbox"}
+    assert satisfies(_SUBJECT, _ENV_ALL, claims) is False
+    assert satisfies(_SUBJECT, _ENV_ANY, claims) is False
+
+
+def test_a_qualifier_does_not_tighten_a_policy_value_list():
+    """The misreading: the qualifier ranges over REQUEST values, not policy values.
+
+    A poisoned OR-list stays poisoned under either qualifier -- the loosest value
+    still sets the boundary.
+    """
+    poisoned = [_SUBJECT, "repo:octo-org/*"]
+    for qualifier in ("ForAllValues", "ForAnyValue"):
+        condition = {"consumer": "aws-stringlike", "qualifier": qualifier, "pattern": poisoned}
+        assert satisfies("repo:octo-org/anything:pull_request", condition) is True
+
+
+def test_forallvalues_requires_every_request_value_to_match():
+    """Proper set semantics for a genuinely multivalued request context key."""
+    condition = {
+        "consumer": "aws-stringequals",
+        "claim": "groups",
+        "qualifier": "ForAllValues",
+        "pattern": ["a", "b"],
+    }
+    assert satisfies(_SUBJECT, condition, {"sub": _SUBJECT, "groups": ["a", "b"]}) is True
+    assert satisfies(_SUBJECT, condition, {"sub": _SUBJECT, "groups": ["a"]}) is True
+    assert satisfies(_SUBJECT, condition, {"sub": _SUBJECT, "groups": ["a", "c"]}) is False
+
+
+def test_foranyvalue_requires_one_request_value_to_match():
+    condition = {
+        "consumer": "aws-stringequals",
+        "claim": "groups",
+        "qualifier": "ForAnyValue",
+        "pattern": ["a", "b"],
+    }
+    assert satisfies(_SUBJECT, condition, {"sub": _SUBJECT, "groups": ["a", "c"]}) is True
+    assert satisfies(_SUBJECT, condition, {"sub": _SUBJECT, "groups": ["c", "d"]}) is False
+
+
+def test_qualifier_on_a_non_aws_consumer_is_rejected():
+    """Only IAM has set semantics; anything else is a vector-authoring error."""
+    condition = {"consumer": "azure-fic-exact", "qualifier": "ForAllValues", "pattern": "x"}
+    with pytest.raises(ValueError, match="set semantics"):
+        satisfies(_SUBJECT, condition)
+
+
+def test_unknown_qualifier_is_rejected():
+    condition = {"consumer": "aws-stringequals", "qualifier": "ForSomeValues", "pattern": "x"}
+    with pytest.raises(ValueError, match="unknown qualifier"):
+        satisfies(_SUBJECT, condition)
+
+
+def test_an_absent_claim_clause_contributes_nothing_to_an_and_block():
+    """A ForAllValues clause cannot strengthen an aws-all block on an absent claim."""
+    condition = {
+        "consumer": "aws-all",
+        "of": [
+            {"consumer": "aws-stringequals", "claim": "aud", "pattern": "sts.amazonaws.com"},
+            _ENV_ALL,
+        ],
+    }
+    claims = {"sub": _SUBJECT, "aud": "sts.amazonaws.com"}
+    assert satisfies(_SUBJECT, condition, claims) is True

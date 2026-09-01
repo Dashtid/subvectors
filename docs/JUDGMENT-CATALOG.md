@@ -143,6 +143,8 @@ wildcard weakens. **Grade tracks the tightest AND-clause and the loosest OR-valu
 | `reusable-workflow-pin` | Pins `job_workflow_ref` (which reusable workflow ran) | safe/caution | `gh-aws-jwr-condition-key-sha-pin` |
 | `reusable-workflow` | Reusable-workflow scenario (caller + workflow) | caution | `gh-flex-and-reusable-workflow-pin` |
 | `job-workflow-ref` | Uses the `job_workflow_ref` claim | caution | `gh-flex-and-reusable-workflow-pin` |
+| `set-operator` | `ForAllValues:`/`ForAnyValue:` qualifier on a condition | caution/dangerous | `gh-aws-foranyvalue-absent-environment-rejected` |
+| `forallvalues-fail-open` | `ForAllValues` under an Allow passes vacuously when the claim is absent | dangerous | `gh-aws-forallvalues-absent-environment-fails-open` |
 
 ### Environment scoping — `environment`
 

@@ -156,6 +156,7 @@ Scoped to a named deployment environment: only as strong as that environment's p
 | `environment-scoped` | Scoped to a deployment environment (as strong as its rules) | safe/caution | `gh-aws-environment-key-absent-claim-rejected` |
 | `absent-key` | A condition key absent from the token → mismatch (fail-closed) | safe | `gh-aws-environment-key-absent-claim-rejected` |
 | `percent-encoded` | A `:` inside a metadata value is minted as `%3A`; the pin must match the encoded form | safe/dangerous | `gh-aws-environment-colon-literal-pin-denies` |
+| `select-claim-key` | Condition on a GitHub claim key other than `sub`/`aud` (AWS's select claims) | safe/dangerous | `gh-aws-ref-key-alone-omits-the-repository` |
 
 ### Type-level / expression traps — `type-trap`
 

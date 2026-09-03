@@ -7,60 +7,57 @@ shipping an overlapping feature must ADD a consumer of this corpus, never obsole
 **Cadence discipline:** every slice is weeknight-sized and independently shippable. Ship the
 slice, update this file, stop.
 
-## Where this actually stands (2026-08-18)
+## Where this actually stands (2026-09-03)
 
-**The corpus is feature-complete. Do not add vectors.** All 5 planned issuers and all 6 consumer
-semantics have shipped: 14 suites / 133 vectors, 227 tests green, CI green on 3.11-3.13. Corpus and
-code work paused 2026-07-31; docs hygiene continued through 08-18. It is **not stalled** — it is
-built, and the remaining value is entirely OUTSIDE this repo.
+**14 suites / 160 vectors** — 149 `documented`, 11 `observed` — 400 tests, CI green on 3.11-3.13,
+published to PyPI (latest release v0.6.0; `github-aws` 0.8.0 is staged on `main` for the next cut).
 
-**Fixed 2026-08-18 — the one correctness bug.** `RepoSegment.immutable` in
-`src/subvectors/github.py` used `or` where it needed `and`, so a one-sided `@id` subject (an
-id on the owner or the repo but not both) was reported as immutable when it is *malformed* — a
-shape GitHub never mints. The branch was **reachable, not latent**: the two id groups in
-`_REPO_RE` are independently optional, so `parse_repo_segment` parses one-sided input happily.
-Zero of 133 vectors exercised it, which is why 225 green tests sailed over it; two unit tests now
-cover both one-sided forms. **subcheck shipped the identical bug and fixed it three weeks earlier**
-(`34a42ce` 2026-07-21 introduced `"immutable" if (owner_id or repo_id)`, `423964f` 2026-07-30
-replaced it with a three-state `immutable`/`malformed`/`legacy` classification). The two agree
-again on every input shape. Worth noting what this was: not the corpus disagreeing with an outside
-tool, but this repo lagging a correction its own consumer had already made — the kind of drift
-nothing here currently tests for.
+**On "the corpus is feature-complete. Do not add vectors."** That line stood here from 2026-08-18
+and the corpus has grown 133 -> 160 since. The line was right and is being kept, but it was
+compressed to the point of being misread. What it means: **the planned MATRIX is complete** — all 5
+issuers x 6 consumer semantics have shipped, and no vector should be added to fill a cell, round out
+a set, or make a table look symmetrical. That is the librarian trap the scoreboard below names.
+What it never meant is that a verified finding should go unencoded. Every vector added since
+carries one: a documented contradiction, an over-permission shape a real policy reaches by a
+plausible route, or a tool disagreement. **The test for a new vector is "what did I find?", not
+"what is missing?"** — if the answer is a gap in a table, do not add it.
+
+**The uncomfortable read on the scoreboard.** The last fortnight added 27 vectors and zero merged
+upstream PRs. By this file's own primary metric that is an input, not progress, and it should not
+be dressed up. Two things soften it and neither cancels it: three Checkov PRs are open and
+unreviewed (the queue is not the author's to move), and the corpus found three real defects in its
+OWN code this cycle — a CEL string decoder that silently lost a character, a GitHub grammar that
+rejected a subject GitHub documents how to mint, and a GitLab claim that was simply false. A corpus
+that audits itself is worth something. It is still not a merged PR.
 
 What is actually open, in priority order:
 
-1. ~~**Doc-truth debt**~~ — **DONE 2026-08-25.** The Azure "fails silently with no error" claim is
-   corrected everywhere it appeared (matcher docstrings + 12 places across the `github-azure` and
-   `gitlab-azure` suites): creation is unvalidated, the *exchange* returns `AADSTS700213`, and the
-   six vectors naming that code now cite the Entra error-codes reference. The provenance split is
-   no longer prose at all — `scripts/coverage.py` generates "133 `documented`" plus an explicit
-   "no vector is `observed` yet" note into the README, and CI fails on a stale block.
-2. **Three upstream PRs open, zero merged** — checkov #7610 (CI never ran; fork-PR workflow runs
-   await approval), checkov #7627, cartography #3088. The scoreboard below says merged PRs are
-   the metric; it currently reads 0.
-3. **The `documented` → `observed` promotion — STARTED 2026-08-29: first 5 vectors observed** via
-   the IAM policy simulator (experiments 1-3 of the runbook, controls included; github-aws 0.3.1;
-   provenance now 128 documented / 5 observed). Settled empirically: StringEquals AND StringLike
-   are case-sensitive (the doc-vs-third-party contradiction closed in the docs' favor), `*`
-   crosses `:` and `/`, and zero-width `*` matching is confirmed rather than interpreted.
-   **Experiment 4 also done 2026-08-30** (6 observed; github-aws 0.3.2), and it produced the
-   run's sharpest finding: AWS's creation-time guardrail is REAL BUT SHALLOW. `iam:CreateRole`
-   REJECTS a condition-less GitHub-OIDC trust policy (`MalformedPolicyDocument`: the policy
-   "must evaluate ... `:sub` or `:job_workflow_ref` which is not scoped to all") — the 2023
-   sub-less class is blocked at creation — but it ACCEPTS a poisoned OR-list, including
-   `["repo:acme/x", "*"]` with a literal `*` value. AWS validates that a `sub` condition
-   *exists*, not that every value in it is scoped. So the multi-value loose-value hole is open
-   at CREATION, not merely at evaluation. Role + provider were created and deleted; `get-role`
-   confirms `NoSuchEntity`.
-   Remaining: experiment 5 (GCP unquoted-int — needs a GCP account); it is the one load-bearing
-   corpus claim still resting on spec alone. See docs/OBSERVED-PROMOTION.md.
-4. **PyPI release gate (added 2026-08-24) - CLOSED same day, v0.2.0 shipped.** The wheel now
-   force-includes the whole `vectors/` tree (suites + schema + the corpus's CC0 LICENSE) and
-   `subvectors.corpus` resolves it via `importlib.resources` (packaged install and source
-   checkout both work; verified by installing the wheel in isolation - 14 suites load from the
-   packaged path). Pending publisher configured, GitHub Release published, trusted-publishing
-   run green. Follow-on for subcheck: pin the released artifact instead of hand-vendoring
-   `github_subjects.json`.
+1. **Upstream: three Checkov PRs, zero reviews, zero merged** — #7610 (immutable `@id` support),
+   #7627 (CKV_AZURE_249), #7665 (the multi-value fix), plus cartography #3088. Ladder step 1 is
+   spent on all of them. The tracked policy is to wait: a fourth PR opened while three sit
+   unreviewed is volume, not signal. Next touch is a review landing or the 2026-10-15 close-by.
+   A fourth is nonetheless *ready* — the select-claim-key gap (`gh_sub_condition` reads only the
+   `:sub` key, so a policy pinning `ref` alone passes CKV_AWS_358 and CKV_AWS_393) is now backed by
+   four vectors rather than an assertion.
+2. **`documented` -> `observed`: 11 of 160.** This is the corpus's real quality metric and the
+   number that most deserves to move. AWS experiments 1-4 are done and transcript-backed under
+   `observations/`; **experiment 5 (GCP unquoted-int) remains and is the one load-bearing corpus
+   claim still resting on spec alone** — it needs a GCP project. Two cheap GitHub-only probes are
+   also queued and need no cloud account at all: whether `%` is escaped in the `%3A` substitution,
+   and whether `job_workflow_ref` carries `@id` suffixes under immutable subject claims. Both are
+   one scratch repo and one workflow that dumps the token's claims. See
+   `docs/OBSERVED-PROMOTION.md` and the probes in BACKLOG.md.
+3. **Cadence, decided 2026-09-03 and written into CLAUDE.md.** Nine releases went out in the ten
+   days to 2026-09-02, five of them in the final two, and each one invited a `subcheck` pin bump
+   that means re-deriving a fixture. Releases are now batched to one a week, cut Sunday evening so
+   they land before `subcheck`'s Monday 06:00 UTC drift canary; Monday is `subcheck` day; a session
+   edits only its own working directory. This file is the strategy record — the operational rules
+   live in CLAUDE.md.
+4. **Adoption is still one consumer.** `subcheck` pins a released artifact and its canary runs
+   weekly against this repo's `main` (verified clean 2026-09-03 with the 0.8.0 work in place, and
+   its allowlist is empty, so that green is real). The secondary metric — a tool that is not ours
+   consuming the vectors, or a citation — reads zero. Outreach items are parked in BACKLOG.md and
+   are deliberately not being pushed while the PR queue is stalled.
 
 ## How we measure success (read before adding vectors)
 

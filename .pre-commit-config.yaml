@@ -1,0 +1,96 @@
+# Shared estate pre-commit core.
+#
+# Every hook below is pinned to the highest revision ALREADY in use somewhere in
+# this estate, not the newest published one, so each is known to resolve on this
+# machine. Move them with `pre-commit autoupdate`, never by hand.
+#
+# Install once per clone:
+#     pre-commit install --install-hooks
+#
+# There is deliberately no `mixed-line-ending` hook. .gitattributes owns line
+# endings now, and its rule that *.ps1 stays CRLF is one that `--fix=lf` would
+# fight on every commit.
+
+# Paths NO hook may read or rewrite.
+#
+# Some files are records, not source, and rewriting one destroys what it records.
+# Both halves of this pattern were written after damage, not before it:
+#
+#   * a test fixture's exact bytes ARE the test. end-of-file-fixer touched
+#     sbom-curator's tests/fixtures/catalogue/INDEX.md, which is hashed into
+#     MANIFEST.sha256, and two sealed-evidence tests then failed with
+#     "stale: INDEX.md" - the same failure a real tamper would produce;
+#   * in a unified diff a context line MUST begin with a space, so
+#     trailing-whitespace stripping that space is corruption. It rewrote 65 lines
+#     across two archived patches in oss-contributions. A .sarif is a scan result,
+#     which is evidence for the same reason.
+exclude: '(^|/)(tests?/fixtures|testdata|__snapshots__)/|\.(patch|diff|sarif)$'
+
+default_install_hook_types: [pre-commit, commit-msg]
+minimum_pre_commit_version: "3.0.0"
+
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: trailing-whitespace
+        args: [--markdown-linebreak-ext=md]   # two trailing spaces are a hard break
+      - id: end-of-file-fixer
+      - id: check-merge-conflict
+      - id: check-case-conflict               # two files differing only in case break a Windows clone
+      - id: check-illegal-windows-names
+      - id: check-added-large-files
+        args: [--maxkb=1000]
+      - id: check-yaml
+        args: [--allow-multiple-documents]
+      - id: check-json
+      - id: check-toml
+      - id: detect-private-key
+
+  # This estate has leaked a Grafana service-account token into git history and
+  # two Brave API keys into a working tree. This is the hook that stops the next
+  # one, and it is the reason the core is worth having in a notes repository.
+  - repo: https://github.com/gitleaks/gitleaks
+    rev: v8.30.0
+    hooks:
+      - id: gitleaks
+
+  - repo: https://github.com/igorshubovych/markdownlint-cli
+    rev: v0.47.0
+    hooks:
+      - id: markdownlint
+        # Rules live in .markdownlint.jsonc. No --fix: a linter that silently
+        # rewrites prose is how "URL* / Why" became "URL*/ Why".
+
+  - repo: https://github.com/compilerla/conventional-pre-commit
+    rev: v4.3.0
+    hooks:
+      - id: conventional-pre-commit
+        stages: [commit-msg]
+        args: [--strict]
+
+  # --- Python ---------------------------------------------------------------
+  # Line length and rule selection belong to each repository's own [tool.ruff]
+  # block, which is where Python tooling config lives; passing them here would
+  # silently override a repository that meant something different.
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.0
+    hooks:
+      - id: ruff-check
+        args: [--fix, --exit-non-zero-on-fix]
+      - id: ruff-format
+
+  # --- GitHub Actions -------------------------------------------------------
+  # check-yaml validates syntax only; this catches expression typos, bad needs:
+  # references and shell errors inside run: blocks.
+  - repo: https://github.com/rhysd/actionlint
+    rev: v1.7.7
+    hooks:
+      - id: actionlint
+
+  # ---------------------------------------------------------------------------
+  # REPO-SPECIFIC HOOKS BELOW THIS LINE
+  # Everything above is the shared estate core and is replaced wholesale when the
+  # standard is rolled out. Everything below is this repository's own and is
+  # preserved. Put language toolchains, project linters and local hooks here.
+  # ---------------------------------------------------------------------------

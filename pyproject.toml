@@ -29,3 +29,14 @@ packages = ["src/subvectors"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 pythonpath = ["src"]
+
+# 100 columns matches .editorconfig and the rest of this estate's Python
+# (portfolio-site, sbom-curator, k8s-platform's rag-backend). Ruff's own default
+# is 88, which would rewrap code that was written to a wider measure.
+#
+# Rule selection is left at ruff's default on purpose: this is a zero-dependency
+# corpus, and a hand-picked list here would be one more thing to keep in step
+# with four other repositories.
+[tool.ruff]
+line-length = 100
+target-version = "py313"

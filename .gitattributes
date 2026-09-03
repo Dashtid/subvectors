@@ -1,10 +1,66 @@
-# Normalize line endings to LF in the repo (kills the CRLF churn on Windows).
-* text=auto eol=lf
+# Line endings, declared once so every machine, editor and CI agent agrees.
+#
+# WHY THIS FILE EXISTS: core.autocrlf is true globally on the work laptop, so git
+# stores LF and checks out CRLF - and says so, loudly, on every single `git add`
+# ("LF will be replaced by CRLF the next time Git touches it"). That warning is
+# harmless and endless, and it hides real ones. Declaring the rules here makes the
+# behaviour explicit and identical on any machine, whatever its autocrlf happens to
+# be. Adding it does not rewrite history: with autocrlf=true the blobs are already
+# LF, so `git add --renormalize .` is a no-op. That was verified before rollout, not
+# assumed.
 
-# Explicitly text
-*.py    text eol=lf
-*.json  text eol=lf
-*.toml  text eol=lf
+# Normalise everything text-like to LF in the repository.
+* text=auto
+
+# Text formats: LF in the repository and in the working tree.
 *.md    text eol=lf
+*.txt   text eol=lf
+*.rst   text eol=lf
+*.py    text eol=lf
+*.pyi   text eol=lf
+*.sh    text eol=lf
 *.yml   text eol=lf
 *.yaml  text eol=lf
+*.json  text eol=lf
+*.jsonc text eol=lf
+*.toml  text eol=lf
+*.cfg   text eol=lf
+*.ini   text eol=lf
+*.tsv   text eol=lf
+*.csv   text eol=lf
+*.sql   text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.js    text eol=lf
+*.vue   text eol=lf
+*.css   text eol=lf
+*.html  text eol=lf
+Dockerfile      text eol=lf
+*.dockerfile    text eol=lf
+
+# Windows-native scripts: CRLF, because that is how they are edited and run.
+*.ps1   text eol=crlf
+*.psm1  text eol=crlf
+*.psd1  text eol=crlf
+*.bat   text eol=crlf
+*.cmd   text eol=crlf
+
+# Binary: never normalise, never diff, never try to merge.
+*.png    binary
+*.jpg    binary
+*.jpeg   binary
+*.gif    binary
+*.ico    binary
+*.svg    text eol=lf
+*.pdf    binary
+*.zip    binary
+*.gz     binary
+*.tgz    binary
+*.7z     binary
+*.docx   binary
+*.xlsx   binary
+*.pptx   binary
+*.dcm    binary
+*.bundle binary
+*.woff   binary
+*.woff2  binary

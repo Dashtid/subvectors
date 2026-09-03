@@ -1,0 +1,35 @@
+# One indentation and encoding contract, honoured by VS Code, Visual Studio,
+# JetBrains and most editors without a plugin. Pairs with .gitattributes: that file
+# decides what lands in git, this one decides what your editor types.
+root = true
+
+[*]
+charset = utf-8
+end_of_line = lf
+insert_final_newline = true
+trim_trailing_whitespace = true
+indent_style = space
+indent_size = 4
+
+# Markdown uses two trailing spaces as a hard line break, so stripping them
+# silently changes rendered output.
+[*.{md,markdown}]
+trim_trailing_whitespace = false
+
+[*.{yml,yaml,json,jsonc}]
+indent_size = 2
+
+[*.{ts,tsx,js,jsx,vue,css,scss,html}]
+indent_size = 2
+
+# Windows-native scripts stay CRLF, matching .gitattributes.
+[*.{ps1,psm1,psd1,bat,cmd}]
+end_of_line = crlf
+
+[Makefile]
+indent_style = tab
+
+# Tab-separated data is defined by its tabs.
+[*.tsv]
+indent_style = tab
+trim_trailing_whitespace = false

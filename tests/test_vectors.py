@@ -93,9 +93,7 @@ def test_observed_with_observation_validates() -> None:
 
 def test_documented_may_not_carry_an_observation() -> None:
     with pytest.raises(jsonschema.ValidationError):
-        _validate_vector(
-            {**_OBSERVED_BASE, "status": "documented", "observation": _OBSERVATION}
-        )
+        _validate_vector({**_OBSERVED_BASE, "status": "documented", "observation": _OBSERVATION})
 
 
 @pytest.mark.parametrize("name,vector", _VECTOR_CASES, ids=_VECTOR_IDS)
@@ -120,9 +118,7 @@ def test_claims_carry_sub_equal_to_subject_when_present() -> None:
     for name, vector in _VECTOR_CASES:
         claims = vector.get("claims")
         if claims:
-            assert "sub" in claims, (
-                f"{vector['id']} ({name}): a claims map must include 'sub'"
-            )
+            assert "sub" in claims, f"{vector['id']} ({name}): a claims map must include 'sub'"
             assert claims["sub"] == vector["subject"], (
                 f"{vector['id']} ({name}): claims['sub'] must equal 'subject'"
             )

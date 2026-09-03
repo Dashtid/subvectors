@@ -47,7 +47,9 @@ def _load_suites() -> list[dict]:
 
 
 def _issuer_sort_key(issuer: str) -> tuple[int, str]:
-    return (ISSUER_ORDER.index(issuer), "") if issuer in ISSUER_ORDER else (len(ISSUER_ORDER), issuer)
+    return (
+        (ISSUER_ORDER.index(issuer), "") if issuer in ISSUER_ORDER else (len(ISSUER_ORDER), issuer)
+    )
 
 
 def render_body() -> str:

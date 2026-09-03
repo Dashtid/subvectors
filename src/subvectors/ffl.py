@@ -58,7 +58,7 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["evaluate", "FflError"]
+__all__ = ["FflError", "evaluate"]
 
 
 class FflError(ValueError):
@@ -82,7 +82,7 @@ def _tokenize(expr: str) -> list[tuple[str, str]]:
     while pos < len(expr):
         m = _TOKEN_RE.match(expr, pos)
         if m is None:
-            raise FflError(f"unexpected character at offset {pos}: {expr[pos:pos + 12]!r}")
+            raise FflError(f"unexpected character at offset {pos}: {expr[pos : pos + 12]!r}")
         pos = m.end()
         kind = m.lastgroup
         if kind == "ws":

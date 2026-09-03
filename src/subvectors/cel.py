@@ -55,7 +55,7 @@ from __future__ import annotations
 
 import re
 
-__all__ = ["evaluate", "CelError"]
+__all__ = ["CelError", "evaluate"]
 
 
 class CelError(ValueError):
@@ -89,17 +89,21 @@ _STRING_METHODS = frozenset({"startsWith", "endsWith", "contains", "matches"})
 
 # ESCAPE, first alternative: the punctuation marks and whitespace codes that stand
 # for themselves or for a control character.
+# fmt: off
+# Two rows, one per escape family, so the table reads against the CEL grammar.
+# The formatter would put each of the twelve entries on a line of its own.
 _SIMPLE_ESCAPES = {
     "a": "\a", "b": "\b", "f": "\f", "n": "\n", "r": "\r", "t": "\t", "v": "\v",
     "\\": "\\", "?": "?", '"': '"', "'": "'", "`": "`",
 }
+# fmt: on
 _HEXDIGITS = frozenset("0123456789abcdefABCDEF")
 _OCTDIGITS = frozenset("01234567")
 
 
 def _decode_codepoint(body: str, start: int, count: int, base: int, literal: str) -> str:
     """Read a fixed-width numeric escape and return the character it names."""
-    digits = body[start:start + count]
+    digits = body[start : start + count]
     allowed = _HEXDIGITS if base == 16 else _OCTDIGITS
     if len(digits) != count or any(d not in allowed for d in digits):
         raise CelError(
@@ -181,7 +185,7 @@ def _tokenize(expr: str) -> list[tuple[str, str]]:
             )
         m = _TOKEN_RE.match(expr, pos)
         if m is None:
-            raise CelError(f"unexpected character at offset {pos}: {expr[pos:pos + 12]!r}")
+            raise CelError(f"unexpected character at offset {pos}: {expr[pos : pos + 12]!r}")
         pos = m.end()
         kind = m.lastgroup
         if kind == "ws":
@@ -257,7 +261,9 @@ class _Parser:
             if k != "ident":
                 raise CelError("expected a method name after '.'")
             if not self._at_op("("):
-                raise CelError(f"unsupported field access .{name} (only method calls follow a value)")
+                raise CelError(
+                    f"unsupported field access .{name} (only method calls follow a value)"
+                )
             self._advance()  # (
             ak, arg = self._advance()
             if ak != "str":
@@ -340,7 +346,9 @@ class _Parser:
 def _as_bool(value) -> bool:
     if isinstance(value, bool):
         return value
-    raise CelError(f"expected a boolean in a logical position, got {type(value).__name__}: {value!r}")
+    raise CelError(
+        f"expected a boolean in a logical position, got {type(value).__name__}: {value!r}"
+    )
 
 
 def _cel_equal(a, b) -> bool:
@@ -391,9 +399,7 @@ def _eval(node, claims: dict) -> object:
     if kind == "claim":
         name = node[1]
         if name not in claims:
-            raise CelError(
-                f"condition references assertion.{name} but the token has no such claim"
-            )
+            raise CelError(f"condition references assertion.{name} but the token has no such claim")
         return claims[name]
     if kind == "not":
         return not _as_bool(_eval(node[1], claims))

@@ -62,8 +62,14 @@ def test_int_literal_out_of_int64_range_raises() -> None:
 
 
 def test_and_or_not_and_precedence() -> None:
-    assert evaluate("assertion.ref == 'refs/heads/main' && assertion.event_name == 'push'", CLAIMS) is True
-    assert evaluate("assertion.ref == 'refs/heads/dev' || assertion.event_name == 'push'", CLAIMS) is True
+    assert (
+        evaluate("assertion.ref == 'refs/heads/main' && assertion.event_name == 'push'", CLAIMS)
+        is True
+    )
+    assert (
+        evaluate("assertion.ref == 'refs/heads/dev' || assertion.event_name == 'push'", CLAIMS)
+        is True
+    )
     assert evaluate("!(assertion.event_name == 'pull_request')", CLAIMS) is True
     # unary ! binds tighter than == : !a == b parses as (!a) == b, a type error here.
     with pytest.raises(CelError):
@@ -90,7 +96,9 @@ def test_matches_is_unanchored_substring() -> None:
     # a tag ref; on this branch ref it correctly does not.
     assert evaluate("assertion.ref.matches('^refs/tags/')", CLAIMS) is False
     # Without the anchor, a crafted ref could smuggle the substring:
-    assert evaluate("assertion.ref.matches('refs/heads')", {**CLAIMS, "ref": "x/refs/heads/y"}) is True
+    assert (
+        evaluate("assertion.ref.matches('refs/heads')", {**CLAIMS, "ref": "x/refs/heads/y"}) is True
+    )
 
 
 def test_absent_claim_raises_not_false() -> None:
@@ -104,7 +112,12 @@ def test_unknown_function_raises() -> None:
 
 
 def test_parse_errors_raise() -> None:
-    for bad in ["assertion.ref ==", "assertion.ref = 'x'", "(assertion.ref == 'x'", "assertion..ref == 'x'"]:
+    for bad in [
+        "assertion.ref ==",
+        "assertion.ref = 'x'",
+        "(assertion.ref == 'x'",
+        "assertion..ref == 'x'",
+    ]:
         with pytest.raises(CelError):
             evaluate(bad, CLAIMS)
 
@@ -118,8 +131,20 @@ def test_non_boolean_result_raises() -> None:
 def test_grouping_overrides_precedence() -> None:
     # (a || b) && c  vs  a || (b && c)
     claims = {**CLAIMS, "event_name": "pull_request"}
-    assert evaluate("(assertion.ref == 'refs/heads/main' || assertion.event_name == 'push') && assertion.repository == 'octo-org/octo-repo'", claims) is True
-    assert evaluate("assertion.event_name == 'push' || assertion.ref == 'refs/heads/dev' && assertion.repository == 'x'", claims) is False
+    assert (
+        evaluate(
+            "(assertion.ref == 'refs/heads/main' || assertion.event_name == 'push') && assertion.repository == 'octo-org/octo-repo'",
+            claims,
+        )
+        is True
+    )
+    assert (
+        evaluate(
+            "assertion.event_name == 'push' || assertion.ref == 'refs/heads/dev' && assertion.repository == 'x'",
+            claims,
+        )
+        is False
+    )
 
 
 NAMESPACED = {
@@ -131,12 +156,24 @@ NAMESPACED = {
 
 def test_bracket_indexing_addresses_namespaced_claim() -> None:
     # A claim whose name has dots/slashes is only reachable via assertion['name'].
-    assert evaluate("assertion['oidc.circleci.com/project-id'] == '76543210-ba98-fedc-3210-edcba0987654'", NAMESPACED) is True
+    assert (
+        evaluate(
+            "assertion['oidc.circleci.com/project-id'] == '76543210-ba98-fedc-3210-edcba0987654'",
+            NAMESPACED,
+        )
+        is True
+    )
     assert evaluate("assertion['oidc.circleci.com/project-id'] == 'other'", NAMESPACED) is False
 
 
 def test_bracket_indexing_composes_with_methods_and_logic() -> None:
-    assert evaluate("assertion.sub.startsWith('org/2a3b4c5d/project/76543210/') && assertion['oidc.circleci.com/vcs-ref'] == 'refs/heads/main'", NAMESPACED) is True
+    assert (
+        evaluate(
+            "assertion.sub.startsWith('org/2a3b4c5d/project/76543210/') && assertion['oidc.circleci.com/vcs-ref'] == 'refs/heads/main'",
+            NAMESPACED,
+        )
+        is True
+    )
     assert evaluate("assertion['oidc.circleci.com/vcs-ref'].endsWith('/main')", NAMESPACED) is True
 
 
@@ -150,7 +187,12 @@ def test_bracket_indexing_and_dot_notation_agree_for_simple_names() -> None:
 
 
 def test_bracket_indexing_malformed_raises() -> None:
-    for bad in ["assertion[] == 'x'", "assertion['a' == 'x'", "assertion[project] == 'x'", "assertion['a'] ['b']"]:
+    for bad in [
+        "assertion[] == 'x'",
+        "assertion['a' == 'x'",
+        "assertion[project] == 'x'",
+        "assertion['a'] ['b']",
+    ]:
         with pytest.raises(CelError):
             evaluate(bad, NAMESPACED)
 
@@ -204,7 +246,7 @@ def test_numeric_escapes_decode() -> None:
     assert _decodes_to("'\\x41'", "A")
     assert _decodes_to("'\\X41'", "A")
     assert _decodes_to("'\\u0041'", "A")
-    assert _decodes_to("'\\U0001F600'", "\U0001F600")
+    assert _decodes_to("'\\U0001F600'", "\U0001f600")
     assert _decodes_to("'\\101'", "A")
     assert _decodes_to("'\\000'", "\x00")
 
@@ -214,12 +256,12 @@ def test_an_invalid_escape_is_a_parse_error() -> None:
     parse error". Accepting one would let this oracle evaluate an expression that
     GCP itself would refuse to save."""
     for bad in [
-        "assertion.v == '\\q'",          # not an escape at all
-        "assertion.v == '\\x4'",         # \\x wants exactly two hex digits
-        "assertion.v == '\\u00'",        # \\u wants exactly four
-        "assertion.v == '\\999'",        # 9 is not an octal digit
+        "assertion.v == '\\q'",  # not an escape at all
+        "assertion.v == '\\x4'",  # \\x wants exactly two hex digits
+        "assertion.v == '\\u00'",  # \\u wants exactly four
+        "assertion.v == '\\999'",  # 9 is not an octal digit
         "assertion.v == '\\U00110000'",  # above the Unicode range
-        "assertion.v == 'a\\'",          # dangling backslash
+        "assertion.v == 'a\\'",  # dangling backslash
     ]:
         with pytest.raises(CelError):
             evaluate(bad, ESCAPE_CLAIMS)

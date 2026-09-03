@@ -95,7 +95,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--suite-version", help="new version for every touched suite")
     parser.add_argument("--dry-run", action="store_true", help="report, change nothing")
     parser.add_argument(
-        "--overwrite-evidence", action="store_true",
+        "--overwrite-evidence",
+        action="store_true",
         help="replace hand-written evidence prose with the generated baseline",
     )
     args = parser.parse_args(argv)

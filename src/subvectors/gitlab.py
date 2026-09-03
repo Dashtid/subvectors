@@ -65,10 +65,10 @@ _SUBJECT_RE = re.compile(
 class SubjectSegment:
     """The parsed leading segment of a GitLab OIDC subject."""
 
-    ref_type: str                 # "branch" or "tag"
-    ref: str                      # short ref name, e.g. "main", "v1.0.0"
-    project_path: str | None      # full slash path when name-based, else None
-    project_id: str | None        # numeric id when the immutable sub form is used
+    ref_type: str  # "branch" or "tag"
+    ref: str  # short ref name, e.g. "main", "v1.0.0"
+    project_path: str | None  # full slash path when name-based, else None
+    project_id: str | None  # numeric id when the immutable sub form is used
 
     @property
     def immutable(self) -> bool:

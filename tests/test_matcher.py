@@ -19,41 +19,60 @@ def _cond(consumer: str, pattern: str) -> dict:
 
 def test_aws_stringlike_star_is_multichar_and_not_path_aware() -> None:
     # '*' spans '/' and ':' -- this is why repo:org/* admits every repo in the org.
-    assert satisfies(
-        "repo:octo-org/any-repo:ref:refs/heads/main", _cond("aws-stringlike", "repo:octo-org/*")
-    ) is True
+    assert (
+        satisfies(
+            "repo:octo-org/any-repo:ref:refs/heads/main", _cond("aws-stringlike", "repo:octo-org/*")
+        )
+        is True
+    )
 
 
 def test_aws_stringlike_question_is_single_char() -> None:
-    assert satisfies(
-        "repo:o/r:ref:refs/heads/main", _cond("aws-stringlike", "repo:o/r:ref:refs/heads/mai?")
-    ) is True
-    assert satisfies(
-        "repo:o/r:ref:refs/heads/ma", _cond("aws-stringlike", "repo:o/r:ref:refs/heads/mai?")
-    ) is False
+    assert (
+        satisfies(
+            "repo:o/r:ref:refs/heads/main", _cond("aws-stringlike", "repo:o/r:ref:refs/heads/mai?")
+        )
+        is True
+    )
+    assert (
+        satisfies(
+            "repo:o/r:ref:refs/heads/ma", _cond("aws-stringlike", "repo:o/r:ref:refs/heads/mai?")
+        )
+        is False
+    )
 
 
 def test_aws_stringequals_treats_star_literally() -> None:
-    assert satisfies(
-        "repo:octo-org/repo:ref:refs/heads/main", _cond("aws-stringequals", "repo:octo-org/*")
-    ) is False
+    assert (
+        satisfies(
+            "repo:octo-org/repo:ref:refs/heads/main", _cond("aws-stringequals", "repo:octo-org/*")
+        )
+        is False
+    )
     assert satisfies("repo:octo-org/*", _cond("aws-stringequals", "repo:octo-org/*")) is True
 
 
 def test_azure_fic_exact_requires_exact_and_is_case_sensitive() -> None:
     pattern = "repo:octo-org/octo-repo:ref:refs/heads/main"
     assert satisfies(pattern, _cond("azure-fic-exact", pattern)) is True
-    assert satisfies(
-        "repo:Octo-Org/octo-repo:ref:refs/heads/main", _cond("azure-fic-exact", pattern)
-    ) is False
+    assert (
+        satisfies("repo:Octo-Org/octo-repo:ref:refs/heads/main", _cond("azure-fic-exact", pattern))
+        is False
+    )
 
 
 def test_azure_fic_exact_has_no_wildcards_unlike_aws() -> None:
     # The same "repo:org/*" string is permissive on AWS StringLike but a literal
     # (matching nothing) on classic Azure FIC.
     star = "repo:octo-org/*"
-    assert satisfies("repo:octo-org/any-repo:ref:refs/heads/main", _cond("aws-stringlike", star)) is True
-    assert satisfies("repo:octo-org/any-repo:ref:refs/heads/main", _cond("azure-fic-exact", star)) is False
+    assert (
+        satisfies("repo:octo-org/any-repo:ref:refs/heads/main", _cond("aws-stringlike", star))
+        is True
+    )
+    assert (
+        satisfies("repo:octo-org/any-repo:ref:refs/heads/main", _cond("azure-fic-exact", star))
+        is False
+    )
 
 
 def test_unsupported_consumer_raises_not_returns_false() -> None:
@@ -67,29 +86,50 @@ def test_azure_fic_flexible_eq_is_exact_and_matches_is_anchored_glob() -> None:
     sub = "repo:octo-org/octo-repo:ref:refs/heads/main"
     assert satisfies(sub, _cond("azure-fic-flexible", f"claims['sub'] eq '{sub}'")) is True
     # matches is anchored: refs/heads/* admits any branch of this repo...
-    assert satisfies(
-        "repo:octo-org/octo-repo:ref:refs/heads/feature-x",
-        _cond("azure-fic-flexible", "claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/*'"),
-    ) is True
+    assert (
+        satisfies(
+            "repo:octo-org/octo-repo:ref:refs/heads/feature-x",
+            _cond(
+                "azure-fic-flexible",
+                "claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/*'",
+            ),
+        )
+        is True
+    )
     # ...but the literal prefix is anchored, so another repo does not match.
-    assert satisfies(
-        "repo:other-org/octo-repo:ref:refs/heads/main",
-        _cond("azure-fic-flexible", "claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/*'"),
-    ) is False
+    assert (
+        satisfies(
+            "repo:other-org/octo-repo:ref:refs/heads/main",
+            _cond(
+                "azure-fic-flexible",
+                "claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/*'",
+            ),
+        )
+        is False
+    )
 
 
 def test_azure_fic_flexible_star_is_not_path_aware_like_aws() -> None:
     # The same over-broad wildcard that AWS StringLike honors and classic FIC treats
     # as a literal: flexible FIC's matches spans '/' and ':', so it is permissive.
     star = "claims['sub'] matches 'repo:octo-org/*'"
-    assert satisfies("repo:octo-org/any-repo:ref:refs/heads/main", _cond("azure-fic-flexible", star)) is True
+    assert (
+        satisfies("repo:octo-org/any-repo:ref:refs/heads/main", _cond("azure-fic-flexible", star))
+        is True
+    )
 
 
 def test_azure_fic_flexible_question_is_fixed_width_single_char() -> None:
     pat = "claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/????'"
-    assert satisfies("repo:octo-org/octo-repo:ref:refs/heads/main", _cond("azure-fic-flexible", pat)) is True
+    assert (
+        satisfies("repo:octo-org/octo-repo:ref:refs/heads/main", _cond("azure-fic-flexible", pat))
+        is True
+    )
     # 'master' is six characters -- the four '?' cannot match it (fails closed).
-    assert satisfies("repo:octo-org/octo-repo:ref:refs/heads/master", _cond("azure-fic-flexible", pat)) is False
+    assert (
+        satisfies("repo:octo-org/octo-repo:ref:refs/heads/master", _cond("azure-fic-flexible", pat))
+        is False
+    )
 
 
 def test_azure_fic_flexible_and_requires_every_clause() -> None:
@@ -99,10 +139,16 @@ def test_azure_fic_flexible_and_requires_every_clause() -> None:
         "and claims['job_workflow_ref'] matches "
         "'octo-org/reusable/.github/workflows/*@refs/heads/main'"
     )
-    ok = {"sub": sub, "job_workflow_ref": "octo-org/reusable/.github/workflows/deploy.yml@refs/heads/main"}
+    ok = {
+        "sub": sub,
+        "job_workflow_ref": "octo-org/reusable/.github/workflows/deploy.yml@refs/heads/main",
+    }
     assert satisfies(sub, _cond("azure-fic-flexible", expr), claims=ok) is True
     # Same caller sub, but the reusable workflow ran on a different ref -> block fails.
-    wrong = {"sub": sub, "job_workflow_ref": "octo-org/reusable/.github/workflows/deploy.yml@refs/heads/dev"}
+    wrong = {
+        "sub": sub,
+        "job_workflow_ref": "octo-org/reusable/.github/workflows/deploy.yml@refs/heads/dev",
+    }
     assert satisfies(sub, _cond("azure-fic-flexible", expr), claims=wrong) is False
 
 
@@ -110,8 +156,11 @@ def test_azure_fic_flexible_rejects_claim_targeting_and_list_pattern() -> None:
     # Claims are addressed inside the expression; a 'claim' key is meaningless, and
     # a list pattern (an AWS multi-value shape) is not part of this language.
     with pytest.raises(ValueError):
-        satisfies("x", {"consumer": "azure-fic-flexible", "claim": "aud", "pattern": "claims['sub'] eq 'x'"},
-                  claims={"sub": "x", "aud": "y"})
+        satisfies(
+            "x",
+            {"consumer": "azure-fic-flexible", "claim": "aud", "pattern": "claims['sub'] eq 'x'"},
+            claims={"sub": "x", "aud": "y"},
+        )
     with pytest.raises(ValueError):
         satisfies("x", {"consumer": "azure-fic-flexible", "pattern": ["a", "b"]})
 
@@ -122,8 +171,14 @@ def test_aws_multivalue_pattern_is_logical_or() -> None:
         "repo:octo-org/repo-a:ref:refs/heads/main",
         "repo:octo-org/repo-b:ref:refs/heads/main",
     ]
-    assert satisfies("repo:octo-org/repo-b:ref:refs/heads/main", _cond("aws-stringequals", values)) is True
-    assert satisfies("repo:octo-org/repo-c:ref:refs/heads/main", _cond("aws-stringequals", values)) is False
+    assert (
+        satisfies("repo:octo-org/repo-b:ref:refs/heads/main", _cond("aws-stringequals", values))
+        is True
+    )
+    assert (
+        satisfies("repo:octo-org/repo-c:ref:refs/heads/main", _cond("aws-stringequals", values))
+        is False
+    )
 
 
 def test_aws_multivalue_one_loose_value_poisons_the_list() -> None:
@@ -176,9 +231,10 @@ def test_claims_without_sub_is_seeded_from_subject() -> None:
     # A claims map lacking 'sub' must not shadow the subject argument: the
     # default sub condition still matches against 'subject'.
     condition = {"consumer": "aws-stringequals", "pattern": "repo:o/r:ref:refs/heads/main"}
-    assert satisfies(
-        "repo:o/r:ref:refs/heads/main", condition, claims={"aud": "sts.amazonaws.com"}
-    ) is True
+    assert (
+        satisfies("repo:o/r:ref:refs/heads/main", condition, claims={"aud": "sts.amazonaws.com"})
+        is True
+    )
 
 
 def _aud_and_sub(sub_pattern: str, sub_consumer: str = "aws-stringequals") -> dict:
@@ -195,15 +251,23 @@ def test_aws_all_requires_every_subcondition() -> None:
     # A Condition block is an AND: all context keys must resolve to true.
     subject = "repo:o/r:ref:refs/heads/main"
     condition = _aud_and_sub(subject)
-    assert satisfies(subject, condition, claims={"sub": subject, "aud": "sts.amazonaws.com"}) is True
+    assert (
+        satisfies(subject, condition, claims={"sub": subject, "aud": "sts.amazonaws.com"}) is True
+    )
     # Right sub, wrong aud -> the block fails.
-    assert satisfies(subject, condition, claims={"sub": subject, "aud": "https://github.com/o"}) is False
+    assert (
+        satisfies(subject, condition, claims={"sub": subject, "aud": "https://github.com/o"})
+        is False
+    )
     # Right aud, wrong sub -> the block fails.
-    assert satisfies(
-        "repo:o/other:ref:refs/heads/main",
-        condition,
-        claims={"sub": "repo:o/other:ref:refs/heads/main", "aud": "sts.amazonaws.com"},
-    ) is False
+    assert (
+        satisfies(
+            "repo:o/other:ref:refs/heads/main",
+            condition,
+            claims={"sub": "repo:o/other:ref:refs/heads/main", "aud": "sts.amazonaws.com"},
+        )
+        is False
+    )
 
 
 def test_aws_all_mixes_operators_and_value_lists() -> None:
@@ -211,19 +275,28 @@ def test_aws_all_mixes_operators_and_value_lists() -> None:
     # with values-OR list semantics still available inside the block.
     subject = "repo:o/r:pull_request"
     condition = _aud_and_sub("repo:o/r:*", sub_consumer="aws-stringlike")
-    assert satisfies(subject, condition, claims={"sub": subject, "aud": "sts.amazonaws.com"}) is True
+    assert (
+        satisfies(subject, condition, claims={"sub": subject, "aud": "sts.amazonaws.com"}) is True
+    )
     listed = {
         "consumer": "aws-all",
         "of": [
             {"consumer": "aws-stringequals", "claim": "aud", "pattern": "sts.amazonaws.com"},
-            {"consumer": "aws-stringequals", "claim": "sub", "pattern": ["repo:o/a:ref:refs/heads/main", "repo:o/b:ref:refs/heads/main"]},
+            {
+                "consumer": "aws-stringequals",
+                "claim": "sub",
+                "pattern": ["repo:o/a:ref:refs/heads/main", "repo:o/b:ref:refs/heads/main"],
+            },
         ],
     }
-    assert satisfies(
-        "repo:o/b:ref:refs/heads/main",
-        listed,
-        claims={"sub": "repo:o/b:ref:refs/heads/main", "aud": "sts.amazonaws.com"},
-    ) is True
+    assert (
+        satisfies(
+            "repo:o/b:ref:refs/heads/main",
+            listed,
+            claims={"sub": "repo:o/b:ref:refs/heads/main", "aud": "sts.amazonaws.com"},
+        )
+        is True
+    )
 
 
 def test_aws_all_rejects_non_aws_subconditions() -> None:

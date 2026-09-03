@@ -44,11 +44,11 @@ Sources:
 from __future__ import annotations
 
 import re
-from typing import Callable
+from collections.abc import Callable
 
 from . import cel, ffl
 
-__all__ = ["satisfies", "UnsupportedConsumer", "SUPPORTED_CONSUMERS"]
+__all__ = ["SUPPORTED_CONSUMERS", "UnsupportedConsumer", "satisfies"]
 
 
 class UnsupportedConsumer(ValueError):
@@ -219,8 +219,7 @@ def satisfies(subject: str, condition: dict, claims: dict | None = None) -> bool
             )
         if qualifier not in SUPPORTED_QUALIFIERS:
             raise ValueError(
-                f"unknown qualifier {qualifier!r}; "
-                f"supported: {sorted(SUPPORTED_QUALIFIERS)}"
+                f"unknown qualifier {qualifier!r}; supported: {sorted(SUPPORTED_QUALIFIERS)}"
             )
         # The qualifier ranges over the values the REQUEST supplies for the key,
         # each of which must (ForAllValues) or may (ForAnyValue) match one of the

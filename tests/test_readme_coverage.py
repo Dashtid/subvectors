@@ -14,7 +14,9 @@ ROOT = Path(__file__).resolve().parents[1]
 
 # Load scripts/coverage.py by path so it cannot collide with the 'coverage'
 # pip package (pytest --cov imports that one first).
-_spec = importlib.util.spec_from_file_location("_subvectors_coverage", ROOT / "scripts" / "coverage.py")
+_spec = importlib.util.spec_from_file_location(
+    "_subvectors_coverage", ROOT / "scripts" / "coverage.py"
+)
 coverage = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(coverage)
 

@@ -185,6 +185,7 @@ def test_observation_block_satisfies_the_schema() -> None:
     schema = json.loads(
         (ROOT / "vectors" / "schema" / "vector-suite.schema.json").read_text(encoding="utf-8")
     )
+
     def resolve(node: dict) -> dict:
         while "$ref" in node:
             node = schema["$defs"][node["$ref"].split("/")[-1]]
@@ -294,7 +295,9 @@ def test_explicit_label_wins() -> None:
 
 def test_creation_probe_rejects_an_unknown_vector() -> None:
     with pytest.raises(ValueError, match="unknown vector id"):
-        observe.resolve_creation_probe(_args(creation_probe="no-such-vector"), observe._load_index())
+        observe.resolve_creation_probe(
+            _args(creation_probe="no-such-vector"), observe._load_index()
+        )
 
 
 def test_no_condition_probe_builds_a_policy_without_a_condition() -> None:
@@ -336,9 +339,7 @@ def test_creation_operators_cover_every_operator_aws_names_in_its_guardrail() ->
 
 
 def test_dry_run_calls_nothing_and_prints_the_command(capsys, monkeypatch) -> None:
-    monkeypatch.setattr(
-        observe, "_run", lambda *a, **k: pytest.fail("dry run must not call aws")
-    )
+    monkeypatch.setattr(observe, "_run", lambda *a, **k: pytest.fail("dry run must not call aws"))
     assert observe.main(["gh-aws-org-wide-wildcard-repo", "--dry-run"]) == 0
     out = capsys.readouterr().out
     assert "DRY-RUN" in out
@@ -346,9 +347,7 @@ def test_dry_run_calls_nothing_and_prints_the_command(capsys, monkeypatch) -> No
 
 
 def test_dry_run_creation_probe_calls_nothing(capsys, monkeypatch) -> None:
-    monkeypatch.setattr(
-        observe, "_run", lambda *a, **k: pytest.fail("dry run must not call aws")
-    )
+    monkeypatch.setattr(observe, "_run", lambda *a, **k: pytest.fail("dry run must not call aws"))
     code = observe.main(
         ["--creation-probe", "gh-aws-multivalue-loose-value-poisons-list", "--dry-run"]
     )

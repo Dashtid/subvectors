@@ -191,16 +191,18 @@ def _build_request(vector: dict) -> dict:
 
 def _build_command(vector: dict) -> list[str]:
     return [
-        "aws", "iam", "simulate-custom-policy",
-        "--cli-input-json", json.dumps(_build_request(vector)),
-        "--output", "json",
+        "aws",
+        "iam",
+        "simulate-custom-policy",
+        "--cli-input-json",
+        json.dumps(_build_request(vector)),
+        "--output",
+        "json",
     ]
 
 
 def _aws_version() -> str:
-    out = subprocess.run(
-        ["aws", "--version"], capture_output=True, text=True, check=False
-    )
+    out = subprocess.run(["aws", "--version"], capture_output=True, text=True, check=False)
     return (out.stdout or out.stderr).strip().split(" ")[0] or "aws-cli/unknown"
 
 
@@ -265,9 +267,8 @@ def write_transcript(
                 "Refusing to overwrite evidence -- pass --label to name this run."
             )
     document = {
-        "recorded_utc": timestamp or datetime.datetime.now(
-            datetime.timezone.utc
-        ).replace(microsecond=0).isoformat(),
+        "recorded_utc": timestamp
+        or datetime.datetime.now(datetime.UTC).replace(microsecond=0).isoformat(),
         "probe_identity": identity,
         **scrub(record),
     }
@@ -282,9 +283,7 @@ def _relative(path: Path) -> str:
         return path.as_posix()
 
 
-def _observation_block(
-    vector: dict, decision: str, aws_version: str, transcript: str
-) -> dict:
+def _observation_block(vector: dict, decision: str, aws_version: str, transcript: str) -> dict:
     condition = vector["condition"]
     operator = _OPERATOR[condition["consumer"]]
     return {
@@ -347,13 +346,9 @@ def _simulate(ids: list[str], index: dict[str, dict], out_dir: Path, dry_run: bo
         if agrees:
             print(f"[+] AGREE    {vector_id}: EvalDecision={decision}")
             print(f"    transcript: {transcript}")
-            print("    paste into the vector alongside \"status\": \"observed\":")
+            print('    paste into the vector alongside "status": "observed":')
             block = json.dumps(
-                {
-                    "observation": _observation_block(
-                        vector, decision, aws_version, transcript
-                    )
-                },
+                {"observation": _observation_block(vector, decision, aws_version, transcript)},
                 indent=2,
             )
             print("    " + block.replace("\n", "\n    "))
@@ -394,8 +389,7 @@ def resolve_creation_probe(
         return operator, values, args.creation_probe
     if not (args.operator and args.values):
         raise ValueError(
-            "creation probe needs a vector id, or both --operator and --values, "
-            "or --no-condition"
+            "creation probe needs a vector id, or both --operator and --values, or --no-condition"
         )
     values = list(args.values)
     # An ad-hoc label must be unique per (operator, values) or two probes collide
@@ -417,7 +411,9 @@ def _creation_probe(
     """Record whether iam:CreateRole ACCEPTS a trust policy. Always cleans up."""
     role_name = f"subvectors-probe-{secrets.token_hex(4)}"
     if dry_run:
-        policy = _trust_policy(operator, values, f"arn:aws:iam::<ACCOUNT>:oidc-provider/{GH_ISSUER}")
+        policy = _trust_policy(
+            operator, values, f"arn:aws:iam::<ACCOUNT>:oidc-provider/{GH_ISSUER}"
+        )
         print(f"[i] DRY-RUN  creation probe {label}  role={role_name}")
         print(f"    operator={operator or 'NONE'} values={json.dumps(values)}")
         print("    " + json.dumps(policy))
@@ -439,8 +435,17 @@ def _creation_probe(
             print("[i] aborted")
             return 0
 
-    create = ["aws", "iam", "create-role", "--role-name", role_name,
-              "--assume-role-policy-document", json.dumps(policy), "--output", "json"]
+    create = [
+        "aws",
+        "iam",
+        "create-role",
+        "--role-name",
+        role_name,
+        "--assume-role-policy-document",
+        json.dumps(policy),
+        "--output",
+        "json",
+    ]
     run = _run(create)
     accepted = run.returncode == 0
     record: dict[str, Any] = {
@@ -498,36 +503,49 @@ def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("ids", nargs="*", help="vector ids (default: the curated set)")
     parser.add_argument(
-        "--dry-run", action="store_true",
+        "--dry-run",
+        action="store_true",
         help="print each aws command instead of executing it",
     )
     parser.add_argument(
-        "--out-dir", type=Path, default=None,
+        "--out-dir",
+        type=Path,
+        default=None,
         help="transcript directory (default: observations/<today>)",
     )
     creation = parser.add_argument_group("creation probe (experiment 4 -- creates a role)")
     creation.add_argument(
-        "--creation-probe", metavar="VECTOR_ID", nargs="?", const="",
+        "--creation-probe",
+        metavar="VECTOR_ID",
+        nargs="?",
+        const="",
         help="probe iam:CreateRole with this vector's condition",
     )
     creation.add_argument(
-        "--operator", choices=CREATION_OPERATORS,
+        "--operator",
+        choices=CREATION_OPERATORS,
         help="condition operator for an ad-hoc creation probe (always recorded)",
     )
     creation.add_argument(
-        "--values", action="append", metavar="VALUE",
+        "--values",
+        action="append",
+        metavar="VALUE",
         help="a sub condition value for an ad-hoc creation probe (repeatable)",
     )
     creation.add_argument(
-        "--no-condition", action="store_true",
+        "--no-condition",
+        action="store_true",
         help="probe the condition-less trust policy (the 2023 bug class)",
     )
     creation.add_argument(
-        "--label", metavar="NAME",
+        "--label",
+        metavar="NAME",
         help="name this probe's transcript (default: ad-hoc-<hash of operator+values>)",
     )
     creation.add_argument(
-        "--yes", action="store_true", help="skip the creation-probe confirmation",
+        "--yes",
+        action="store_true",
+        help="skip the creation-probe confirmation",
     )
     args = parser.parse_args(argv)
 

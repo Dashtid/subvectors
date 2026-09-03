@@ -14,10 +14,11 @@ import importlib.util
 import json
 from pathlib import Path
 
-
 ROOT = Path(__file__).resolve().parents[1]
 
-_spec = importlib.util.spec_from_file_location("_subvectors_promote", ROOT / "scripts" / "promote.py")
+_spec = importlib.util.spec_from_file_location(
+    "_subvectors_promote", ROOT / "scripts" / "promote.py"
+)
 promote = importlib.util.module_from_spec(_spec)
 _spec.loader.exec_module(promote)
 
@@ -132,8 +133,11 @@ def test_creation_probes_are_skipped(tmp_path: Path, capsys) -> None:
     """They are not 1:1 with a vector, so they are written by hand."""
     run_dir = _write_run(
         tmp_path,
-        {"mode": "iam-create-role", "accepted": True,
-         "transcript": "observations/2026-09-01/create-role-x.json"},
+        {
+            "mode": "iam-create-role",
+            "accepted": True,
+            "transcript": "observations/2026-09-01/create-role-x.json",
+        },
     )
     assert promote.main([str(run_dir), "--dry-run"]) == 0
     assert "nothing to promote" in capsys.readouterr().err

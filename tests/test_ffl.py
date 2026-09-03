@@ -21,15 +21,21 @@ CLAIMS = {
 
 def test_eq_is_exact_and_case_sensitive() -> None:
     assert evaluate(f"claims['sub'] eq '{SUB}'", CLAIMS) is True
-    assert evaluate("claims['sub'] eq 'repo:octo-org/octo-repo:ref:refs/heads/dev'", CLAIMS) is False
+    assert (
+        evaluate("claims['sub'] eq 'repo:octo-org/octo-repo:ref:refs/heads/dev'", CLAIMS) is False
+    )
     # A case difference in the owner is a mismatch.
-    assert evaluate("claims['sub'] eq 'repo:Octo-Org/octo-repo:ref:refs/heads/main'", CLAIMS) is False
+    assert (
+        evaluate("claims['sub'] eq 'repo:Octo-Org/octo-repo:ref:refs/heads/main'", CLAIMS) is False
+    )
 
 
 def test_matches_star_is_multichar_and_not_path_aware() -> None:
     # '*' spans '/' and ':' -- so repo:octo-org/* admits every repo and ref in the org.
     assert evaluate("claims['sub'] matches 'repo:octo-org/*'", CLAIMS) is True
-    assert evaluate("claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/*'", CLAIMS) is True
+    assert (
+        evaluate("claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/*'", CLAIMS) is True
+    )
 
 
 def test_matches_is_anchored_not_a_substring() -> None:
@@ -42,15 +48,27 @@ def test_matches_is_anchored_not_a_substring() -> None:
 
 
 def test_matches_question_is_exactly_one_character() -> None:
-    assert evaluate("claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/????'", CLAIMS) is True
+    assert (
+        evaluate("claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/????'", CLAIMS)
+        is True
+    )
     # 'main' is four characters; three '?' cannot match it, five cannot either.
-    assert evaluate("claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/???'", CLAIMS) is False
-    assert evaluate("claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/?????'", CLAIMS) is False
+    assert (
+        evaluate("claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/???'", CLAIMS)
+        is False
+    )
+    assert (
+        evaluate("claims['sub'] matches 'repo:octo-org/octo-repo:ref:refs/heads/?????'", CLAIMS)
+        is False
+    )
 
 
 def test_matches_mixed_star_and_question() -> None:
     claims = {"sub": "repo:octo-org/octo-repo-42:ref:refs/heads/main"}
-    assert evaluate("claims['sub'] matches 'repo:octo-org/octo-repo-*:ref:refs/heads/????'", claims) is True
+    assert (
+        evaluate("claims['sub'] matches 'repo:octo-org/octo-repo-*:ref:refs/heads/????'", claims)
+        is True
+    )
 
 
 def test_and_requires_every_clause() -> None:
@@ -60,7 +78,10 @@ def test_and_requires_every_clause() -> None:
     )
     assert evaluate(both, CLAIMS) is True
     # Second clause fails (wrong ref) -> whole expression false.
-    wrong = {**CLAIMS, "job_workflow_ref": "octo-org/reusable/.github/workflows/deploy.yml@refs/heads/dev"}
+    wrong = {
+        **CLAIMS,
+        "job_workflow_ref": "octo-org/reusable/.github/workflows/deploy.yml@refs/heads/dev",
+    }
     assert evaluate(both, wrong) is False
     # First clause fails -> false, and the second clause is still parsed (no crash).
     assert evaluate(both, {**CLAIMS, "sub": "repo:octo-org/octo-repo:ref:refs/heads/dev"}) is False
@@ -96,12 +117,12 @@ def test_or_is_not_supported() -> None:
 
 def test_parse_errors_raise() -> None:
     for bad in [
-        "claims['sub'] eq",                       # missing comparand
-        "claims['sub'] matches main",             # unquoted comparand
-        "claims[sub] eq 'x'",                     # unquoted claim name
+        "claims['sub'] eq",  # missing comparand
+        "claims['sub'] matches main",  # unquoted comparand
+        "claims[sub] eq 'x'",  # unquoted claim name
         "claims['sub'] eq 'x' claims['sub'] eq 'y'",  # two clauses, no 'and'
-        "sub eq 'x'",                             # missing claims[...] lookup
-        "",                                       # empty
+        "sub eq 'x'",  # missing claims[...] lookup
+        "",  # empty
     ]:
         with pytest.raises(FflError):
             evaluate(bad, CLAIMS)

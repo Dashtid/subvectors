@@ -73,8 +73,17 @@ def preflight(version: str) -> None:
         fail("README coverage table is stale -- run scripts/coverage.py --write and commit")
 
     sha = run("git", "rev-parse", "HEAD")
-    checks = run("gh", "run", "list", "--workflow=ci.yml", "--limit", "10",
-                 "--json", "headSha,status,conclusion", check=False)
+    checks = run(
+        "gh",
+        "run",
+        "list",
+        "--workflow=ci.yml",
+        "--limit",
+        "10",
+        "--json",
+        "headSha,status,conclusion",
+        check=False,
+    )
     if checks:
         for entry in json.loads(checks):
             if entry["headSha"] == sha:
@@ -91,9 +100,13 @@ def preflight(version: str) -> None:
 
 def bump(version: str, dry_run: bool) -> list[str]:
     edits = [
-        (PYPROJECT, re.compile(r'^version = "[^"]+"$', re.M), f'version = "{version}"'),
-        (INIT, re.compile(r'^__version__ = "[^"]+"$', re.M), f'__version__ = "{version}"'),
-        (README, re.compile(r"^> Status: v[^ ]+ on PyPI", re.M), f"> Status: v{version} on PyPI"),
+        (PYPROJECT, re.compile(r'^version = "[^"]+"$', re.MULTILINE), f'version = "{version}"'),
+        (INIT, re.compile(r'^__version__ = "[^"]+"$', re.MULTILINE), f'__version__ = "{version}"'),
+        (
+            README,
+            re.compile(r"^> Status: v[^ ]+ on PyPI", re.MULTILINE),
+            f"> Status: v{version} on PyPI",
+        ),
     ]
     touched = []
     for path, pattern, replacement in edits:
@@ -117,8 +130,17 @@ def wait_for_publish_workflow(tag: str, attempts: int = 60, delay: int = 10) -> 
     happened cutting 0.5.2.
     """
     for _ in range(attempts):
-        raw = run("gh", "run", "list", "--workflow=release.yml", "--limit", "5",
-                  "--json", "headBranch,status,conclusion", check=False)
+        raw = run(
+            "gh",
+            "run",
+            "list",
+            "--workflow=release.yml",
+            "--limit",
+            "5",
+            "--json",
+            "headBranch,status,conclusion",
+            check=False,
+        )
         if raw:
             for entry in json.loads(raw):
                 if entry.get("headBranch") != tag:
@@ -175,8 +197,14 @@ def main(argv: list[str] | None = None) -> int:
         return 0
 
     if touched:
-        run("git", "add", *[str(REPO_ROOT / name) for name in
-                            ("pyproject.toml", "src/subvectors/__init__.py", "README.md")])
+        run(
+            "git",
+            "add",
+            *[
+                str(REPO_ROOT / name)
+                for name in ("pyproject.toml", "src/subvectors/__init__.py", "README.md")
+            ],
+        )
         run("git", "commit", "-m", f"chore(release): {version}")
         run("git", "push", "origin", "main")
     run("git", "tag", tag)

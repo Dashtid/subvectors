@@ -1,6 +1,9 @@
 # One indentation and encoding contract, honoured by VS Code, Visual Studio,
 # JetBrains and most editors without a plugin. Pairs with .gitattributes: that file
-# decides what lands in git, this one decides what your editor types.
+# decides what lands in git, this one decides what the editor types.
+#
+# Shared estate standard. Do not add repo-specific rules above the marker at the
+# bottom of this file - the block above it is overwritten on rollout.
 root = true
 
 [*]
@@ -15,16 +18,28 @@ indent_size = 4
 # silently changes rendered output.
 [*.{md,markdown}]
 trim_trailing_whitespace = false
+max_line_length = off
+
+[*.py]
+indent_size = 4
+max_line_length = 100
+
+[*.{ts,tsx,js,jsx,vue,css,scss,html}]
+indent_size = 2
+max_line_length = 100
 
 [*.{yml,yaml,json,jsonc}]
 indent_size = 2
 
-[*.{ts,tsx,js,jsx,vue,css,scss,html}]
+[*.{toml,ini,cfg}]
 indent_size = 2
 
-# Windows-native scripts stay CRLF, matching .gitattributes.
+# Windows-native scripts stay CRLF, matching .gitattributes. 120 columns because
+# PowerShell's verb-noun cmdlets and named parameters run long by design.
 [*.{ps1,psm1,psd1,bat,cmd}]
 end_of_line = crlf
+indent_size = 4
+max_line_length = 120
 
 [Makefile]
 indent_style = tab
@@ -33,3 +48,10 @@ indent_style = tab
 [*.tsv]
 indent_style = tab
 trim_trailing_whitespace = false
+
+# ---------------------------------------------------------------------------
+# REPO-SPECIFIC RULES BELOW THIS LINE
+# Everything above is the shared standard and is replaced wholesale when the
+# standard is rolled out. Everything below is preserved. Put anything that is
+# true of this repository and not of the others down here.
+# ---------------------------------------------------------------------------

@@ -64,3 +64,13 @@ Dockerfile      text eol=lf
 *.bundle binary
 *.woff   binary
 *.woff2  binary
+*.ttf    binary
+*.otf    binary
+*.eot    binary
+
+# ---------------------------------------------------------------------------
+# REPO-SPECIFIC RULES BELOW THIS LINE
+# Everything above is the shared standard and is replaced wholesale when the
+# standard is rolled out. Everything below is preserved. Merge drivers, evidence
+# trees that must never be filtered, linguist overrides - they go here.
+# ---------------------------------------------------------------------------

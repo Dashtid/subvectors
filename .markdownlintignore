@@ -1,0 +1,20 @@
+# Paths markdownlint must not read.
+node_modules/
+.venv/
+venv/
+build/
+dist/
+.tox/
+htmlcov/
+site/
+
+# Test fixtures are inputs to a parser: their exact bytes, including deliberate
+# malformations, ARE the test. Reformatting one rewrites the test it belongs to.
+**/tests/fixtures/**
+**/test/fixtures/**
+
+# ---------------------------------------------------------------------------
+# REPO-SPECIFIC IGNORES BELOW THIS LINE
+# Everything above is the shared standard and is replaced wholesale when the
+# standard is rolled out. Everything below is preserved.
+# ---------------------------------------------------------------------------

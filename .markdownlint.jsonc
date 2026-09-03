@@ -1,0 +1,34 @@
+// Shared estate markdownlint standard. Strict about things that change how a
+// document RENDERS; silent about house style.
+//
+// Two rules are off because their --fix corrupts prose, proven on this corpus
+// rather than assumed: MD037 deleted the spaces around asterisks used as
+// "required field" markers ("URL* / Why" became "URL*/ Why"), and MD038 is the
+// same class for backticks. MD029 and MD005/MD007 are off because their fixes
+// renumber visible list numbers and re-indent nested items - both move content.
+//
+// Everything left enabled is a real defect: a broken table, an unlabelled code
+// fence, a skipped heading level.
+{
+  "default": true,
+
+  "MD004": { "style": "dash" },      // one bullet character, estate-wide
+  "MD005": false,                    // fix re-indents nested items
+  "MD007": false,                    // fix re-indents nested items
+  "MD009": { "br_spaces": 2 },       // two trailing spaces stay a hard break
+  "MD010": { "code_blocks": false }, // tabs inside code blocks are content
+  "MD013": false,                    // line length: prose is wrapped by hand here
+  "MD024": { "siblings_only": true },// repeated "### Added" per release is correct
+  "MD029": false,                    // fix renumbers lists that start at n
+  "MD030": false,                    // spaces after a list marker: cosmetic
+  "MD033": false,                    // inline HTML is used deliberately
+  "MD036": false,                    // bold lead-ins are emphasis, not headings
+  "MD037": false,                    // UNSAFE FIX - see header
+  "MD038": false,                    // UNSAFE FIX - same class as MD037
+  "MD041": false,                    // files may open with a badge or a quote
+  "MD046": { "style": "fenced" },
+  "MD048": { "style": "backtick" },
+  "MD049": { "style": "asterisk" },
+  "MD050": { "style": "asterisk" },
+  "MD060": false                     // table column padding: cosmetic, ~3000 hits
+}

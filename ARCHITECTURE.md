@@ -18,7 +18,7 @@ detector and doesn't compete with any. It's the thing you test detectors *agains
 When a CI pipeline authenticates to a cloud, the entire security boundary is one string comparison:
 the token's `sub` claim versus an admin-written matching rule.
 
-```
+```text
    subject (what the pipeline presents)      condition (the admin's rule)
    repo:acme/payments-api:pull_request   vs   repo:acme/payments-api:*
 ```
@@ -65,6 +65,7 @@ Three separable layers, deliberately kept apart:
    reads it, so a consumer who disagrees with a grade can strip judgment and still use layers 1–2.
 
 Two fields carry the honesty:
+
 - **`sources`** — every vector cites a primary source. Required by the schema.
 - **`status`** — `documented` (derived from docs) vs `observed` (confirmed against a real
   issuer/cloud; an `observed` vector must carry an `observation` block with method, date and
@@ -74,7 +75,7 @@ Two fields carry the honesty:
 
 ## The files
 
-```
+```text
 vectors/           <- THE PRODUCT. One JSON suite per issuer x cloud (counts: README Coverage). CC0.
   github-aws.json        one file per (issuer x cloud) pair
   github-azure.json      github/gitlab/bitbucket/circleci/terraform x aws/azure/gcp

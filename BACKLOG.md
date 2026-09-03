@@ -575,7 +575,7 @@ One new item was opened by this work rather than closed by it — the `%` collis
 ## Upstream feeder PRs
 
 - `[~]` **CKV_AWS_358 + CKV_AWS_393 multi-value fix — OPENED 2026-08-31 as Checkov PR #7665.**
-  https://github.com/bridgecrewio/checkov/pull/7665 (commit `b7a3443d5`, 6 files, MERGEABLE).
+  <https://github.com/bridgecrewio/checkov/pull/7665> (commit `b7a3443d5`, 6 files, MERGEABLE).
   Thread tracked at `oss-contributions/checkov/7665-multivalue-sub/`. **The first feeder the
   observed-promotion programme produced** — the corpus vector
   `gh-aws-multivalue-loose-value-poisons-list` (promoted 2026-08-30) raised the question of

@@ -77,6 +77,7 @@ trigger (see rethink triggers) — not a cue to keep cataloguing. The corpus the
 substrate for follow-on work, or is donated to a neutral home.
 
 ## v0.1 — GitHub-to-AWS tranche + the two feeder PRs (first month)
+
 *Goal: land the first merged bug-fix PR (Checkov) and stand up the oracle that generated it.*
 
 - [~] **Slice 1 — Checkov `oidc_utils.py` fix (upstream, deadline-bound: before 2026-07-15).**

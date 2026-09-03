@@ -9,6 +9,7 @@ matcher disagrees, one of them is wrong -- and that is a finding, not a flake.
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 import jsonschema
@@ -151,3 +152,97 @@ def test_non_sub_conditions_carry_a_claims_map() -> None:
                 f"{vector['id']} ({name}): condition targets claims {sorted(non_sub)} "
                 f"but the vector carries no claims map to evaluate them against"
             )
+
+
+# --- corpus self-consistency: three invariants an oracle cannot afford to break ---
+#
+# All three held when first checked by hand on 2026-09-03 (58 cross-references,
+# zero contradictions, zero duplicates). They are pinned because nothing was
+# testing them, and each rots silently: a rename leaves a dangling citation, a
+# copy-paste leaves a twin, and a token that gets two answers makes the whole
+# corpus unciteable. `tests/test_judgment_catalog.py` already guards the catalog
+# in both directions; this is the same guarantee for the vectors themselves.
+
+# Deliberately narrow: <issuer>-<consumer>-<rest>, with the consumer segment drawn
+# from the real set. A looser "starts with gh-" would fire on innocent prose such as
+# "the gh-actions runner", and a test that reddens on a sentence is a test people
+# learn to switch off.
+_ID_TOKEN = re.compile(
+    r"\b(?:gh|gl|gitlab|tfc|az|circleci|bitbucket)-(?:aws|gcp|flex|fic|az)-[a-z0-9-]+"
+)
+
+
+def _prose(vector: dict) -> str:
+    """Every place a vector may name a sibling."""
+    judgment = vector.get("judgment") or {}
+    observation = vector.get("observation") or {}
+    return " ".join(
+        [
+            vector.get("description", ""),
+            judgment.get("reason", ""),
+            observation.get("evidence", ""),
+        ]
+    )
+
+
+def test_cross_referenced_vector_ids_exist() -> None:
+    """A vector that cites a sibling must cite one that is still there.
+
+    Descriptions lean on each other heavily -- "contrast X", "the inverse of Y",
+    "the repair for Z" -- and those citations are load-bearing prose in a
+    published corpus, not editorial garnish. A rename that leaves one dangling
+    points a reader at nothing.
+    """
+    ids = {v["id"] for _, v in _VECTOR_CASES}
+    dangling: dict[str, set[str]] = {}
+    for _, vector in _VECTOR_CASES:
+        for referenced in _ID_TOKEN.findall(_prose(vector)):
+            if referenced != vector["id"] and referenced not in ids:
+                dangling.setdefault(vector["id"], set()).add(referenced)
+    assert not dangling, f"vectors cite ids that are not in the corpus: {dangling}"
+
+
+def _token_key(vector: dict) -> tuple[str, str, str, str]:
+    """Everything the verdict is a function of: the token, and the condition."""
+    return (
+        vector["issuer"],
+        vector["subject"],
+        json.dumps(vector.get("claims"), sort_keys=True),
+        json.dumps(vector["condition"], sort_keys=True),
+    )
+
+
+def test_no_two_vectors_disagree_on_the_same_token() -> None:
+    """The corpus must not answer one question two ways.
+
+    Same issuer, same subject, same claims, same condition -- the verdict is
+    determined, so two vectors declaring different `expect` values would mean at
+    least one is wrong and a consumer testing against both can never pass. Note
+    that differing only in the `claims` map is NOT a contradiction: those are
+    different tokens, which is exactly how the aud-mismatch and
+    repository_id-mismatch pairs are built.
+    """
+    verdicts: dict[tuple[str, str, str, str], list[tuple[str, str]]] = {}
+    for _, vector in _VECTOR_CASES:
+        verdicts.setdefault(_token_key(vector), []).append((vector["id"], vector["expect"]))
+    conflicts = {
+        key: entries for key, entries in verdicts.items() if len({e for _, e in entries}) > 1
+    }
+    assert not conflicts, (
+        "vectors give different verdicts for an identical token and condition: "
+        f"{[[i for i, _ in v] for v in conflicts.values()]}"
+    )
+
+
+def test_no_vector_is_an_exact_duplicate_of_another() -> None:
+    """Two vectors that agree on everything teach one thing, and cost two.
+
+    A twin usually means a copy-paste that never got its point edited in. It also
+    inflates the corpus's own headline number, which this repo's scoreboard
+    explicitly treats as an input rather than a score.
+    """
+    seen: dict[tuple[str, str, str, str], list[str]] = {}
+    for _, vector in _VECTOR_CASES:
+        seen.setdefault((*_token_key(vector), vector["expect"]), []).append(vector["id"])
+    twins = [group for group in seen.values() if len(group) > 1]
+    assert not twins, f"vectors are exact duplicates of one another: {twins}"

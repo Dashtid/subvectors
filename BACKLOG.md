@@ -296,6 +296,25 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   cited example id real), so the vocabulary can't sprawl silently. Follow-up parked in the file's
   Vocabulary note: a consolidation pass could collapse the near-synonyms (`org-wide`/`wildcard-repo`,
   `path-based`/`path-only`/`path-reuse`, `always-false`/`vacuous-guard`) into a smaller set.
+- `[x]` **Corpus self-consistency audit + three standing guards.** Run 2026-09-03. The corpus came
+  back clean on all three checks — 47 distinct cross-referenced vector ids all resolving, no two
+  vectors disagreeing on an identical token, no exact duplicates — which is the quiet result. The
+  durable output is that **none of the three was being tested**, and each rots silently: a rename
+  leaves a dangling citation, a copy-paste leaves a twin, and a token that gets two answers makes
+  the whole corpus unciteable. `tests/test_judgment_catalog.py` already guarded the catalog in both
+  directions; the vectors themselves had no equivalent. Now in `tests/test_vectors.py`:
+  `test_cross_referenced_vector_ids_exist`, `test_no_two_vectors_disagree_on_the_same_token`,
+  `test_no_vector_is_an_exact_duplicate_of_another`. All three were mutation-tested — a ghost
+  citation, a flipped verdict and a twin were injected and each was caught, so none is vacuous.
+  Two design notes worth keeping:
+  - The verdict key is `(issuer, subject, claims, condition)`. Differing only in the `claims` map is
+    NOT a contradiction — those are different tokens, which is exactly how the aud-mismatch and
+    repository_id-mismatch pairs are built. A first pass that keyed on `(subject, condition)` alone
+    reported seven "contradictions", every one of them a legitimate pair.
+  - The id-matching regex is deliberately narrow (`<issuer>-<consumer>-<rest>` with the consumer
+    segment drawn from the real set) rather than "any token starting with `gh-`". The loose form
+    would fire on innocent prose such as "the gh-actions runner", and a test that reddens on a
+    sentence is a test people learn to switch off.
 - `[~]` **Immutable-format completeness.** Two of the three sub-items closed 2026-09-03 (github-aws
   0.8.0, three vectors); the third is not closed because the primary sources do not answer it.
   - `[x]` **Rename/transfer triggers.** Verified verbatim from both sources. GitHub's reference:

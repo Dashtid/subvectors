@@ -129,3 +129,36 @@ def test_a_wildcard_after_the_repo_segment_still_yields_the_segment():
     segment = parse_repo_segment("repo:octo-org/octo-repo:*")
     assert segment is not None
     assert (segment.owner, segment.repo) == ("octo-org", "octo-repo")
+
+
+def test_the_immutable_customized_sub_parses_without_a_context_segment() -> None:
+    """Two rules meet here, and the corpus depends on both holding at once.
+
+    GitHub's `include_claim_keys: ["repo"]` mints a bare `repo:ORG/REPO`, and on an
+    immutable repository "owner_id and repo_id are always included in the repo
+    segment ... even when you customize claims" -- so the customized subject of an
+    immutable repo is `repo:OWNER@OWNER-ID/REPO@REPO-ID` with nothing after it.
+    That shape only parses because the context segment is optional, which is a
+    separate fix (2026-09-02); pinned here so neither change can quietly undo the
+    other. Vector: gh-aws-immutable-custom-sub-keeps-the-ids.
+    """
+    segment = parse_repo_segment("repo:octo-org@123456/octo-repo@456789")
+    assert segment is not None
+    assert (segment.owner, segment.repo) == ("octo-org", "octo-repo")
+    assert (segment.owner_id, segment.repo_id) == ("123456", "456789")
+    assert segment.immutable
+
+
+def test_a_renamed_repository_keeps_its_ids_and_changes_its_name() -> None:
+    """A rename after 2026-07-15 flips the format and moves the NAME only.
+
+    The repo id is what a rename cannot touch, which is the whole argument for
+    pinning repository_id over a name. Vector:
+    gh-aws-rename-flips-format-and-breaks-the-policy.
+    """
+    before = parse_repo_segment("repo:octo-org@123456/octo-repo@7891011:ref:refs/heads/main")
+    after = parse_repo_segment("repo:octo-org@123456/octo-repo-renamed@7891011:ref:refs/heads/main")
+    assert before is not None and after is not None
+    assert before.repo != after.repo
+    assert before.repo_id == after.repo_id == "7891011"
+    assert before.owner_id == after.owner_id == "123456"

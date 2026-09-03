@@ -1,6 +1,6 @@
 {
   "suite": "github-aws",
-  "version": "0.7.0",
+  "version": "0.8.0",
   "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., not available in session), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns. 0.3.0 tranche: aws-all composite vectors modeling full IAM Condition blocks (keys ANDed, values ORed, operators mixed) including AWS's and GitHub's own documented trust-policy shapes. 0.3.1: first observed promotions -- 5 vectors confirmed against the live IAM policy simulator (case-sensitivity, the *-spans-separators family, zero-width *), each carrying its observation block. 0.3.2: multivalue-loose-value-poisons-list promoted (6 observed) -- the simulator admits the poisoned OR-list, and iam:CreateRole ACCEPTS it (and even a literal '*' value) while rejecting a condition-less policy, so AWS's creation-time guardrail blocks the 2023 sub-less class but leaves the multi-value hole open. 0.4.0: the 2026-08-31 re-run put the whole AWS tranche on committed transcripts (observations/2026-08-31/) -- 11 observed, and the creation probe repeated with its condition operator recorded, which is what the 0.3.3 narrowing was waiting on. 0.4.2: five creation probes settle the shape -- AWS's creation guardrail validates only the FIRST value of the sub condition's list and is order-dependent (\"*\" first is REJECTED, the same \"*\" second is ACCEPTED), the same first-value-only defect the corpus feeds upstream to scanners. 0.5.0: the ForAllValues/ForAnyValue set-operator tranche -- AWS directs that neither qualifier be used on a single-valued context key, and on a claim a token may omit (environment) ForAllValues under an Allow passes VACUOUSLY while ForAnyValue fails closed; neither tightens a poisoned OR-list, and a correct aud pin does not rescue the fail-open.",
   "vectors": [
     {
@@ -1243,6 +1243,90 @@
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
         "https://docs.github.com/en/actions/reference/security/oidc",
         "https://docs.github.com/en/actions/deployment/security-hardening-your-deployments/configuring-openid-connect-in-amazon-web-services",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-rename-flips-format-and-breaks-the-policy",
+      "description": "The immutable migration reaches repositories nobody opted in. GitHub is explicit that existing repositories keep the old format -- 'Repositories created before July 15, 2026 keep the previous format unless you opt in' -- and equally explicit about the exception: 'Repository renames and transfers after July 15, 2026 also move to the immutable subject format', restated in the changelog timeline as 'GitHub will automatically enforce the new format for all new repositories and renames.' So a repository older than the cutover, with a classic trust policy that has worked for years, flips format the moment somebody renames it. Neither the workflow nor the policy was touched. (The rollout excludes GitHub Enterprise Server.)",
+      "issuer": "github",
+      "subject": "repo:octo-org@123456/octo-repo-renamed@7891011:ref:refs/heads/main",
+      "condition": {
+        "consumer": "aws-stringlike",
+        "claim": "sub",
+        "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main"
+      },
+      "expect": "no-match",
+      "judgment": {
+        "grade": "caution",
+        "reason": "Fails closed, so it is an availability break rather than exposure -- but the trigger is what makes it worth encoding. A rename is a routine action available to anyone with admin on the repository, carries no security review, and is not reversible in its effect on the subject format. Distinct from gh-aws-immutable-subject-classic-pattern, where a new repository mints an immutable subject and the mismatch is expected at setup time; here both the repository and the policy predate the change and neither was edited. GitHub's instruction is the whole remedy: 'Update your trust policies to match the format your repository uses.'",
+        "patterns": [
+          "immutable-break",
+          "classic-sub",
+          "rename-break"
+        ]
+      },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/reference/security/oidc",
+        "https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-format-tolerant-wildcard-admits-prefix-orgs",
+      "description": "The repair for the rename break, and the reason this tranche exists. Faced with a policy that matches the classic subject but not the immutable one, the tempting fix is a pattern tolerant of both: repo:octo-org*/octo-repo*:ref:refs/heads/main, where each * is there only to absorb an optional @ID. IAM's * is not delimiter-aware and does not know that is what it was for. It equally absorbs the rest of an owner name and the rest of a repository name, so the pattern admits any owner beginning with 'octo-org' and any repository beginning with 'octo-repo' -- names an outsider can register. This token is such a pair.",
+      "issuer": "github",
+      "subject": "repo:octo-org-ci@999999/octo-repo-fork@111213:ref:refs/heads/main",
+      "condition": {
+        "consumer": "aws-stringlike",
+        "claim": "sub",
+        "pattern": "repo:octo-org*/octo-repo*:ref:refs/heads/main"
+      },
+      "expect": "match",
+      "judgment": {
+        "grade": "dangerous",
+        "reason": "A wildcard added to survive a format change widens the identity, not the format. The trust boundary becomes 'any account whose name starts with octo-org, holding any repository whose name starts with octo-repo' -- registrable by anyone, and the branch pin does nothing to help because the attacker controls their own main. The two real repairs are exact: write the immutable pattern out in full, or move the identity to the repository_id and repository_owner_id condition keys, which are unaffected by the subject format entirely (gh-aws-repository-id-immutable-pin).",
+        "patterns": [
+          "wildcard-repo",
+          "cybersquat",
+          "immutable-break",
+          "name-based"
+        ]
+      },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/reference/security/oidc",
+        "https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
+      ]
+    },
+    {
+      "id": "gh-aws-immutable-custom-sub-keeps-the-ids",
+      "description": "Subject customization cannot opt out of the IDs. GitHub, verbatim: 'For repositories using immutable subject claims ..., owner_id and repo_id are always included in the repo segment of the sub claim, even when you customize claims with include_claim_keys. You can't remove these IDs from the immutable format.' So include_claim_keys ['repo'] on an immutable repository mints repo:OWNER@OWNER-ID/REPO@REPO-ID and nothing else -- the immutable twin of gh-aws-repo-only-customized-sub-admits-everything. The IDs change what the subject IDENTIFIES; they change nothing about what it ADMITS.",
+      "issuer": "github",
+      "subject": "repo:octo-org@123456/octo-repo@456789",
+      "condition": {
+        "consumer": "aws-stringequals",
+        "claim": "sub",
+        "pattern": "repo:octo-org@123456/octo-repo@456789"
+      },
+      "expect": "match",
+      "judgment": {
+        "grade": "dangerous",
+        "reason": "Every branch, tag, environment and pull_request run of the repository satisfies this condition, including a pull_request run on an unmerged branch -- the same breadth as the classic repo-only customized subject, now rename-proof about it. The embedded IDs read as hardening to a reviewer, and immutability and scope are independent properties: the same lesson gh-aws-repository-owner-id-alone-is-org-wide carries on the condition-key side. What narrows this subject is adding claim keys back to it, not the IDs already in it.",
+        "patterns": [
+          "custom-sub",
+          "immutable",
+          "repo-wide",
+          "no-event-guard",
+          "scanner-blindspot"
+        ]
+      },
+      "status": "documented",
+      "sources": [
+        "https://docs.github.com/en/actions/reference/security/oidc",
+        "https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/",
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
       ]
     }

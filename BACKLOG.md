@@ -296,8 +296,42 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   cited example id real), so the vocabulary can't sprawl silently. Follow-up parked in the file's
   Vocabulary note: a consolidation pass could collapse the near-synonyms (`org-wide`/`wildcard-repo`,
   `path-based`/`path-only`/`path-reuse`, `always-false`/`vacuous-guard`) into a smaller set.
-- `[ ]` **Immutable-format completeness.** Rename/transfer trigger vectors; `job_workflow_ref`
-  grammar (stays mutable, not `@id`-suffixed); custom subject-claim templates.
+- `[~]` **Immutable-format completeness.** Two of the three sub-items closed 2026-09-03 (github-aws
+  0.8.0, three vectors); the third is not closed because the primary sources do not answer it.
+  - `[x]` **Rename/transfer triggers.** Verified verbatim from both sources. GitHub's reference:
+    "Repositories created before July 15, 2026 keep the previous format unless you opt in" AND
+    "Repository renames and transfers after July 15, 2026 also move to the immutable subject
+    format"; the changelog timeline says "GitHub will automatically enforce the new format for all
+    new repositories and renames." So the migration reaches repositories nobody opted in, on a day
+    nobody planned, through an action that is not a security change:
+    `gh-aws-rename-flips-format-and-breaks-the-policy` (caution — fails closed, but the trigger is a
+    routine rename by anyone with repo admin, and neither the repository nor the policy was edited).
+    Distinct from the existing `gh-aws-immutable-subject-classic-pattern`, where a NEW repository
+    mints an immutable subject and the mismatch is expected at setup.
+    The payoff vector is the repair: `gh-aws-format-tolerant-wildcard-admits-prefix-orgs`
+    (dangerous). The obvious fix for a policy that matches one format but not the other is
+    `repo:octo-org*/octo-repo*:...`, each `*` intended only to absorb an optional `@ID`. IAM's `*`
+    is not delimiter-aware and absorbs the rest of the owner and repository names too, so the
+    boundary becomes "any account starting with octo-org holding any repo starting with octo-repo" —
+    registrable by an outsider. A wildcard added to survive a format change widens the IDENTITY.
+  - `[x]` **Custom subject-claim templates.** GitHub, verbatim: "owner_id and repo_id are always
+    included in the `repo` segment of the `sub` claim, even when you customize claims with
+    `include_claim_keys`. You can't remove these IDs from the immutable format."
+    `gh-aws-immutable-custom-sub-keeps-the-ids` (dangerous) is the immutable twin of
+    `gh-aws-repo-only-customized-sub-admits-everything`: still admits every branch, tag, environment
+    and pull_request of the repo, now rename-proof about it. Immutability and scope are independent,
+    the same lesson `gh-aws-repository-owner-id-alone-is-org-wide` carries on the condition-key side.
+    Two grammar tests pin the shapes, including the bare `repo:OWNER@ID/REPO@ID` with no context
+    segment — which parses only because the context segment was made optional on 2026-09-02, so
+    neither change can quietly undo the other.
+  - `[ ]` **`job_workflow_ref` under immutable subjects — NOT verified, and the note that started
+    this item was wrong to assert it.** The backlog said jwr "stays mutable, not `@id`-suffixed".
+    Checked both primary sources on 2026-09-03: GitHub's OIDC reference does not address it, and the
+    2026-04-23 changelog does not mention `job_workflow_ref` at all — it speaks only about the `sub`
+    claim. So the claim is plausible and unsourced, and no vector ships on it. Needs a probe:
+    on a repository using immutable subject claims, run a job from a reusable workflow and read the
+    `job_workflow_ref` claim. Pairs naturally with the `%` collision probe — same scratch repo, same
+    workflow that dumps the token's claims.
 - `[~]` **Promote key vectors `documented` -> `observed`** — no longer optional/low-priority:
   **DECISION TAKEN 2026-08-22: cloud sandbox is IN SCOPE** (personal free-tier, personal gear;
   the observed:documented ratio is the corpus's real quality metric; it read 0:133 at decision time

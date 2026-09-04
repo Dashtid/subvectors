@@ -3,10 +3,71 @@
 subvectors is a **cited, versioned answer key** for CI/CD OIDC trust decisions: JSON test
 vectors, each asking "does subject S satisfy trust condition C, and is C safe?", plus a tiny
 Python reference matcher that must reproduce every declared result. The corpus is the product.
-A contribution is almost always **a new vector** (or a new suite / consumer to hold one).
+A contribution is almost always **a new vector, or a correction to an existing one** (occasionally a new suite or consumer to hold a vector).
 
 Before writing anything, skim [`README.md`](README.md) and the schema at
 [`vectors/schema/vector-suite.schema.json`](vectors/schema/vector-suite.schema.json).
+
+## What a useful contribution looks like
+
+**There are no open issues, and that is deliberate.** [`BACKLOG.md`](BACKLOG.md) is the tracker: it
+carries the open work, the closed work with the reasoning that closed it, and the named check each
+open item still needs. Starter tickets are not filed here — a fabricated one that sits open for a
+year says more about a repository than an empty tracker does.
+
+Several backlog items are unclaimed, specific, and need nothing but a scratch repository and a
+workflow that prints the token's claims: whether `%` is itself escaped in GitHub's documented
+`%3A` substitution (if it is not, two differently-named environments mint the same subject), and
+whether `job_workflow_ref` carries `@id` suffixes under immutable subject claims — which the
+corpus deliberately does not assert, because neither primary source says.
+
+Three kinds of change are wanted, in descending order of value.
+
+### 1. A correction to an existing vector
+
+The most valuable contribution, and the one this corpus is built to invite. Every vector states a
+falsifiable claim and cites the page it rests on. **If a cited page does not say what the vector
+says it says, that is a defect** — report it or patch it.
+
+This is not hypothetical politeness. `BACKLOG.md` records corrections that have already landed,
+with what was wrong and why it survived review: a GitLab claim about `ref_protected` that was
+simply false, a Checkov behaviour attributed to the wrong check, and a grading call that stated an
+assumption as though it were a fact. A corpus whose errors are public is the point, not an
+embarrassment.
+
+A correction carries the same burden as a vector: the primary-source URL, and the sentence on it.
+
+### 2. A vector that encodes a verified finding
+
+The planned matrix is complete — all five issuers across six consumer semantics have shipped — so
+**a vector is not accepted for filling a cell, rounding out a set, or making a table symmetrical.**
+[`ROADMAP.md`](ROADMAP.md) states the test: *"what did I find?", not "what is missing?"*
+
+A finding is one of:
+
+- **A documented contradiction** — two primary sources that cannot both be followed, or one page
+  whose own example does not work as printed.
+- **An over-permission a real policy reaches by a plausible route** — not a contrived pattern, but
+  a shape someone writes for a reason, often while repairing something else.
+- **A tool disagreement** — a scanner that admits a condition this corpus grades `dangerous`, or
+  rejects one it grades `safe`. These are the highest-value findings, because they become upstream
+  PRs against the tool.
+
+If the honest answer to "why this vector?" is "the table had a hole", the answer is no.
+
+### 3. A `documented` vector promoted to `observed`
+
+The ratio of `observed` to `documented` is the corpus's real quality metric, and it is by some
+distance the weaker number. [`docs/OBSERVED-PROMOTION.md`](docs/OBSERVED-PROMOTION.md) is the
+runbook and [`scripts/observe_aws.py`](scripts/observe_aws.py) the harness. Promotion requires a
+committed transcript, and `tests/test_observations.py` checks that the transcript is genuinely
+about that vector and records the verdict the vector claims — so `observed` cannot become a label
+someone applies by hand.
+
+Whichever of the three it is, the judgement calls are already written down:
+[`docs/JUDGMENT-CATALOG.md`](docs/JUDGMENT-CATALOG.md) is the controlled vocabulary, with
+every pattern tag's mechanism, typical grade, and a real example vector. Read it before
+choosing a `grade` — see [Grading](#grading) for how it is enforced.
 
 ## Two invariants every vector must satisfy
 

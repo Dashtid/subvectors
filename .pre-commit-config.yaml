@@ -58,9 +58,9 @@ repos:
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.47.0
     hooks:
+      # Rules live in .markdownlint.jsonc. No --fix: a linter that silently
+      # rewrites prose is how "URL* / Why" became "URL*/ Why".
       - id: markdownlint
-        # Rules live in .markdownlint.jsonc. No --fix: a linter that silently
-        # rewrites prose is how "URL* / Why" became "URL*/ Why".
 
   - repo: https://github.com/compilerla/conventional-pre-commit
     rev: v4.3.0

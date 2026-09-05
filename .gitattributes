@@ -13,12 +13,17 @@
 * text=auto
 
 # Text formats: LF in the repository and in the working tree.
+# (.bash and .bats are bash; bats tests run on Linux runners.)
+# [!] No trailing comments on a rule line - git parses the '#' as another
+# attribute name and warns on every command.
 *.md    text eol=lf
 *.txt   text eol=lf
 *.rst   text eol=lf
 *.py    text eol=lf
 *.pyi   text eol=lf
 *.sh    text eol=lf
+*.bash  text eol=lf
+*.bats  text eol=lf
 *.yml   text eol=lf
 *.yaml  text eol=lf
 *.json  text eol=lf

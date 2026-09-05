@@ -33,7 +33,7 @@ SEMVER = re.compile(r"^\d+\.\d+\.\d+$")
 
 
 def run(*args: str, check: bool = True) -> str:
-    result = subprocess.run(args, capture_output=True, text=True, cwd=REPO_ROOT)
+    result = subprocess.run(args, capture_output=True, text=True, cwd=REPO_ROOT, check=False)
     if check and result.returncode != 0:
         raise SystemExit(f"error: {' '.join(args)}\n{result.stderr.strip()}")
     return result.stdout.strip()
@@ -60,7 +60,11 @@ def preflight(version: str) -> None:
 
     print("[i] running the test suite")
     tests = subprocess.run(
-        [sys.executable, "-m", "pytest", "-q"], cwd=REPO_ROOT, capture_output=True, text=True
+        [sys.executable, "-m", "pytest", "-q"],
+        cwd=REPO_ROOT,
+        capture_output=True,
+        text=True,
+        check=False,
     )
     if tests.returncode != 0:
         fail("tests fail:\n" + tests.stdout[-2000:])
@@ -160,14 +164,17 @@ def verify_pypi(version: str, attempts: int = 18, delay: int = 10) -> bool:
     stale edge, not a failed release -- pip may still 404 for a little longer.
     """
     url = f"https://pypi.org/pypi/subvectors/{version}/json"
+    last_error: OSError | None = None
     for _ in range(attempts):
         try:
             with urllib.request.urlopen(url, timeout=15) as response:
                 if response.status == 200:
                     return True
-        except Exception:
-            pass
+        except OSError as exc:  # URLError/HTTPError/timeout: not up yet, poll again
+            last_error = exc
         time.sleep(delay)
+    if last_error is not None:
+        print(f"[i] last availability probe error: {last_error}")
     return False
 
 

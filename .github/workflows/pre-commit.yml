@@ -1,0 +1,46 @@
+# Generated from estate/standards/workflow-precommit.yml - edit it THERE, then
+# re-run `python standards/rollout.py --apply`.
+#
+# WHY THIS EXISTS. The git hooks are advisory: --no-verify walks past them and
+# a fresh clone does not have them at all. This job is the enforcement - the
+# SAME gate, run the same way, over the whole tree on every push. Local hooks
+# make the feedback fast; this makes it inescapable.
+#
+# Action steps are pinned to full commit SHAs (the tag in the comment is for
+# humans) - a moved tag on a compromised action then changes nothing here.
+name: pre-commit
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+# A superseded push's gate result is worthless - stop paying for it.
+concurrency:
+  group: pre-commit-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.13'
+
+      # Hook environments are rebuilt only when the hook config changes.
+      - uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+        with:
+          path: ~/.cache/pre-commit
+          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+
+
+      # Same pre-commit the workstations run - pinned, like every other rev in
+      # the standard. Move it here and in the local installs together.
+      - run: python -m pip install pre-commit==4.6.0
+
+      - run: pre-commit run --all-files --show-diff-on-failure --color=always

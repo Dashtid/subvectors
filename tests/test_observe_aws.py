@@ -279,7 +279,7 @@ def test_ad_hoc_labels_differ_per_probe() -> None:
 
 def test_ad_hoc_label_is_stable_for_the_same_probe() -> None:
     index = observe._load_index()
-    args = dict(creation_probe="", operator="StringLike", values=["repo:acme/x", "*"])
+    args = {"creation_probe": "", "operator": "StringLike", "values": ["repo:acme/x", "*"]}
     first = observe.resolve_creation_probe(_args(**args), index)[2]
     second = observe.resolve_creation_probe(_args(**args), index)[2]
     assert first == second

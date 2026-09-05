@@ -288,7 +288,7 @@ def _observation_block(vector: dict, decision: str, aws_version: str, transcript
     operator = _OPERATOR[condition["consumer"]]
     return {
         "method": "aws-iam-policy-simulator",
-        "date": datetime.date.today().isoformat(),
+        "date": datetime.datetime.now(tz=datetime.UTC).date().isoformat(),
         "evidence": (
             f"simulate-custom-policy: {operator} {CONTEXT_KEY} "
             f"{json.dumps(condition['pattern'])} vs subject "
@@ -430,10 +430,9 @@ def _creation_probe(
 
     print(f"[!] creation probe {label}: creates IAM role {role_name}, then deletes it.")
     print(f"    operator={operator or 'NONE'} values={json.dumps(values)}")
-    if not assume_yes:
-        if input("    proceed? [y/N] ").strip().lower() not in ("y", "yes"):
-            print("[i] aborted")
-            return 0
+    if not assume_yes and input("    proceed? [y/N] ").strip().lower() not in ("y", "yes"):
+        print("[i] aborted")
+        return 0
 
     create = [
         "aws",
@@ -550,7 +549,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     index = _load_index()
-    out_dir = args.out_dir or (OBSERVATIONS_DIR / datetime.date.today().isoformat())
+    today = datetime.datetime.now(tz=datetime.UTC).date().isoformat()
+    out_dir = args.out_dir or (OBSERVATIONS_DIR / today)
 
     is_creation = args.creation_probe is not None or args.no_condition
     if not args.dry_run and shutil.which("aws") is None:

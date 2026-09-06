@@ -119,6 +119,20 @@ repos:
   # --- GitHub Actions -------------------------------------------------------
   # check-yaml validates syntax only; this catches expression typos, bad needs:
   # references and shell errors inside run: blocks.
+  #
+  # [!] THIS HOOK IS STRICTER IN CI THAN ON YOUR MACHINE, AND SILENTLY SO.
+  # actionlint shells out to shellcheck for every `run:` block, but only when
+  # shellcheck is on PATH - and it says nothing when it is not. GitHub's runner
+  # images ship shellcheck; Windows dev boxes here do not. So the hook passes
+  # locally, the gate goes red on push, and the diff is identical. That is
+  # exactly how sysadmin-toolkit earned this workflow on a local pass and then
+  # failed its first CI run with 38 findings (2026-09-06).
+  #
+  # To reproduce CI locally, APPEND (never prepend - it shadows python) the
+  # shellcheck-py hook's own binary to PATH:
+  #   export PATH="$PATH:$HOME/.cache/pre-commit/<shellcheck repo dir>/py_env-python3.13/Scripts"
+  # Find the directory with:
+  #   grep -rl shellcheck ~/.cache/pre-commit/*/.pre-commit-hooks.yaml
   - repo: https://github.com/rhysd/actionlint
     # v1.7.8+ dropped ubuntu-20.04/windows-2019 as valid labels and remapped
     # the -latest aliases; nothing here used the dropped ones.

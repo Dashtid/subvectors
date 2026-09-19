@@ -9,7 +9,7 @@ slice, update this file, stop.
 
 ## Where this actually stands (2026-09-03)
 
-**14 suites / 160 vectors** — 149 `documented`, 11 `observed` — 400 tests, CI green on 3.11-3.13,
+**14 suites / 160 vectors** — 149 `documented`, 11 `observed` — 403 tests, CI green on 3.11-3.13,
 published to PyPI (latest release v0.6.0; `github-aws` 0.8.0 is staged on `main` for the next cut).
 
 **On "the corpus is feature-complete. Do not add vectors."** That line stood here from 2026-08-18
@@ -90,7 +90,7 @@ substrate for follow-on work, or is donated to a neutral home.
       Not yet merged, so still `[~]`.
 - [x] **Slice 2 — suite skeleton.** JSON Schema for vectors; GitHub issuer grammar (classic AND
       immutable formats); ~20 AWS StringLike/StringEquals match/no-match vectors including
-      wildcard-vs-immutable-ID footguns; ~100-line Python reference matcher passing pytest.
+      wildcard-vs-immutable-ID footguns; a Python reference matcher passing pytest.
       Vector layout shaped so Checkov-style parametrized tests can be regenerated from it (the
       adoption hook). Done: skeleton shipped, github-aws now 27 vectors (0.2.0 tranche
       2026-07-16, adversarially source-verified); Azure/GCP/GitLab tranches landed alongside.

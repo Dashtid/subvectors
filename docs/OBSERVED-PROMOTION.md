@@ -22,10 +22,10 @@ how you confirmed it. `tests/test_vectors.py` enforces both directions.
   "status": "observed",
   "observation": {
     "method": "aws-iam-policy-simulator",
-    "date": "2026-08-25",
-    "evidence": "simulate-custom-policy: StringLike sub 'repo:octo-org/octo-repo:ref:refs/heads/main*' vs subject '...:main' -> evalDecision=allowed (aws-cli/2.17). AWS documents '*' only as 'any combination of characters'; zero-width is confirmed, not interpreted. Raw request and response: observations/2026-08-25/gh-aws-branch-wildcard-zero-width.json",
-    "tool_version": "aws-cli/2.17",
-    "transcript": "observations/2026-08-25/gh-aws-branch-wildcard-zero-width.json"
+    "date": "2026-08-31",
+    "evidence": "simulate-custom-policy: StringLike sub 'repo:octo-org/octo-repo:ref:refs/heads/main*' vs subject '...:main' -> EvalDecision=allowed (aws-cli/2.36.33). AWS documents '*' only as 'any combination of characters'; zero-width is confirmed, not interpreted. Raw request and response: observations/2026-08-31/gh-aws-branch-wildcard-zero-width.json",
+    "tool_version": "aws-cli/2.36.33",
+    "transcript": "observations/2026-08-31/gh-aws-branch-wildcard-zero-width.json"
   }
 }
 ```

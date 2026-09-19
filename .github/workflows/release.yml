@@ -2,14 +2,14 @@ name: Release
 
 # Publishes to PyPI via OIDC trusted publishing (no stored API token) - the
 # same short-lived-token mechanism this corpus exists to judge. Fires when a
-# GitHub Release is published; INERT until one exists. PyPI side is configured
-# once as a pending publisher: pypi.org -> owner Dashtid, repository
-# subvectors, workflow release.yml, environment pypi.
+# GitHub Release is published, and has run on every release from v0.2.0
+# onward. PyPI side is configured as a trusted publisher: pypi.org -> owner
+# Dashtid, repository subvectors, workflow release.yml, environment pypi.
 #
-# [!] GATE before the first Release: decide vectors/ packaging. Today
-# [tool.hatch.build.targets.wheel] ships only src/subvectors - a wheel
-# WITHOUT the corpus, which for a corpus project is an empty shell. See
-# ROADMAP "What is actually open".
+# vectors/ packaging is settled: pyproject's
+# [tool.hatch.build.targets.wheel.force-include] maps vectors -> subvectors/
+# vectors, so the wheel ships the whole corpus and subvectors.corpus resolves
+# it through importlib.resources without a repo checkout.
 
 on:
   release:

@@ -69,8 +69,11 @@ Two fields carry the honesty:
 - **`sources`** — every vector cites a primary source. Required by the schema.
 - **`status`** — `documented` (derived from docs) vs `observed` (confirmed against a real
   issuer/cloud; an `observed` vector must carry an `observation` block with method, date and
-  verbatim evidence — the schema enforces it). The first `observed` vectors landed 2026-08-29/30
-  via the AWS IAM policy simulator; the live split is in the README's generated
+  verbatim evidence — the schema enforces it). The first `observed` vectors were committed
+  2026-08-30 via the AWS IAM policy simulator, and every `observed` vector in the tree today
+  carries `observation.date` 2026-08-31, when the runs were repeated with committed transcripts.
+  They are all in `github-aws` and all from that one method — **no token exchange has been
+  observed on any cloud**. The live split is in the README's generated
   [Coverage](README.md#coverage) block (never hardcoded here — it went stale the first time).
 
 ## The files
@@ -83,7 +86,7 @@ vectors/           <- THE PRODUCT. One JSON suite per issuer x cloud (counts: RE
   schema/                JSON Schema every vector must validate against
   LICENSE                CC0-1.0 - copy these freely, no attribution needed
 
-src/subvectors/    <- THE ORACLE. ~865 lines. Proves the vectors are self-consistent.
+src/subvectors/    <- THE ORACLE (wc -l src/subvectors/*.py for its size). Proves self-consistency.
   matcher.py             satisfies(subject, condition) -> bool. The entry point.
   cel.py                 mini CEL evaluator (GCP conditions are CEL expressions)
   ffl.py                 mini expression evaluator (Azure flexible FIC, preview)
@@ -170,9 +173,10 @@ Resolved:
   a regex guard asserted no "error-free exchange" phrasing survives anywhere in the corpus or the
   matcher.
 - **README implied a `documented` vs `observed` mix. FIXED 2026-08-25** — the split is now
-  GENERATED into the Coverage block by `scripts/coverage.py` (currently 133 `documented`, 0
-  `observed`, with an explicit note that no vector is observed yet), and CI fails when that block
-  is stale, so the claim cannot drift from the corpus again.
+  GENERATED into the Coverage block by `scripts/coverage.py` (133 `documented` / 0 `observed` at
+  the time of that fix, with an explicit note that no vector was observed yet), and CI fails when
+  that block is stale, so the claim cannot drift from the corpus again. Read the current split
+  from the block, not from this line.
 
 - **`RepoSegment.immutable` in `github.py` used `or`. FIXED 2026-08-18** — it is now `and`, since
   GitHub emits `@id` on both segments or neither, so a one-sided subject is *malformed*, not

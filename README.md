@@ -18,12 +18,18 @@ it wrong.
 
 > Status: v0.6.0 on PyPI - the corpus ships inside the wheel. An independent personal
 > project, built on personal time and personal equipment. Every vector is source-cited, and
-> the AWS tranche is now `observed` against live AWS - each of those vectors links a committed
-> transcript under [`observations/`](observations/) holding the exact request and the verbatim
-> response, so the claim is auditable without an AWS account. The generated
-> [Coverage](#coverage) block carries the exact `documented`/`observed` split.
+> **11 of the 160 vectors are `observed` against live AWS** - all 11 of them in the
+> `github-aws` suite (54 vectors), all recorded by a single method,
+> `aws-iam-policy-simulator` (`iam:SimulateCustomPolicy`), with five `iam:CreateRole` probes
+> recorded behind one of them. **No token exchange has been observed yet, on AWS or on any
+> other cloud** - the simulator evaluates a trust policy against a claim value you hand it; it
+> never mints a token and never presents one. Every other suite is `documented` only. Each
+> observed vector links a committed transcript under [`observations/`](observations/) holding
+> the exact request and the verbatim response, so the claim is auditable without an AWS
+> account. The generated [Coverage](#coverage) block carries the live
+> `documented`/`observed` split.
 
-## The proof this is needed (verified 2026-07-04)
+## The proof this is needed (verified 2026-07-04; charset claim re-checked against current source 2026-09-19)
 
 Checkov — one of the most widely used IaC security scanners — ships the only Azure FIC subject
 check anywhere (`CKV_AZURE_249`). Read against its own source:
@@ -68,8 +74,9 @@ Three layers per vector:
 
 Every vector carries a source citation and a provenance status — `documented` (derived from
 primary documentation) or `observed` (recorded from a live exchange). The current split is
-generated under [Coverage](#coverage) rather than asserted here, so it cannot drift. A ~100-line
-reference matcher (Python, pytest) passes the suite — it is a correctness oracle, not a product.
+generated under [Coverage](#coverage) rather than asserted here, so it cannot drift. A small,
+dependency-free Python reference matcher (pytest) passes the suite — it is a correctness oracle,
+not a product.
 
 ## Coverage
 
@@ -141,8 +148,15 @@ the corpus, the way Wycheproof tests everyone's cryptography and the JSON-Schema
 everyone's validators. Consumers keep their own matching code (no runtime dependency to trust) and
 import the vectors at test time.
 
-Bugs the vectors expose in real tools get fixed by upstream PRs (Checkov's OIDC check family,
-Cartography's unparsed trust-policy conditions) — the distribution channel and the proof, in one.
+The intended distribution channel is upstream PRs against the tools the vectors grade — the
+channel and the proof in one. Four are open and **none has been merged** (PR state checked
+2026-09-14): Checkov
+[#7610](https://github.com/bridgecrewio/checkov/pull/7610) (opened 2026-07-14),
+[#7627](https://github.com/bridgecrewio/checkov/pull/7627) (2026-07-27) and
+[#7665](https://github.com/bridgecrewio/checkov/pull/7665) (2026-08-31) against the OIDC check
+family, and Cartography
+[#3088](https://github.com/cartography-cncf/cartography/pull/3088) (2026-07-30) for unparsed
+trust-policy conditions. Zero merged upstream PRs is the honest scoreboard; see `ROADMAP.md`.
 
 ## Scope order
 

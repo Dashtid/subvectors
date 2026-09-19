@@ -70,19 +70,36 @@ repos:
         language: fail
         files: '((^|/)id_(rsa|dsa|ecdsa|ed25519)|\.(pem|key|p12|pfx|jks|keystore))$'
 
-  # This estate has leaked a Grafana service-account token into git history and
-  # two Brave API keys into a working tree. This is the hook that stops the next
-  # one, and it is the reason the core is worth having in a notes repository.
+  # A leaked credential has already cost this estate a rotation more than once.
+  # This is the hook that stops the next one, and it is the reason the core is
+  # worth having even in a repository that holds only notes.
   #
   # [i] The top-level exclude does NOT apply here: the hook ignores the
-  # filenames pre-commit passes and scans the staged content itself. That is
-  # the right behaviour - a real secret in a fixture is still a real secret -
-  # and a deliberately planted canary is allowlisted in the repo's own
-  # .gitleaks.toml, the way private-toolkit already does it.
+  # filenames pre-commit passes and scans the content itself. That is the right
+  # behaviour - a real secret in a fixture is still a real secret - and a
+  # deliberately planted canary belongs in the repo's own .gitleaks.toml.
+  #
+  # [!] TWO hooks, because one of them cannot do the other's job. Upstream's
+  # entry is `gitleaks git --pre-commit --staged`, which scans what is about to
+  # be committed. That is exactly right at a commit and USELESS in CI, where
+  # nothing is ever staged: measured 2026-09-14, `pre-commit run --all-files`
+  # on a clean checkout reports "0 commits scanned, scanned ~0 bytes ... no
+  # leaks found" - a green pass over nothing, in a job whose own header called
+  # itself inescapable. The manual-stage twin below scans the whole history
+  # instead and is what CI runs; --verbose is load-bearing, because without it
+  # pre-commit hides the "N commits scanned" line that would have exposed this
+  # years earlier. Same repo, same pinned rev, no second tool.
   - repo: https://github.com/gitleaks/gitleaks
     rev: v8.30.1
     hooks:
       - id: gitleaks
+      - id: gitleaks
+        alias: gitleaks-history
+        name: gitleaks (full history)
+        entry: gitleaks git --redact --verbose --no-banner
+        pass_filenames: false
+        always_run: true
+        stages: [manual]
 
   - repo: https://github.com/igorshubovych/markdownlint-cli
     rev: v0.49.1

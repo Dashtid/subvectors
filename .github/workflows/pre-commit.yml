@@ -19,8 +19,11 @@
 # humans) - a moved tag on a compromised action then changes nothing here.
 name: pre-commit
 
+# Pushes to main, and every pull request. A feature branch is gated when it is
+# proposed, not on each of its pushes - the same answer, half the runs.
 on:
   push:
+    branches: [main]
   pull_request:
 
 permissions:
@@ -34,6 +37,9 @@ concurrency:
 jobs:
   gate:
     runs-on: ubuntu-latest
+    # A cold hook cache is the slow case, at a few minutes. Anything near this
+    # is a hang, and a hung job should fail rather than hold a runner for six hours.
+    timeout-minutes: 15
     steps:
       # fetch-depth: 0 is required by the full-history secret scan below. A
       # shallow clone gives it one commit to look at, which is how a scan that
@@ -41,21 +47,27 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
+          # The gate only reads the tree. It needs no token left behind in
+          # .git/config for a later step - or a compromised hook - to find.
+          persist-credentials: false
 
+      # The same Python the workstations run the hooks on.
       - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        id: py
         with:
-          python-version: '3.13'
+          python-version: '3.14'
 
-      # Hook environments are rebuilt only when the hook config changes.
-      - uses: actions/cache@2c8a9bd7457de244a408f35966fab2fb45fda9c8 # v6.0.0
+      # Hook environments are rebuilt only when the hook config or the Python
+      # under them changes - a venv built for one interpreter breaks on another.
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/pre-commit
-          key: pre-commit-${{ runner.os }}-${{ hashFiles('.pre-commit-config.yaml') }}
+          key: pre-commit-${{ runner.os }}-py${{ steps.py.outputs.python-version }}-${{ hashFiles('.pre-commit-config.yaml') }}
 
 
       # Same pre-commit the workstations run - pinned, like every other rev in
       # the standard. Move it here and in the local installs together.
-      - run: python -m pip install pre-commit==4.6.0
+      - run: python -m pip install pre-commit==4.6.2
 
       - run: pre-commit run --all-files --show-diff-on-failure --color=always
 

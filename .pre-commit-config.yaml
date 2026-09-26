@@ -21,10 +21,9 @@
 # Some files are records, not source, and rewriting one destroys what it records.
 # Both halves of this pattern were written after damage, not before it:
 #
-#   * a test fixture's exact bytes ARE the test. end-of-file-fixer touched
-#     sbom-curator's tests/fixtures/catalogue/INDEX.md, which is hashed into
-#     MANIFEST.sha256, and two sealed-evidence tests then failed with
-#     "stale: INDEX.md" - the same failure a real tamper would produce;
+#   * a test fixture's exact bytes ARE the test. end-of-file-fixer touched a
+#     fixture file whose checksum a test verifies, and that test then failed
+#     exactly the way a real tamper would;
 #   * in a unified diff a context line MUST begin with a space, so
 #     trailing-whitespace stripping that space is corruption. It rewrote 65 lines
 #     across two archived patches in oss-contributions. A .sarif is a scan result,
@@ -49,6 +48,11 @@ repos:
       - id: end-of-file-fixer
       - id: check-merge-conflict
       - id: check-case-conflict               # two files differing only in case break a Windows clone
+      # A shebang file committed at mode 100644 fails ruff EXE001 in CI - a rule
+      # that cannot fire on Windows, where there is no bit to be missing. This
+      # hook reads the mode from the git index, so it catches it here instead.
+      # Fix with `git add --chmod=+x <file>`.
+      - id: check-shebang-scripts-are-executable
       - id: check-illegal-windows-names
       - id: check-added-large-files
         args: [--maxkb=1000]
@@ -120,7 +124,7 @@ repos:
   # block, which is where Python tooling config lives; passing them here would
   # silently override a repository that meant something different.
   - repo: https://github.com/astral-sh/ruff-pre-commit
-    rev: v0.16.6
+    rev: v0.16.9
     hooks:
       - id: ruff-check
         args: [--fix, --exit-non-zero-on-fix]

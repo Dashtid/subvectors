@@ -1,6 +1,6 @@
 # Line endings, declared once so every machine, editor and CI agent agrees.
 #
-# WHY THIS FILE EXISTS: core.autocrlf is true globally on the work laptop, so git
+# WHY THIS FILE EXISTS: Git for Windows sets core.autocrlf=true system-wide, so git
 # stores LF and checks out CRLF - and says so, loudly, on every single `git add`
 # ("LF will be replaced by CRLF the next time Git touches it"). That warning is
 # harmless and endless, and it hides real ones. Declaring the rules here makes the

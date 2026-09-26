@@ -52,7 +52,9 @@ jobs:
         with:
           name: dist
           path: dist/
-      # Deliberately a moving branch, per pypa's own guidance: it tracks
-      # security fixes in the publish action; SHA-pinning here would freeze
-      # them. The job has no other write surface (id-token only).
-      - uses: pypa/gh-action-pypi-publish@release/v1
+      # Pinned to a commit SHA like every other action here. pypa's own README
+      # recommends a tag or SHA over a branch pointer, and this is the one job
+      # holding id-token: write - the worst place to run whatever a moved ref
+      # now points at. The github-actions block in dependabot.yml moves the
+      # pin when pypa releases. The job has no other write surface.
+      - uses: pypa/gh-action-pypi-publish@dc37677b2e1c63e2034f94d8a5b11f265b73ba33 # v1.14.2

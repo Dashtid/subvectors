@@ -34,6 +34,28 @@ exclude: '(^|/)(tests?/fixtures|testdata|__snapshots__)/|\.(patch|diff|sarif)$'
 # stage (mypy, pytest, pip-audit) - and an install that omits the stage means
 # those hooks exist only as YAML. That was the case until 2026-09-04.
 default_install_hook_types: [pre-commit, commit-msg, pre-push]
+
+# A hook with no `stages` of its own runs at EVERY installed stage, so until
+# 2026-09-29 the whole file suite also ran against COMMIT_EDITMSG at the
+# commit-msg stage. Two things follow, and the second one bit:
+#
+#   * trailing-whitespace and end-of-file-fixer were quietly rewriting the
+#     commit message, a file that is not source and not theirs to fix;
+#   * check-illegal-windows-names FAILED every commit made from a git worktree.
+#     Its pattern flags a path segment ending in a dot, and in a worktree
+#     pre-commit passes the message file as a relative path full of `../`
+#     segments - `/../` matches. Reproduced here:
+#       pre-commit run --hook-stage commit-msg \
+#         --commit-msg-filename ../some/path/COMMIT_EDITMSG \
+#         check-illegal-windows-names        # exit 1, "Illegal Windows filenames"
+#     Three agent sessions had to reach for SKIP= to commit at all, which this
+#     estate otherwise forbids - a gate that forces its own bypass is worse than
+#     no gate.
+#
+# So file hooks default to the stages where a file list means something. The two
+# hooks that genuinely belong elsewhere name their stage themselves:
+# conventional-pre-commit (commit-msg) and gitleaks-history (manual).
+default_stages: [pre-commit, pre-push]
 minimum_pre_commit_version: "3.0.0"
 
 repos:

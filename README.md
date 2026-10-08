@@ -16,7 +16,7 @@ subject, a GCP Workload Identity Federation attribute condition. Every security 
 must re-implement that comparison and judge those rules. They re-figure it out alone, and they get
 it wrong.
 
-> Status: v0.6.0 on PyPI - the corpus ships inside the wheel. An independent personal
+> Status: v0.7.0 on PyPI - the corpus ships inside the wheel. An independent personal
 > project, built on personal time and personal equipment. Every vector is source-cited, and
 > **16 of the 163 vectors are `observed`**, all of them in the `github-aws` suite (56
 > vectors), by two methods: 11 against the live AWS IAM policy simulator

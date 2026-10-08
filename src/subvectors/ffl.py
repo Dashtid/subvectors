@@ -29,10 +29,15 @@ Grammar (the whole language -- there is nothing else):
 
 Per-issuer support (the token claims an expression may reference), from the same page:
 GitHub -> ``sub``, ``job_workflow_ref``, ``repository_id`` and ``repository_owner_id``;
-GitLab -> ``sub`` only; Terraform Cloud -> ``sub`` only. Operators are per claim, not
-global: ``sub`` and ``job_workflow_ref`` take ``eq`` and ``matches``, while the two id
-claims take ``eq`` only. Flexible FIC is application-object-only and configurable via Microsoft
-Graph or the Azure portal only (no CLI/PowerShell/Terraform provider surface yet).
+GitLab -> ``sub`` and ``project_id`` (the 2026-09-18 revision; until then the page listed
+``sub`` only, which is what gitlab-azure-flexible 0.1.0 encoded); Terraform Cloud -> ``sub``
+only. Operators are per claim, not global: ``sub`` and ``job_workflow_ref`` take ``eq`` and
+``matches``, while the id claims take ``eq`` only. Microsoft's separate "Mutable subjects"
+page (ms.date 2026-07-28) lists ``namespace_id`` and ``user_id`` as further GitLab claims;
+the two pages disagree and the corpus asserts only what both say. Flexible FIC covers
+application objects and, since the same revision, user-assigned managed identities; the page
+still says no CLI/PowerShell/Terraform surface, although the azuread Terraform provider ships
+``azuread_application_flexible_federated_identity_credential``.
 
 Honest scope cut (as in cel.py): referencing a claim absent from ``claims`` raises
 FflError rather than evaluating to false, so a vector can never pass by being
@@ -50,8 +55,9 @@ of this evaluator by the same reasoning as the operator allow-list. A sub-only e
 still evaluates here exactly as it always did; whether you could create it is a separate
 question, answered in the vector prose (see ``vectors/github-azure-flexible.json``).
 
-Source (preview; page ms.date 2026-08-14, updated 2026-08-17):
+Sources (preview; page ms.date 2026-08-14, updated 2026-08-17, re-read at ms.date 2026-09-18):
 https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials
+https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-federated-credential-mutable-subjects
 """
 
 from __future__ import annotations

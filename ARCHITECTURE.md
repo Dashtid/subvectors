@@ -172,6 +172,16 @@ Resolved:
   sourced. The six vectors that now name the error code cite the Entra error-codes reference, and
   a regex guard asserted no "error-free exchange" phrasing survives anywhere in the corpus or the
   matcher.
+- **The same "no error" claim had two GCP twins. FIXED 2026-10-08** —
+  `gh-gcp-name-pin-breaks-on-rename` said deployments stop "with no error" and
+  `gh-gcp-classic-sub-immutable-break` said the credential is "silently rejected". GCP's STS
+  refuses a credential whose attribute condition is false and says so: Google's reference reads
+  "If the attribute condition evaluates to true for a given credential, the credential is
+  accepted. Otherwise, the credential is rejected", and the response text is "The given credential
+  is rejected by the attribute condition". What is silent is write time, same as Azure. The 08-25
+  guard was a one-off sweep phrased for Azure, which is how these survived it;
+  `tests/test_vectors.py::test_no_vector_claims_an_error_free_rejection` now runs on every suite
+  in CI.
 - **README implied a `documented` vs `observed` mix. FIXED 2026-08-25** — the split is now
   GENERATED into the Coverage block by `scripts/coverage.py` (133 `documented` / 0 `observed` at
   the time of that fix, with an explicit note that no vector was observed yet), and CI fails when

@@ -1,7 +1,7 @@
 {
   "suite": "gitlab-azure-flexible",
-  "version": "0.1.0",
-  "description": "GitLab CI/CD OIDC tokens against Azure Entra FLEXIBLE federated-identity-credential expressions (azure-fic-flexible) -- PREVIEW. Second issuer for flexible FIC (after github-azure-flexible), and the one where the language's limits bite: for GitLab the expression may reference ONLY the `sub` claim (the Microsoft Learn page lists `sub` with `eq`/`matches` and nothing else -- no `job_workflow_ref`, no `project_id`), so unlike GitHub there is no second claim to `and` in. Flexible `matches` HONORS the `project_path:group/*` wildcard that classic FIC treats as an inert literal, but it gives GitLab NO lever to pin the immutable project_id as a separate claim: the only way an immutable id enters the match is if the project bakes it into the sub itself via the project_id-led sub (ci_id_token_sub_claim_components). GitLab sub default = project_path:{group}/{project}:ref_type:{branch|tag}:ref:{short_ref}; matches semantics: `?` one character, `*` multiple, anchored, not path-aware (spans `/` and `:`).",
+  "version": "0.2.0",
+  "description": "GitLab CI/CD OIDC tokens against Azure Entra FLEXIBLE federated-identity-credential expressions (azure-fic-flexible) -- PREVIEW. Second issuer for flexible FIC (after github-azure-flexible). 0.1.0 (stamped against the page as of 2026-08-14) rested on Microsoft listing `sub` as GitLab's only referenceable claim. That is no longer what Microsoft documents, and the two pages that now cover it disagree with each other. Flexible-FIC page, ms.date 2026-09-18: 'When you use mutable subjects with GitLab, your flexible federated identity credential expression must match the sub and project_id claims'; supported claims: sub (eq, matches) and project_id (eq). 'Mutable subjects in federated identity credentials' page, ms.date 2026-07-28: 'a flexible federated identity credential must match the sub claim and one or more of the following additional claims: project_id ... namespace_id ... user_id', 'required regardless of whether sub starts with project_path or project_id'. So GitLab now HAS the second-claim lever GitHub has (0.2.0, corrected 2026-10-08): `and claims['project_id'] eq '<id>'` excludes a reclaimed-path squatter (gl-flex-and-project-id-excludes-squatter), and a sub-only expression on a path-based sub no longer satisfies Microsoft's documented rule. The sub-only vectors are kept as the match semantics a scanner must still evaluate, with their judgments stating the rule. Left open by the contradiction, and shipped on by nothing here: whether namespace_id / user_id are accepted, and whether the requirement reaches a project_id-led sub. Flexible `matches` HONORS the `project_path:group/*` wildcard that classic FIC treats as an inert literal. GitLab sub default = project_path:{group}/{project}:ref_type:{branch|tag}:ref:{short_ref}; matches semantics: `?` one character, `*` multiple, anchored, not path-aware (spans `/` and `:`).",
   "vectors": [
     {
       "id": "gl-flex-eq-exact-branch",
@@ -10,10 +10,11 @@
       "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
       "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] eq 'project_path:mygroup/myproject:ref_type:branch:ref:main'" },
       "expect": "match",
-      "judgment": { "grade": "caution", "reason": "eq admits exactly this branch of this project, but the sub is the mutable project_path with no immutable id: a project rename changes the sub and the credential no longer matches, and GitLab flexible FIC cannot reference project_id as a separate claim to harden it. The project_id-led sub is the durable lever (see gl-flex-immutable-projectid-sub-any-branch).", "patterns": ["exact-ref", "name-based", "no-id-pin"] },
+      "judgment": { "grade": "caution", "reason": "eq admits exactly this branch of this project, but the sub is the mutable project_path with no immutable id: a project rename changes the sub and the credential no longer matches. Corrected 2026-10-08: Microsoft now exposes project_id (eq) for GitLab and requires it next to a path-based sub, so this sub-only expression no longer satisfies the documented rule as written; the hardened form is `and claims['project_id'] eq '<id>'` (gl-flex-and-project-id-excludes-squatter), and the project_id-led sub remains the other lever (gl-flex-immutable-projectid-sub-any-branch).", "patterns": ["exact-ref", "name-based", "no-id-pin"] },
       "status": "documented",
       "sources": [
         "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-federated-credential-mutable-subjects",
         "https://docs.gitlab.com/ci/secrets/id_token_authentication/"
       ]
     },
@@ -24,7 +25,7 @@
       "subject": "project_path:mygroup/otherproject:ref_type:branch:ref:main",
       "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] matches 'project_path:mygroup/*'" },
       "expect": "match",
-      "judgment": { "grade": "dangerous", "reason": "Every project under mygroup, at any subgroup depth and any ref, assumes the identity, and a newly created project inherits it immediately. `*` spanning the path and ref separators is the same non-path-aware breadth as AWS StringLike -- flexible FIC HONORS it where classic FIC ignored it. Pin the project; GitLab flexible FIC has no project_id claim to add, so use the project_id-led sub.", "patterns": ["wildcard-group", "subgroup-nesting", "org-wide"] },
+      "judgment": { "grade": "dangerous", "reason": "Every project under mygroup, at any subgroup depth and any ref, assumes the identity, and a newly created project inherits it immediately. `*` spanning the path and ref separators is the same non-path-aware breadth as AWS StringLike -- flexible FIC HONORS it where classic FIC ignored it. Pin the project: `and claims['project_id'] eq '<id>'` (a GitLab claim Microsoft exposes since its 2026-09 page revision; 0.1.0 said there was none) or the project_id-led sub. Microsoft's rule now requires the project_id claim next to a path-based sub, so this group-wide expression does not satisfy the documented rule as written either.", "patterns": ["wildcard-group", "subgroup-nesting", "org-wide"] },
       "status": "documented",
       "sources": [
         "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
@@ -34,12 +35,12 @@
     },
     {
       "id": "gl-flex-matches-any-branch",
-      "description": "Project pinned by path, but ref wildcarded: claims['sub'] matches 'project_path:mygroup/myproject:ref_type:branch:ref:*' admits ANY branch of the project. GitLab's sub carries no protection or pipeline-source marker, and flexible FIC exposes no other GitLab claim, so a developer pushing any branch runs a pipeline that assumes the identity.",
+      "description": "Project pinned by path, but ref wildcarded: claims['sub'] matches 'project_path:mygroup/myproject:ref_type:branch:ref:*' admits ANY branch of the project. GitLab's sub carries no protection or pipeline-source marker, and the GitLab claims flexible FIC exposes (sub and, since 2026-09, project_id) carry none either, so a developer pushing any branch runs a pipeline that assumes the identity.",
       "issuer": "gitlab",
       "subject": "project_path:mygroup/myproject:ref_type:branch:ref:feature-x",
       "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] matches 'project_path:mygroup/myproject:ref_type:branch:ref:*'" },
       "expect": "match",
-      "judgment": { "grade": "dangerous", "reason": "Any branch of the project satisfies the rule -- an attacker-pushed feature branch included -- and Azure flexible FIC supports only the sub claim, so no second-claim guard can be ANDed here -- but that does not make a protection guard impossible, as the corpus previously implied: GitLab permits ref_protected as a COMPONENT of the sub (ALLOWED_SUB_CLAIM_COMPONENTS, verified 2026-09-02), so reconfiguring ci_id_token_sub_claim_components moves the guard inside the one claim Azure will match on. pipeline_source has no such route -- it is not an allowed component. Narrow the ref, or enforce protection in the pipeline.", "patterns": ["wildcard-ref", "unprotected-ref"] },
+      "judgment": { "grade": "dangerous", "reason": "Any branch of the project satisfies the rule -- an attacker-pushed feature branch included. Azure flexible FIC exposes sub and project_id for GitLab (corrected 2026-10-08; 0.1.0 said sub only), neither of which carries protection state, so no second-claim guard can be ANDed here -- but that does not make a protection guard impossible, as the corpus previously implied: GitLab permits ref_protected as a COMPONENT of the sub (ALLOWED_SUB_CLAIM_COMPONENTS, verified 2026-09-02), so reconfiguring ci_id_token_sub_claim_components moves the guard inside the one claim that carries it. pipeline_source has no such route -- it is not an allowed component. Narrow the ref, or enforce protection in the pipeline.", "patterns": ["wildcard-ref", "unprotected-ref"] },
       "status": "documented",
       "sources": [
         "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
@@ -49,7 +50,7 @@
     },
     {
       "id": "gl-flex-eq-path-reuse-squatter-no-lever",
-      "description": "The reclaimed-path squatter against even the TIGHTEST flexible rule, and the GitLab-specific dead end. The claims model a different project (project_id 999) now occupying mygroup/myproject and minting a byte-identical path-based sub; an exact claims['sub'] eq '...' admits it, because eq sees only the sub string. For GitHub, flexible FIC could add `and claims['job_workflow_ref'] ...` as a second guard; for GitLab the Microsoft Learn page exposes ONLY the sub claim, so there is no second claim to pin the immutable project_id -- no flexible expression can exclude the squatter.",
+      "description": "The reclaimed-path squatter against the tightest sub-only flexible rule. The claims model a different project (project_id 999) now occupying mygroup/myproject and minting a byte-identical path-based sub; an exact claims['sub'] eq '...' admits it, because eq sees only the sub string. The id says no-lever: that was the 2026-08 reading of Microsoft's page, which listed sub as GitLab's only claim. Since Microsoft's 'Mutable subjects' page (2026-07-28) and the 2026-09-18 revision of the flexible-FIC page, a GitLab expression can -- and per the rule must -- reference project_id, so the lever exists: gl-flex-and-project-id-excludes-squatter is this same token against the hardened rule. The id is kept stable for citations; the gap it named is closed.",
       "issuer": "gitlab",
       "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
       "claims": {
@@ -58,10 +59,11 @@
       },
       "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] eq 'project_path:mygroup/myproject:ref_type:branch:ref:main'" },
       "expect": "match",
-      "judgment": { "grade": "dangerous", "reason": "Path-based sub with no immutable pin, and flexible FIC gives GitLab no lever to add one: the squatter's byte-identical sub satisfies even an exact eq rule, and project_id is not a referenceable claim. GitLab's platform-side path-burn (AWS's WIF note dates it June 1, 2026; commit f7335ef7e covers delete/rename/transfer, non-retroactive, original project exempt) is the only mitigation -- policy-side, the sole fix is the project_id-led sub (see gl-flex-immutable-projectid-sub-any-branch).", "patterns": ["path-based", "no-id-pin", "path-reuse", "immutable-gap"] },
+      "judgment": { "grade": "dangerous", "reason": "Path-based sub with no immutable pin: the squatter's byte-identical sub satisfies even an exact eq rule. The fix is one clause away, `and claims['project_id'] eq '20'`, which Microsoft's rule now requires next to a path-based sub anyway. GitLab's platform-side path-burn (AWS's WIF note dates it June 1, 2026; commit f7335ef7e covers delete/rename/transfer, non-retroactive, original project exempt) is the mitigation for credentials written before that rule; the project_id-led sub (gl-flex-immutable-projectid-sub-any-branch) is the other policy-side fix.", "patterns": ["path-based", "no-id-pin", "path-reuse"] },
       "status": "documented",
       "sources": [
         "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-federated-credential-mutable-subjects",
         "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
         "https://gitlab.com/gitlab-org/gitlab/-/commit/f7335ef7ea0f5d6955c24ee4847d4bb00ac0c5ee",
@@ -69,8 +71,28 @@
       ]
     },
     {
+      "id": "gl-flex-and-project-id-excludes-squatter",
+      "description": "The same squatter token against the rule Microsoft now documents for a path-based GitLab sub: claims['sub'] eq '<path-based sub>' and claims['project_id'] eq '20'. The reclaimed path still mints the byte-identical sub, but eq on project_id sees the id, so project 999 is refused. 0.1.0 of this suite said no flexible expression could do this; the flexible-FIC page (ms.date 2026-09-18) lists project_id (eq) for GitLab and says the expression 'must match the sub and project_id claims' when the sub is mutable, and the 'Mutable subjects' page (2026-07-28) requires sub plus one or more of project_id / namespace_id / user_id regardless of the sub's form. The two pages agree on project_id; what they disagree on is recorded in the suite description and not asserted here.",
+      "issuer": "gitlab",
+      "subject": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+      "claims": {
+        "sub": "project_path:mygroup/myproject:ref_type:branch:ref:main",
+        "project_id": "999"
+      },
+      "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] eq 'project_path:mygroup/myproject:ref_type:branch:ref:main' and claims['project_id'] eq '20'" },
+      "expect": "no-match",
+      "judgment": { "grade": "safe", "reason": "The immutable project_id clause excludes the reclaimed path: 'project_id is globally unique and remains the same for the entire lifetime of the project, including across group renames, project renames, and project transfers', so no later project can satisfy it. Exact branch, immutable project. This is the shape Microsoft's rule now requires for a path-based GitLab sub, and the shape the corpus said was impossible until 2026-10-08. Residual: project_id takes eq only, and the contradiction between Microsoft's two pages over namespace_id / user_id is unsettled.", "patterns": ["immutable-id", "exact-ref"] },
+      "status": "documented",
+      "sources": [
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-flexible-federated-identity-credentials",
+        "https://learn.microsoft.com/en-us/entra/workload-id/workload-identities-federated-credential-mutable-subjects",
+        "https://docs.gitlab.com/ci/secrets/id_token_authentication/",
+        "https://docs.gitlab.com/api/projects/"
+      ]
+    },
+    {
       "id": "gl-flex-immutable-projectid-sub-any-branch",
-      "description": "The single immutable lever GitLab flexible FIC allows: bake project_id into the sub. With the project_id-led sub (ci_id_token_sub_claim_components), claims['sub'] matches 'project_id:20:ref_type:branch:ref:*' pins the immutable project across ALL its branches in one credential -- rename- and path-reuse-proof AND branch-flexible, the low-maintenance pin GitHub gets via a job_workflow_ref `and`. Since project_id is not a separate GitLab flexible-FIC claim, putting it IN the sub is the only way an immutable id enters the match.",
+      "description": "The sub-side immutable lever: bake project_id into the sub. With the project_id-led sub (ci_id_token_sub_claim_components), claims['sub'] matches 'project_id:20:ref_type:branch:ref:*' pins the immutable project across ALL its branches in one credential -- rename- and path-reuse-proof AND branch-flexible, the low-maintenance pin GitHub gets via a job_workflow_ref `and`. Corrected 2026-10-08: project_id is now ALSO a separate GitLab flexible-FIC claim (eq), so this is one of two levers rather than the only one (0.1.0 said only). It remains the lever that needs no extra clause. Whether a sub-only expression on a project_id-led sub satisfies Microsoft's additional-claim rule depends on which of its two pages is right -- 'when you use mutable subjects' (flexible-FIC page) versus 'regardless of whether sub starts with project_path or project_id' (Mutable subjects page) -- and the corpus asserts neither.",
       "issuer": "gitlab",
       "subject": "project_id:20:ref_type:branch:ref:feature-x",
       "condition": { "consumer": "azure-fic-flexible", "pattern": "claims['sub'] matches 'project_id:20:ref_type:branch:ref:*'" },

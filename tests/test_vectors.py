@@ -242,3 +242,44 @@ def test_no_vector_is_an_exact_duplicate_of_another() -> None:
         seen.setdefault((*_token_key(vector), vector["expect"]), []).append(vector["id"])
     twins = [group for group in seen.values() if len(group) > 1]
     assert not twins, f"vectors are exact duplicates of one another: {twins}"
+
+
+# The Azure "fails silently, no error" wording was corrected on 2026-08-25 with a
+# one-off regex sweep (ARCHITECTURE.md, known issues). On 2026-10-08 the same claim
+# turned up in two github-gcp vectors that sweep never saw, because it was phrased
+# for Azure. Every consumer here refuses a mismatched credential with an explicit
+# error at exchange -- AWS AccessDenied, Azure AADSTS700213, GCP "rejected by the
+# attribute condition" -- so a vector claiming an error-free rejection is wrong
+# about the cloud, not loosely worded. What IS silent is write time: no consumer
+# checks a condition against real tokens when it is saved. Say that instead.
+#
+# Two shapes, both taken from wording that actually shipped: "silently rejected",
+# and a failure verb followed within the same clause by an error-free phrase
+# ("the exchange fails without error", "stop authenticating with no error").
+# "creation raises no error" is the correct write-time claim and must not match,
+# which is why a bare "no error" is not enough on its own.
+_ERROR_FREE_REJECTION = re.compile(
+    r"(?i)\b(?:silently\s+(?:rejected|refused|denie[sd]|fails?)"
+    r"|(?:fails?|failing|rejected|refused|denied|stops?)\b[^.;]{0,60}?"
+    r"\b(?:with\s+no\s+error|without\s+(?:an\s+)?error|error-free))\b"
+)
+
+
+def test_no_vector_claims_an_error_free_rejection() -> None:
+    """A refused exchange is loud on every cloud; only write time is silent.
+
+    The forbidden phrasings are the ones that have actually shipped: "fails
+    without error", "stop ... with no error", "silently rejected". Prose about a
+    silent *write* ("accepted at creation without validation", "creation raises no
+    error") is the correct claim and does not match.
+    """
+    offenders: dict[str, list[str]] = {}
+    for name, vector in _VECTOR_CASES:
+        hits = _ERROR_FREE_REJECTION.findall(_prose(vector))
+        if hits:
+            offenders[f"{name}::{vector['id']}"] = hits
+    for path in _SUITE_FILES:
+        hits = _ERROR_FREE_REJECTION.findall(_load(path).get("description", ""))
+        if hits:
+            offenders[f"{path.stem}::suite"] = hits
+    assert not offenders, f"vectors claim an error-free rejection at exchange: {offenders}"

@@ -1,6 +1,6 @@
 {
   "suite": "github-gcp",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "GitHub Actions OIDC tokens against GCP Workload Identity Federation provider attribute_condition CEL expressions. GCP is not a single-string subject match: the condition is a CEL expression evaluated over the whole token claim set (assertion.*), and the credential is accepted iff it evaluates true. v1 evaluates assertion.* directly and defers attribute_mapping / google.subject / attribute.* (the downstream principalSet IAM-binding layer) to a later tranche.",
   "vectors": [
     {
@@ -80,16 +80,18 @@
     },
     {
       "id": "gh-gcp-name-pin-breaks-on-rename",
-      "description": "Negative twin: same renamed token, but a name-based condition. repository is now octo-org/renamed-repo, so the condition is false and the credential is silently rejected - deployments stop authenticating with no error.",
+      "description": "Negative twin: same renamed token, but a name-based condition. repository is now octo-org/renamed-repo, so the condition is false and GCP refuses the credential at the token exchange - Google: 'If the attribute condition evaluates to true for a given credential, the credential is accepted. Otherwise, the credential is rejected', and the STS response says so ('The given credential is rejected by the attribute condition'). What is silent is everything before that point: the provider accepted the condition when it was written and the rename happened on GitHub, so the refused exchange is the first signal anyone gets.",
       "issuer": "github",
       "subject": "repo:octo-org/renamed-repo:ref:refs/heads/main",
       "claims": { "sub": "repo:octo-org/renamed-repo:ref:refs/heads/main", "repository": "octo-org/renamed-repo", "repository_owner": "octo-org", "repository_id": "260064828", "repository_owner_id": "1342004", "ref": "refs/heads/main", "event_name": "push" },
       "condition": { "consumer": "gcp-cel", "pattern": "assertion.repository == 'octo-org/octo-repo'" },
       "expect": "no-match",
-      "judgment": { "grade": "caution", "reason": "Silent break after rename. Availability footgun, and the freed name becomes a cybersquat vector (see gh-gcp-name-recycle-danger).", "patterns": ["name-based", "rename-break"] },
+      "judgment": { "grade": "caution", "reason": "Break after rename, surfacing only as a refused exchange. Availability footgun, and the freed name becomes a cybersquat vector (see gh-gcp-name-recycle-danger).", "patterns": ["name-based", "rename-break"] },
       "status": "documented",
       "sources": [
-        "https://github.com/google-github-actions/auth/blob/main/docs/SECURITY_CONSIDERATIONS.md"
+        "https://github.com/google-github-actions/auth/blob/main/docs/SECURITY_CONSIDERATIONS.md",
+        "https://cloud.google.com/iam/docs/workload-identity-federation#conditions",
+        "https://github.com/google-github-actions/auth/issues/308"
       ]
     },
     {
@@ -169,16 +171,17 @@
     },
     {
       "id": "gh-gcp-classic-sub-immutable-break",
-      "description": "The July-15 break, GCP side, and the CKV_GCP_125 trap. A repo created/renamed after 2026-07-15 mints the immutable @-format sub, so a condition pinned on the classic sub is false -> credential silently rejected. This is also the exact sub shape CKV_GCP_125's sub regex parses.",
+      "description": "The July-15 break, GCP side, and the CKV_GCP_125 trap. A repo created/renamed after 2026-07-15 mints the immutable @-format sub, so a condition pinned on the classic sub is false and GCP refuses the credential at the token exchange ('Otherwise, the credential is rejected'); nothing checked the condition against a real token when it was written. This is also the exact sub shape CKV_GCP_125's sub regex parses.",
       "issuer": "github",
       "subject": "repo:octo-org@123456/octo-repo@456789:ref:refs/heads/main",
       "claims": { "sub": "repo:octo-org@123456/octo-repo@456789:ref:refs/heads/main", "repository": "octo-org/octo-repo", "repository_owner": "octo-org", "repository_id": "456789", "repository_owner_id": "123456", "ref": "refs/heads/main", "event_name": "push" },
       "condition": { "consumer": "gcp-cel", "pattern": "assertion.sub == 'repo:octo-org/octo-repo:ref:refs/heads/main'" },
       "expect": "no-match",
-      "judgment": { "grade": "caution", "reason": "Classic-format sub pin silently denies once the token carries the immutable @-format sub - an availability break like Azure classic FIC. Pinning assertion.repository_id sidesteps it; this sub shape is also what CKV_GCP_125 parses -- its extractor regexes assertion.sub == '<value>' and the classic form is what it expects (checkov 3.3.16 / d8aec9db, 2026-08-31).", "patterns": ["classic-sub", "immutable-break"] },
+      "judgment": { "grade": "caution", "reason": "Classic-format sub pin stops matching once the token carries the immutable @-format sub - an availability break like Azure classic FIC, refused at exchange rather than flagged at write time. Pinning assertion.repository_id sidesteps it; this sub shape is also what CKV_GCP_125 parses -- its extractor regexes assertion.sub == '<value>' and the classic form is what it expects (checkov 3.3.16 / d8aec9db, 2026-08-31).", "patterns": ["classic-sub", "immutable-break"] },
       "status": "documented",
       "sources": [
         "https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/",
+        "https://cloud.google.com/iam/docs/workload-identity-federation#conditions",
         "https://github.com/bridgecrewio/checkov/blob/d8aec9dba01c173dac52ebe1dece1ef0c1026eed/checkov/terraform/checks/resource/gcp/GithubActionsOIDCTrustPolicy.py#L23"
       ]
     }

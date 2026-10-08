@@ -1,0 +1,64 @@
+{
+  "recorded_utc": "2026-10-08T18:31:15Z",
+  "mode": "github-actions-oidc-claims",
+  "tool_version": "GitHub Actions, github-hosted ubuntu-latest, run 37824901043 at workflow commit f0ce60ef4523c1cb6e67b77d831a1b264a54afa5",
+  "probe": "Is a ':' inside an environment name minted as '%3A' in sub, as GitHub documents? First half of the collision probe: the environment literally named Production:V1.",
+  "repository": {
+    "full_name": "Dashtid/oidc-claims-probe",
+    "id": 1410796915,
+    "created_at": "2026-10-08T18:30:37Z",
+    "visibility": "private"
+  },
+  "run": {
+    "url": "https://github.com/Dashtid/oidc-claims-probe/actions/runs/37824901043",
+    "job": "env-colon",
+    "workflow_file": ".github/workflows/dump-claims.yml",
+    "environment_declared_in_yaml": "Production:V1",
+    "environment_as_stored": {
+      "id": 23809705152,
+      "name": "Production:V1",
+      "created_by": "PUT /repos/Dashtid/oidc-claims-probe/environments/Production%3AV1 before the run; GET /repos/Dashtid/oidc-claims-probe/environments then listed it as a distinct environment next to Production%3AV1 (id 23809705755)"
+    }
+  },
+  "request": "curl -sS -H \"Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}\" \"${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=subvectors-probe\" ; the .value JWT's payload segment was base64url-decoded and printed with jq -c -S ; the signed token was never printed or stored",
+  "claims": {
+    "actor": "Dashtid",
+    "actor_id": "47575784",
+    "aud": "subvectors-probe",
+    "base_ref": "",
+    "check_run_id": "113475121635",
+    "environment": "Production:V1",
+    "environment_node_id": "EN_kwDOVBcNc88AAAAFiytEwA",
+    "event_name": "workflow_dispatch",
+    "exp": 1791484575,
+    "head_ref": "",
+    "iat": 1791484275,
+    "iss": "https://token.actions.githubusercontent.com",
+    "job_workflow_ref": "Dashtid/oidc-claims-probe/.github/workflows/dump-claims.yml@refs/heads/main",
+    "job_workflow_sha": "f0ce60ef4523c1cb6e67b77d831a1b264a54afa5",
+    "jti": "65800ab3-5548-403f-9aef-b3af47c5c45f",
+    "nbf": 1791483975,
+    "ref": "refs/heads/main",
+    "ref_protected": "false",
+    "ref_type": "branch",
+    "repository": "Dashtid/oidc-claims-probe",
+    "repository_id": "1410796915",
+    "repository_owner": "Dashtid",
+    "repository_owner_id": "47575784",
+    "repository_visibility": "private",
+    "run_attempt": "1",
+    "run_id": "37824901043",
+    "run_number": "1",
+    "runner_environment": "github-hosted",
+    "sha": "f0ce60ef4523c1cb6e67b77d831a1b264a54afa5",
+    "sub": "repo:Dashtid@47575784/oidc-claims-probe@1410796915:environment:Production%3AV1",
+    "workflow": "dump-claims",
+    "workflow_ref": "Dashtid/oidc-claims-probe/.github/workflows/dump-claims.yml@refs/heads/main",
+    "workflow_sha": "f0ce60ef4523c1cb6e67b77d831a1b264a54afa5"
+  },
+  "vector_ids": [
+    "gh-aws-environment-colon-encoded-exact",
+    "gh-aws-environment-colon-literal-pin-denies"
+  ],
+  "verdict": "The value's ':' is minted as '%3A' and the structural colons stay literal, as documented. The environment claim itself carries the raw name 'Production:V1'. Compare github-oidc-claims-env-percent.json: the environment literally named Production%3AV1 minted the identical sub."
+}

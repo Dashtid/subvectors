@@ -1,0 +1,58 @@
+{
+  "recorded_utc": "2026-10-08T18:31:15Z",
+  "mode": "github-actions-oidc-claims",
+  "tool_version": "GitHub Actions, github-hosted ubuntu-latest, run 37824901043 at workflow commit f0ce60ef4523c1cb6e67b77d831a1b264a54afa5",
+  "probe": "What subject format does a repository created after 2026-07-15 mint with no opt-in, and does job_workflow_ref carry @id suffixes when sub does?",
+  "repository": {
+    "full_name": "Dashtid/oidc-claims-probe",
+    "id": 1410796915,
+    "created_at": "2026-10-08T18:30:37Z",
+    "visibility": "private",
+    "immutable_subject_opt_in": "none -- no setting was changed after creation; the format below is the default for a repository created on this date"
+  },
+  "run": {
+    "url": "https://github.com/Dashtid/oidc-claims-probe/actions/runs/37824901043",
+    "job": "direct",
+    "workflow_file": ".github/workflows/dump-claims.yml",
+    "environment_declared_in_yaml": null
+  },
+  "request": "curl -sS -H \"Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}\" \"${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=subvectors-probe\" ; the .value JWT's payload segment was base64url-decoded and printed with jq -c -S ; the signed token was never printed or stored",
+  "claims": {
+    "actor": "Dashtid",
+    "actor_id": "47575784",
+    "aud": "subvectors-probe",
+    "base_ref": "",
+    "check_run_id": "113475122442",
+    "event_name": "workflow_dispatch",
+    "exp": 1791484575,
+    "head_ref": "",
+    "iat": 1791484275,
+    "iss": "https://token.actions.githubusercontent.com",
+    "job_workflow_ref": "Dashtid/oidc-claims-probe/.github/workflows/dump-claims.yml@refs/heads/main",
+    "job_workflow_sha": "f0ce60ef4523c1cb6e67b77d831a1b264a54afa5",
+    "jti": "a71fccd5-a254-47bc-8e4b-d652c9d5233f",
+    "nbf": 1791483975,
+    "ref": "refs/heads/main",
+    "ref_protected": "false",
+    "ref_type": "branch",
+    "repository": "Dashtid/oidc-claims-probe",
+    "repository_id": "1410796915",
+    "repository_owner": "Dashtid",
+    "repository_owner_id": "47575784",
+    "repository_visibility": "private",
+    "run_attempt": "1",
+    "run_id": "37824901043",
+    "run_number": "1",
+    "runner_environment": "github-hosted",
+    "sha": "f0ce60ef4523c1cb6e67b77d831a1b264a54afa5",
+    "sub": "repo:Dashtid@47575784/oidc-claims-probe@1410796915:ref:refs/heads/main",
+    "workflow": "dump-claims",
+    "workflow_ref": "Dashtid/oidc-claims-probe/.github/workflows/dump-claims.yml@refs/heads/main",
+    "workflow_sha": "f0ce60ef4523c1cb6e67b77d831a1b264a54afa5"
+  },
+  "vector_ids": [
+    "gh-aws-immutable-subject-classic-pattern",
+    "gh-aws-jwr-key-stays-name-based-under-immutable-sub"
+  ],
+  "verdict": "sub is minted in the immutable format (owner@id/repo@id) with no opt-in. job_workflow_ref, workflow_ref and repository carry no ids: the immutable format changes sub only. The consumer-side match of these strings is not observed here; only what GitHub mints is."
+}

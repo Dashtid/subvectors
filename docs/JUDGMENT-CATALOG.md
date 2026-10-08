@@ -106,7 +106,7 @@ otherwise tightly scoped.
 | `classic-sub` | Classic (non-immutable) subject; breaks at the immutable cutover | caution | `gh-gcp-classic-sub-immutable-break` |
 | `immutable-break` | Immutable-format token no longer matches a classic pin | caution | `gh-gcp-classic-sub-immutable-break` |
 | `no-project-id-pin` | Namespace pinned but not the immutable `project_id` | caution | `gitlab-aws-all-aws-example-namespace-pin` |
-| `immutable-gap` | The consumer offers no lever to pin an immutable id | dangerous | `gl-flex-eq-path-reuse-squatter-no-lever` |
+| `immutable-gap` | The consumer offers no lever to pin an immutable id (GitLab's gap closed when Microsoft exposed `project_id`, 2026-09; Terraform Cloud's remains) | dangerous | `tfc-flex-name-based-no-immutable-lever` |
 
 ### Immutable pinning (the durable fixes) — `immutable-pin`
 
@@ -155,7 +155,7 @@ Scoped to a named deployment environment: only as strong as that environment's p
 | --- | --- | --- | --- |
 | `environment-scoped` | Scoped to a deployment environment (as strong as its rules) | safe/caution | `gh-aws-environment-key-absent-claim-rejected` |
 | `absent-key` | A condition key absent from the token → mismatch (fail-closed) | safe | `gh-aws-environment-key-absent-claim-rejected` |
-| `percent-encoded` | A `:` inside a metadata value is minted as `%3A`; the pin must match the encoded form | safe/dangerous | `gh-aws-environment-colon-literal-pin-denies` |
+| `percent-encoded` | A `:` inside a metadata value is minted as `%3A`; the pin must match the encoded form -- and `%` is not itself escaped, so `Production%3AV1` and `Production:V1` mint one subject (observed 2026-10-08) | safe/dangerous | `gh-aws-environment-colon-twin-collides` |
 | `select-claim-key` | Condition on a GitHub claim key other than `sub`/`aud` (AWS's select claims) | safe/dangerous | `gh-aws-ref-key-alone-omits-the-repository` |
 
 ### Type-level / expression traps — `type-trap`

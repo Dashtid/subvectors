@@ -1,0 +1,63 @@
+{
+  "recorded_utc": "2026-10-08T18:31:15Z",
+  "mode": "github-actions-oidc-claims",
+  "tool_version": "GitHub Actions, github-hosted ubuntu-latest, run 37824901043 at workflow commit f0ce60ef4523c1cb6e67b77d831a1b264a54afa5",
+  "probe": "Is '%' itself escaped in the ':' -> '%3A' substitution? Second half of the collision probe: the environment literally named Production%3AV1, run in the same workflow run as the Production:V1 job.",
+  "repository": {
+    "full_name": "Dashtid/oidc-claims-probe",
+    "id": 1410796915,
+    "created_at": "2026-10-08T18:30:37Z",
+    "visibility": "private"
+  },
+  "run": {
+    "url": "https://github.com/Dashtid/oidc-claims-probe/actions/runs/37824901043",
+    "job": "env-percent",
+    "workflow_file": ".github/workflows/dump-claims.yml",
+    "environment_declared_in_yaml": "Production%3AV1",
+    "environment_as_stored": {
+      "id": 23809705755,
+      "name": "Production%3AV1",
+      "created_by": "PUT /repos/Dashtid/oidc-claims-probe/environments/Production%253AV1 before the run; GET /repos/Dashtid/oidc-claims-probe/environments then listed it as a distinct environment next to Production:V1 (id 23809705152)"
+    }
+  },
+  "request": "curl -sS -H \"Authorization: bearer ${ACTIONS_ID_TOKEN_REQUEST_TOKEN}\" \"${ACTIONS_ID_TOKEN_REQUEST_URL}&audience=subvectors-probe\" ; the .value JWT's payload segment was base64url-decoded and printed with jq -c -S ; the signed token was never printed or stored",
+  "claims": {
+    "actor": "Dashtid",
+    "actor_id": "47575784",
+    "aud": "subvectors-probe",
+    "base_ref": "",
+    "check_run_id": "113475121948",
+    "environment": "Production%3AV1",
+    "environment_node_id": "EN_kwDOVBcNc88AAAAFiytHGw",
+    "event_name": "workflow_dispatch",
+    "exp": 1791484575,
+    "head_ref": "",
+    "iat": 1791484275,
+    "iss": "https://token.actions.githubusercontent.com",
+    "job_workflow_ref": "Dashtid/oidc-claims-probe/.github/workflows/dump-claims.yml@refs/heads/main",
+    "job_workflow_sha": "f0ce60ef4523c1cb6e67b77d831a1b264a54afa5",
+    "jti": "bbc2b6da-186e-4a83-857b-63b5634d15e2",
+    "nbf": 1791483975,
+    "ref": "refs/heads/main",
+    "ref_protected": "false",
+    "ref_type": "branch",
+    "repository": "Dashtid/oidc-claims-probe",
+    "repository_id": "1410796915",
+    "repository_owner": "Dashtid",
+    "repository_owner_id": "47575784",
+    "repository_visibility": "private",
+    "run_attempt": "1",
+    "run_id": "37824901043",
+    "run_number": "1",
+    "runner_environment": "github-hosted",
+    "sha": "f0ce60ef4523c1cb6e67b77d831a1b264a54afa5",
+    "sub": "repo:Dashtid@47575784/oidc-claims-probe@1410796915:environment:Production%3AV1",
+    "workflow": "dump-claims",
+    "workflow_ref": "Dashtid/oidc-claims-probe/.github/workflows/dump-claims.yml@refs/heads/main",
+    "workflow_sha": "f0ce60ef4523c1cb6e67b77d831a1b264a54afa5"
+  },
+  "vector_ids": [
+    "gh-aws-environment-colon-twin-collides"
+  ],
+  "verdict": "COLLISION. '%' is not escaped: this environment's sub is byte-identical to the one Production:V1 minted in the same run (github-oidc-claims-env-colon.json), while the two are distinct environments (ids 23809705152 and 23809705755; environment_node_id EN_kwDOVBcNc88AAAAFiytEwA vs EN_kwDOVBcNc88AAAAFiytHGw). Only the environment claim tells them apart, and it carries the raw name."
+}

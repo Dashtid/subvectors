@@ -1,7 +1,7 @@
 {
   "suite": "github-aws",
-  "version": "0.8.0",
-  "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., not available in session), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns. 0.3.0 tranche: aws-all composite vectors modeling full IAM Condition blocks (keys ANDed, values ORed, operators mixed) including AWS's and GitHub's own documented trust-policy shapes. 0.3.1: first observed promotions -- 5 vectors confirmed against the live IAM policy simulator (case-sensitivity, the *-spans-separators family, zero-width *), each carrying its observation block. 0.3.2: multivalue-loose-value-poisons-list promoted (6 observed) -- the simulator admits the poisoned OR-list, and iam:CreateRole ACCEPTS it (and even a literal '*' value) while rejecting a condition-less policy, so AWS's creation-time guardrail blocks the 2023 sub-less class but leaves the multi-value hole open. 0.4.0: the 2026-08-31 re-run put the whole AWS tranche on committed transcripts (observations/2026-08-31/) -- 11 observed, and the creation probe repeated with its condition operator recorded, which is what the 0.3.3 narrowing was waiting on. 0.4.2: five creation probes settle the shape -- AWS's creation guardrail validates only the FIRST value of the sub condition's list and is order-dependent (\"*\" first is REJECTED, the same \"*\" second is ACCEPTED), the same first-value-only defect the corpus feeds upstream to scanners. 0.5.0: the ForAllValues/ForAnyValue set-operator tranche -- AWS directs that neither qualifier be used on a single-valued context key, and on a claim a token may omit (environment) ForAllValues under an Allow passes VACUOUSLY while ForAnyValue fails closed; neither tightens a poisoned OR-list, and a correct aud pin does not rescue the fail-open.",
+  "version": "0.9.0",
+  "description": "GitHub Actions OIDC subjects against AWS IAM role trust-policy conditions (StringEquals / StringLike). Seed tranche: exact vs wildcard semantics, the ? single-char wildcard, org- and repo-wide over-permission, pull_request subjects, and the classic-vs-immutable subject format break. 0.2.0 tranche: multi-value conditions (logical OR), aud pinning, absent-context-key semantics, the GitHub-specific condition keys AWS STS added Feb 2026 (job_workflow_ref / repository_id / environment et al., not available in session), customized sub claims for reusable-workflow pinning, and StringLike branch-name footguns. 0.3.0 tranche: aws-all composite vectors modeling full IAM Condition blocks (keys ANDed, values ORed, operators mixed) including AWS's and GitHub's own documented trust-policy shapes. 0.3.1: first observed promotions -- 5 vectors confirmed against the live IAM policy simulator (case-sensitivity, the *-spans-separators family, zero-width *), each carrying its observation block. 0.3.2: multivalue-loose-value-poisons-list promoted (6 observed) -- the simulator admits the poisoned OR-list, and iam:CreateRole ACCEPTS it (and even a literal '*' value) while rejecting a condition-less policy, so AWS's creation-time guardrail blocks the 2023 sub-less class but leaves the multi-value hole open. 0.4.0: the 2026-08-31 re-run put the whole AWS tranche on committed transcripts (observations/2026-08-31/) -- 11 observed, and the creation probe repeated with its condition operator recorded, which is what the 0.3.3 narrowing was waiting on. 0.4.2: five creation probes settle the shape -- AWS's creation guardrail validates only the FIRST value of the sub condition's list and is order-dependent (\"*\" first is REJECTED, the same \"*\" second is ACCEPTED), the same first-value-only defect the corpus feeds upstream to scanners. 0.5.0: the ForAllValues/ForAnyValue set-operator tranche -- AWS directs that neither qualifier be used on a single-valued context key, and on a claim a token may omit (environment) ForAllValues under an Allow passes VACUOUSLY while ForAnyValue fails closed; neither tightens a poisoned OR-list, and a correct aud pin does not rescue the fail-open. 0.9.0: the first issuer-side observations (github-actions-oidc-claims, observations/2026-10-08/) -- a repository created 2026-10-08 mints the immutable subject with no opt-in; '%' is not escaped in the ':' -> '%3A' substitution, so the environments Production:V1 and Production%3AV1 mint one subject (new: gh-aws-environment-colon-twin-collides); and job_workflow_ref carries no @id suffixes next to an immutable sub (new: gh-aws-jwr-key-stays-name-based-under-immutable-sub). 16 observed.",
   "vectors": [
     {
       "id": "gh-aws-exact-branch-stringequals",
@@ -133,12 +133,19 @@
     },
     {
       "id": "gh-aws-immutable-subject-classic-pattern",
-      "description": "The July 15 breakage from the cloud side: a repo created after the immutable cutover mints an immutable subject, but the trust policy still carries the classic (no-@id) pattern. It stops matching. This is silent deployment breakage, not just a lint nit.",
+      "description": "The July 15 breakage from the cloud side: a repo created after the immutable cutover mints an immutable subject, but the trust policy still carries the classic (no-@id) pattern. It stops matching: AssumeRoleWithWebIdentity is refused, and nothing warned before the first failed run. Deployment breakage, not just a lint nit.",
       "issuer": "github",
       "subject": "repo:octo-org@123456/octo-repo@7891011:ref:refs/heads/main",
       "condition": { "consumer": "aws-stringlike", "claim": "sub", "pattern": "repo:octo-org/octo-repo:ref:refs/heads/main" },
       "expect": "no-match",
-      "status": "documented",
+      "status": "observed",
+      "observation": {
+        "method": "github-actions-oidc-claims",
+        "date": "2026-10-08",
+        "evidence": "A repository created 2026-10-08 with no setting changed minted sub repo:Dashtid@47575784/oidc-claims-probe@1410796915:ref:refs/heads/main (run 37824901043, job direct): the immutable format is the default for a new repository, as the changelog scheduled for 2026-07-15. The vector keeps the corpus placeholder ids. The StringLike mismatch of the classic pattern against that string (no wildcard, byte comparison) is AWS-documented and not separately observed.",
+        "tool_version": "GitHub Actions, github-hosted ubuntu-latest, run 37824901043 at workflow commit f0ce60ef4523c1cb6e67b77d831a1b264a54afa5",
+        "transcript": "observations/2026-10-08/github-oidc-claims-direct.json"
+      },
       "sources": [
         "https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/",
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
@@ -349,6 +356,40 @@
       "sources": [
         "https://docs.github.com/en/actions/reference/security/secure-use",
         "https://docs.github.com/en/actions/how-tos/reuse-automations/reuse-workflows",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif"
+      ]
+    },
+    {
+      "id": "gh-aws-jwr-key-stays-name-based-under-immutable-sub",
+      "description": "The immutable subject format changes sub and nothing else. Observed 2026-10-08 on a repository that mints owner@id/repo@id subjects by default: in the same token, job_workflow_ref, workflow_ref and repository carried no ids at all, for a direct job and for a reusable-workflow (workflow_call) job alike. The primary sources never said otherwise -- GitHub's reference and the 2026-04-23 changelog speak only about sub -- and the corpus shipped nothing on it until it was observed. A job_workflow_ref pin therefore keeps every property of a name-based pin even on an immutable-subject repository.",
+      "issuer": "github",
+      "subject": "repo:octo-org@123456/octo-repo@7891011:ref:refs/heads/main",
+      "claims": {
+        "sub": "repo:octo-org@123456/octo-repo@7891011:ref:refs/heads/main",
+        "job_workflow_ref": "octo-org/octo-automation/.github/workflows/oidc.yml@refs/heads/main"
+      },
+      "condition": { "consumer": "aws-stringequals", "claim": "job_workflow_ref", "pattern": "octo-org/octo-automation/.github/workflows/oidc.yml@refs/heads/main" },
+      "expect": "match",
+      "judgment": {
+        "grade": "caution",
+        "reason": "Name-based on both ends: owner/repo/path can be renamed, transferred or recycled, and refs/heads/main is a mutable ref. The @id protection in sub does not extend to the one key that identifies workflow content. Pinning content needs the SHA form (gh-aws-jwr-condition-key-sha-pin); pinning the repository durably needs repository_id or the sub's own ids, not this key.",
+        "patterns": [
+          "reusable-workflow-pin",
+          "name-based",
+          "mutable-ref-pin"
+        ]
+      },
+      "status": "observed",
+      "observation": {
+        "method": "github-actions-oidc-claims",
+        "date": "2026-10-08",
+        "evidence": "Run 37824901043, job direct: sub repo:Dashtid@47575784/oidc-claims-probe@1410796915:ref:refs/heads/main next to job_workflow_ref Dashtid/oidc-claims-probe/.github/workflows/dump-claims.yml@refs/heads/main, workflow_ref the same, repository Dashtid/oidc-claims-probe. Job via-reusable (workflow_call): job_workflow_ref Dashtid/oidc-claims-probe/.github/workflows/reusable-dump.yml@refs/heads/main, again without ids (observations/2026-10-08/github-oidc-claims-via-reusable.json). The vector's placeholder values keep the shapes (two ids in sub, none in job_workflow_ref); the StringEquals match of identical strings is AWS-documented and not separately observed.",
+        "tool_version": "GitHub Actions, github-hosted ubuntu-latest, run 37824901043 at workflow commit f0ce60ef4523c1cb6e67b77d831a1b264a54afa5",
+        "transcript": "observations/2026-10-08/github-oidc-claims-direct.json"
+      },
+      "sources": [
+        "https://github.blog/changelog/2026-04-23-immutable-subject-claims-for-github-actions-oidc-tokens/",
+        "https://docs.github.com/en/actions/reference/security/oidc",
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif"
       ]
     },
@@ -929,7 +970,14 @@
           "percent-encoded"
         ]
       },
-      "status": "documented",
+      "status": "observed",
+      "observation": {
+        "method": "github-actions-oidc-claims",
+        "date": "2026-10-08",
+        "evidence": "A job declaring environment Production:V1 (environment id 23809705152) in a repository created 2026-10-08 minted sub repo:Dashtid@47575784/oidc-claims-probe@1410796915:environment:Production%3AV1 (run 37824901043, job env-colon): the value's colon is minted as %3A and the four structural colons stay literal, as documented. The repository mints the immutable repo segment; the vector keeps the classic placeholder because the rule under test is the context encoding. The StringEquals match of two identical strings is AWS-documented and not separately observed.",
+        "tool_version": "GitHub Actions, github-hosted ubuntu-latest, run 37824901043 at workflow commit f0ce60ef4523c1cb6e67b77d831a1b264a54afa5",
+        "transcript": "observations/2026-10-08/github-oidc-claims-env-colon.json"
+      },
       "sources": [
         "https://docs.github.com/en/actions/reference/security/oidc",
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
@@ -955,7 +1003,14 @@
           "percent-encoded"
         ]
       },
-      "status": "documented",
+      "status": "observed",
+      "observation": {
+        "method": "github-actions-oidc-claims",
+        "date": "2026-10-08",
+        "evidence": "Same token as gh-aws-environment-colon-encoded-exact (run 37824901043, job env-colon, environment Production:V1): the minted sub carries %3A, not ':', so a pin spelled Production:V1 names a string no token of that environment carries. The StringEquals mismatch of two different strings is AWS-documented and not separately observed.",
+        "tool_version": "GitHub Actions, github-hosted ubuntu-latest, run 37824901043 at workflow commit f0ce60ef4523c1cb6e67b77d831a1b264a54afa5",
+        "transcript": "observations/2026-10-08/github-oidc-claims-env-colon.json"
+      },
       "sources": [
         "https://docs.github.com/en/actions/reference/security/oidc",
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
@@ -986,6 +1041,44 @@
         "https://docs.github.com/en/actions/reference/security/oidc",
         "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html",
         "https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments"
+      ]
+    },
+    {
+      "id": "gh-aws-environment-colon-twin-collides",
+      "description": "The other half of the %3A rule, observed 2026-10-08: the substitution is one-way and '%' is not itself escaped. An environment literally named Production%3AV1 mints repo:octo-org/octo-repo:environment:Production%3AV1 -- byte-identical to the subject the environment Production:V1 mints (gh-aws-environment-colon-encoded-exact). Two distinct environments, one subject, so the correct pin for Production:V1 admits every job of its twin. GitHub: 'Anyone that can edit workflows in the repository can create environments via a workflow file, but only repository admins can configure the environment', and a newly created environment 'will not have any protection rules or secrets configured' -- the twin is mintable by anyone with write access and carries none of the reviewers or branch rules the original pin was relying on.",
+      "issuer": "github",
+      "subject": "repo:octo-org/octo-repo:environment:Production%3AV1",
+      "claims": {
+        "sub": "repo:octo-org/octo-repo:environment:Production%3AV1",
+        "environment": "Production%3AV1"
+      },
+      "condition": {
+        "consumer": "aws-stringequals",
+        "claim": "sub",
+        "pattern": "repo:octo-org/octo-repo:environment:Production%3AV1"
+      },
+      "expect": "match",
+      "judgment": {
+        "grade": "dangerous",
+        "reason": "A required-reviewers bypass that no wildcard advertises: the pin is exact and spelled correctly, and still names two environments. Protection rules are per environment, so the twin need carry none. The sub cannot tell the two apart; the environment claim can -- it carries the raw name ('Production:V1' vs 'Production%3AV1') -- so pin AWS's environment condition key alongside sub, or keep ':' out of environment names.",
+        "patterns": [
+          "environment-scoped",
+          "percent-encoded"
+        ]
+      },
+      "status": "observed",
+      "observation": {
+        "method": "github-actions-oidc-claims",
+        "date": "2026-10-08",
+        "evidence": "Run 37824901043 in a scratch repository created the same day: job env-percent, environment Production%3AV1 (environment id 23809705755), minted sub repo:Dashtid@47575784/oidc-claims-probe@1410796915:environment:Production%3AV1; job env-colon, environment Production:V1 (id 23809705152), minted the identical sub. The environment claims read Production%3AV1 and Production:V1 respectively, and the environment_node_id claims differ. The repository mints the immutable repo segment; the vector keeps the classic placeholder because the collision lives in the context segment. The StringEquals match of two identical strings is AWS-documented and not separately observed.",
+        "tool_version": "GitHub Actions, github-hosted ubuntu-latest, run 37824901043 at workflow commit f0ce60ef4523c1cb6e67b77d831a1b264a54afa5",
+        "transcript": "observations/2026-10-08/github-oidc-claims-env-percent.json"
+      },
+      "sources": [
+        "https://docs.github.com/en/actions/reference/security/oidc",
+        "https://docs.github.com/en/actions/how-tos/deploy/configure-and-manage-deployments/manage-environments",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_iam-condition-keys.html#condition-keys-wif",
+        "https://docs.aws.amazon.com/IAM/latest/UserGuide/reference_policies_elements_condition_operators.html"
       ]
     },
     {

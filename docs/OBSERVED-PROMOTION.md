@@ -30,9 +30,13 @@ how you confirmed it. `tests/test_vectors.py` enforces both directions.
 }
 ```
 
-`method` is one of: `aws-iam-policy-simulator`, `aws-sts-assume-role`, `azure-fic-token-exchange`,
-`gcp-wif-token-exchange`, `gcp-wif-provider-validation`. `evidence` is the exact request and the
-verbatim result — enough for a reader to reproduce, not a summary.
+`method` is one of: `github-actions-oidc-claims`, `aws-iam-policy-simulator`,
+`aws-sts-assume-role`, `azure-fic-token-exchange`, `gcp-wif-token-exchange`,
+`gcp-wif-provider-validation`. The first is issuer-side (added 2026-10-08): it records what a real
+GitHub Actions job put in its token, which confirms the subject GitHub mints while the consumer's
+match of that string stays `documented` — the vector's `evidence` must say which half is which.
+`evidence` is the exact request and the verbatim result — enough for a reader to reproduce, not a
+summary.
 
 ### `transcript` — why prose is not enough (added 2026-08-31)
 
@@ -213,6 +217,30 @@ this before leaning on it anywhere public: an upstream PR, a vector's `judgment`
 catalog. (Reworded 2026-08-29: this line used to read "before leaning on it in the article". There
 is no article — that programme closed 2026-08-29 — but the verify-before-you-claim rule it encoded
 is unchanged, and now points at the artifacts that replaced it.)
+
+### 6. GitHub issuer probes — `github-actions-oidc-claims`  [DONE 2026-10-08]
+
+No cloud account: a scratch repository and one workflow that mints the job's token for a throwaway
+audience and prints the decoded claims (never the signed token). Repository
+`Dashtid/oidc-claims-probe` (private, created 2026-10-08, kept as the reproduction harness), run
+37824901043, four jobs, transcripts under `observations/2026-10-08/`. What it proves is the issuer
+side only — what GitHub puts in the token. The consumer's match of that string stays `documented`,
+and every promoted vector's `evidence` says so.
+
+| Question (BACKLOG) | Job(s) | Result |
+| --- | --- | --- |
+| Is `%` escaped in the `:` -> `%3A` substitution? | `env-colon` (environment `Production:V1`), `env-percent` (environment `Production%3AV1`) | **No — collision.** Two distinct environments (ids 23809705152 / 23809705755, different `environment_node_id` claims) minted the byte-identical `sub` `...:environment:Production%3AV1`. Only the `environment` claim, which carries the raw name, tells them apart. New vector `gh-aws-environment-colon-twin-collides` (dangerous); `gh-aws-environment-colon-encoded-exact` and `gh-aws-environment-colon-literal-pin-denies` promoted. |
+| Does `job_workflow_ref` carry `@id` suffixes under immutable subjects? | `direct`, `via-reusable` | **No.** `sub` carried `owner@id/repo@id`; `job_workflow_ref`, `workflow_ref` and `repository` carried no ids, for a direct job and a `workflow_call` job alike. New vector `gh-aws-jwr-key-stays-name-based-under-immutable-sub` (caution). |
+| What does a repository created after 2026-07-15 mint? | `direct` | The immutable format, with no opt-in. `gh-aws-immutable-subject-classic-pattern` promoted. |
+
+Guards: `tests/test_observations.py::test_github_claims_transcript_backs_the_vector` checks each
+promoted vector's subject context segment and claim shapes against the committed token; the
+account-id scan exempts only the token's own `check_run_id` / `run_id` claims (GitHub ids, twelve
+digits by construction) and scans everything else in the file.
+
+Still open: the collision is arguably a GitHub report — a required-reviewers bypass that needs
+only write access and an environment name containing `:`. Whether to file it is an owner decision,
+recorded in BACKLOG.md.
 
 ## The loop, automated (added 2026-09-01)
 

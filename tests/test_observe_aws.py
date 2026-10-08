@@ -391,6 +391,26 @@ def test_transcript_scrubs_aws_unique_ids_not_just_account_digits(tmp_path: Path
     assert blob.count(observe._UNIQUE_ID_PLACEHOLDER) == 2
 
 
+def _committed_transcript_text(path: Path) -> str:
+    """The file as scanned: verbatim, minus a GitHub token's own 12-digit ids.
+
+    A github-actions-oidc-claims transcript records the token's claims verbatim,
+    and check_run_id is already twelve digits (run_id will be). They are GitHub
+    ids by construction, so those two keys are dropped before the scan and
+    nothing else is -- the same two-key exemption tests/test_observations.py
+    applies to its own scan.
+    """
+    text = path.read_text(encoding="utf-8")
+    record = json.loads(text)
+    if record.get("mode") != "github-actions-oidc-claims":
+        return text
+    claims = dict(record.get("claims", {}))
+    for key in ("check_run_id", "run_id"):
+        claims.pop(key, None)
+    record["claims"] = claims
+    return json.dumps(record)
+
+
 def test_committed_transcripts_carry_no_recoverable_account_id() -> None:
     """Guard the product itself, not just the helper: scan what is on disk."""
     import re
@@ -399,7 +419,7 @@ def test_committed_transcripts_carry_no_recoverable_account_id() -> None:
     leaky = re.compile(r"(?<![0-9])[0-9]{12}(?![0-9])|(?:AROA|AKIA|ASIA|AIDA)[A-Z0-9]{12,}")
     offenders = []
     for path in sorted(root.rglob("*.json")):
-        for hit in leaky.findall(path.read_text(encoding="utf-8")):
+        for hit in leaky.findall(_committed_transcript_text(path)):
             if hit not in {"123456789012", "210987654321"}:
                 offenders.append(f"{path.name}: {hit}")
     assert not offenders, f"recoverable AWS identifiers in committed transcripts: {offenders}"

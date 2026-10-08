@@ -88,10 +88,29 @@ def test_transcript_verdict_matches_the_vector(vector: dict) -> None:
     assert (record["decision"] == "allowed") == expected_allowed
 
 
+# A GitHub token's check_run_id is already 12 digits and run_id will be. In a
+# github-actions-oidc-claims transcript they are the token's own claims, kept
+# verbatim, and they are GitHub ids by construction. Everything else in the file
+# is still scanned -- the exemption is two named keys, not the mode.
+_GITHUB_ID_CLAIMS = ("check_run_id", "run_id")
+
+
+def _scannable_text(path: Path) -> str:
+    text = path.read_text(encoding="utf-8")
+    record = json.loads(text)
+    if record.get("mode") != "github-actions-oidc-claims":
+        return text
+    claims = dict(record.get("claims", {}))
+    for key in _GITHUB_ID_CLAIMS:
+        claims.pop(key, None)
+    record["claims"] = claims
+    return json.dumps(record)
+
+
 @pytest.mark.parametrize("path", _transcript_files(), ids=lambda p: p.name)
 def test_no_account_id_in_any_transcript(path: Path) -> None:
     """Re-checked every commit, not only on the day of a run."""
-    text = path.read_text(encoding="utf-8")
+    text = _scannable_text(path)
     assert not _ACCOUNT_RE.search(text), f"{path} leaks what looks like an AWS account id"
 
 
@@ -121,3 +140,36 @@ def test_creation_probes_record_their_operator() -> None:
             assert cleanup.get("verified_absent"), (
                 f"{path} created a role without a verified deletion"
             )
+
+
+def _observed_by_github_claims() -> list[dict]:
+    return [
+        v
+        for v in _observed_with_transcript()
+        if v["observation"]["method"] == "github-actions-oidc-claims"
+    ]
+
+
+@pytest.mark.parametrize("vector", _observed_by_github_claims(), ids=lambda v: v["id"])
+def test_github_claims_transcript_backs_the_vector(vector: dict) -> None:
+    """Issuer-side observations: the minted token must carry the shape the vector asserts.
+
+    The vector keeps the corpus's octo-org placeholders; the transcript holds a
+    real repository's token. What must agree is the part under test: the
+    subject's context segment (everything after repo:OWNER/REPO), and for every
+    other claim the vector pins, whether the value carries '@' ids -- the
+    2026-10-08 finding being that job_workflow_ref carries none while sub in the
+    same token carries two.
+    """
+    record = json.loads((ROOT / vector["observation"]["transcript"]).read_text(encoding="utf-8"))
+    assert record["mode"] == "github-actions-oidc-claims"
+    assert vector["id"] in record["vector_ids"], "transcript does not list this vector"
+    claims = record["claims"]
+    assert vector["subject"].split(":", 2)[2] == claims["sub"].split(":", 2)[2], (
+        "subject context segment drifted from the minted token"
+    )
+    for name, value in (vector.get("claims") or {}).items():
+        if name == "sub":
+            continue
+        assert name in claims, f"the minted token carries no {name} claim"
+        assert value.count("@") == claims[name].count("@"), f"{name}: '@' shape differs"

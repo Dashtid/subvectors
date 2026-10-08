@@ -340,13 +340,14 @@
       "properties": {
         "method": {
           "enum": [
+            "github-actions-oidc-claims",
             "aws-iam-policy-simulator",
             "aws-sts-assume-role",
             "azure-fic-token-exchange",
             "gcp-wif-token-exchange",
             "gcp-wif-provider-validation"
           ],
-          "description": "How the result was obtained. 'aws-iam-policy-simulator' creates no cloud resources; the exchange/assume methods use a live credential; 'gcp-wif-provider-validation' records whether provider creation accepts or rejects a CEL expression."
+          "description": "How the result was obtained. 'github-actions-oidc-claims' is issuer-side: the claim set of a token a real GitHub Actions job minted, which confirms the subject GitHub produces while the consumer's match of that string stays documented. 'aws-iam-policy-simulator' creates no cloud resources; the exchange/assume methods use a live credential; 'gcp-wif-provider-validation' records whether provider creation accepts or rejects a CEL expression."
         },
         "date": {
           "type": "string",

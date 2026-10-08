@@ -148,7 +148,10 @@ def write() -> None:
         )
     before = text.split(MARKER_START)[0]
     after = text.split(MARKER_END, 1)[1]
-    README.write_text(before + render_section() + after, encoding="utf-8")
+    # newline="\n": without it, Python's text mode writes CRLF on Windows and this
+    # rewrites every line of the README, not just the generated block (seen
+    # 2026-10-08; git normalised it on commit, so it never showed in history).
+    README.write_text(before + render_section() + after, encoding="utf-8", newline="\n")
 
 
 if __name__ == "__main__":

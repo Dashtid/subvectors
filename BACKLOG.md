@@ -16,6 +16,23 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   org-wide `repo:org/*` case raised as the open question per plan. Sibling PR #7627 (CKV_AZURE_249
   `pull_request`) opened alongside. Both awaiting maintainer review; stays `[~]` until
   merged/closed.
+  **DECIDED 2026-10-08: all three Checkov PRs (#7610, #7627, #7665) stay open past the 2026-10-15
+  close-by, with no nudge and no fourth PR.** The close-by assumed silence meant rejection. Measured
+  on 2026-10-08: Checkov has 112 open PRs, 104 from outside, 98 of those with zero reviews (median
+  age 79 days, 46 older than #7610); the last 20 outside merges took a median of 50 days (range
+  6-522) and were each picked by one of three staff, not swept. CI never executed on any of the
+  three (the 30-day fork-approval ceiling expired on 08-29 / 08-29 / 09-30), all three are still
+  MERGEABLE with no conflicts, and all three defects are still on `main` at 3.3.26 (2026-10-07):
+  no OIDC file has a commit since 2026-06-01 and no release note mentions OIDC. Silence there is
+  the queue, not a verdict, and closing a mergeable PR into it throws away free option value. The
+  stale bot (180 days idle, then 14) is the clock: ~2027-03 for #7610/#7627. Two outside PRs now
+  sit next to ours in the same files, both unreviewed: #7710 (2026-09-30, AbdallahKhaldi) turns the
+  early `return PASSED` into `continue` in the statement loops of CKV_AWS_358/393 and cites #7665
+  as a different defect in the same two checks (whichever merges first forces a rebase of the
+  other); #7715 (2026-10-03, harshit3355) adds CKV_AZURE_252 for `claims_matching_expression` on
+  flexible FICs, the gap #7627's notes list as open question 2. Others are working the seam, which
+  is the compounding signal this project wanted, in weak form. The tracker record is updated from
+  an `oss-contributions` session, not from here.
 
 ## Next up — this repo, independent of the upstream PRs
 
@@ -82,8 +99,8 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   CKV_AWS_393 — a policy pinning `ref` alone passes both checks today. That is now backed by four
   failing-shape vectors instead of an assertion. Held because three Checkov PRs (#7610, #7627,
   #7665) are open with zero reviews and ladder step 1 is spent on all of them; opening a fourth
-  before any of those move would be volume, not signal. Revisit when one gets a review or at the
-  2026-10-15 polite close-by.
+  before any of those move would be volume, not signal. Revisit when one gets a review. (The
+  2026-10-15 close-by is withdrawn — see the decision under "In progress"; the three stay open.)
 - `[x]` **AWS set-operator tranche (`ForAllValues:` / `ForAnyValue:`)** -- github-aws 0.5.0, 7
   vectors, matcher `qualifier` support, schema property, 2 catalog tags. Closes the flank on the
   multi-value finding: the obvious reply to Checkov #7665 is "what about ForAllValues?", and the
@@ -269,7 +286,21 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
   path-reuse squatter that even an exact `eq` cannot exclude, and the project_id-led sub as the
   ONLY immutable lever (bake the id into the sub, since it is not a separate matchable claim).
   Adversarial pass: 5/5 mechanically clean; one attribution blocker fixed (immutability quote
-  re-sourced). Terraform Cloud side ALSO shipped (`terraform-azure-flexible.json` 0.1.0, 6
+  re-sourced).
+  **[!] FALSIFIED BY MICROSOFT, CORRECTED 2026-10-08 (gitlab-azure-flexible 0.2.0).** The
+  flexible-FIC page at ms.date 2026-09-18 lists `project_id` (eq) for GitLab and says "When you
+  use mutable subjects with GitLab, your flexible federated identity credential expression must
+  match the sub and project_id claims"; Microsoft's "Mutable subjects in federated identity
+  credentials" page (ms.date 2026-07-28) says sub plus "one or more of" project_id /
+  namespace_id / user_id, "regardless of whether sub starts with project_path or project_id".
+  Two Microsoft pages, two rules -- a documented contradiction, encoded. All five judgments
+  corrected (the lever exists; a sub-only expression on a path-based sub no longer satisfies
+  the rule), `immutable-gap` dropped from the squatter vector (id kept stable; the catalog's
+  example moved to the Terraform Cloud vector, whose gap still holds), and one new vector,
+  `gl-flex-and-project-id-excludes-squatter` (safe, no-match): the same squatter token refused
+  by `and claims['project_id'] eq '20'`. `ffl.py`'s per-issuer docstring updated. Not asserted
+  anywhere: namespace_id / user_id acceptance, and whether the rule reaches a project_id-led
+  sub -- the pages disagree and no tenant was available to settle it. Terraform Cloud side ALSO shipped (`terraform-azure-flexible.json` 0.1.0, 6
   vectors, NEW issuer `terraform-cloud`): sub = `organization:{org}:project:{project}:workspace:
   {workspace}:run_phase:{plan|apply}`, name-based. The marquee vector is `run_phase:*` -- classic
   FIC needs "two federated identity credentials ... one that matches run_phase:plan and one that
@@ -343,14 +374,17 @@ Status keys: `[ ]` todo · `[~]` in progress · `[x]` done this cycle.
     Two grammar tests pin the shapes, including the bare `repo:OWNER@ID/REPO@ID` with no context
     segment — which parses only because the context segment was made optional on 2026-09-02, so
     neither change can quietly undo the other.
-  - `[ ]` **`job_workflow_ref` under immutable subjects — NOT verified, and the note that started
-    this item was wrong to assert it.** The backlog said jwr "stays mutable, not `@id`-suffixed".
-    Checked both primary sources on 2026-09-03: GitHub's OIDC reference does not address it, and the
-    2026-04-23 changelog does not mention `job_workflow_ref` at all — it speaks only about the `sub`
-    claim. So the claim is plausible and unsourced, and no vector ships on it. Needs a probe:
-    on a repository using immutable subject claims, run a job from a reusable workflow and read the
-    `job_workflow_ref` claim. Pairs naturally with the `%` collision probe — same scratch repo, same
-    workflow that dumps the token's claims.
+  - `[x]` **`job_workflow_ref` under immutable subjects — OBSERVED 2026-10-08: it carries no ids.**
+    The backlog said jwr "stays mutable, not `@id`-suffixed"; on 2026-09-03 that was found
+    plausible and unsourced (GitHub's reference and the 2026-04-23 changelog speak only about
+    `sub`), so no vector shipped on it. Probed in a scratch repository created 2026-10-08
+    (`Dashtid/oidc-claims-probe`, run 37824901043): the token's `sub` carried `owner@id/repo@id`
+    with no opt-in, and `job_workflow_ref`, `workflow_ref` and `repository` carried no ids, for a
+    direct job and for a `workflow_call` job alike. Transcripts
+    `observations/2026-10-08/github-oidc-claims-direct.json` and `-via-reusable.json`. Encoded as
+    `gh-aws-jwr-key-stays-name-based-under-immutable-sub` (caution) and the new-repository
+    observation promoted `gh-aws-immutable-subject-classic-pattern`. Runbook:
+    `docs/OBSERVED-PROMOTION.md`, experiment 6.
 - `[~]` **Promote key vectors `documented` -> `observed`** — no longer optional/low-priority:
   **DECISION TAKEN 2026-08-22: cloud sandbox is IN SCOPE** (personal free-tier, personal gear;
   the observed:documented ratio is the corpus's real quality metric; it read 0:133 at decision time
@@ -547,11 +581,23 @@ One new item was opened by this work rather than closed by it — the `%` collis
   Same corpus, same claim, two standards of proof. The grade stays `safe`, which the catalog
   sanctions; the reason now names what it rests on and says plainly that an environment with no
   protection rules is mintable by anyone who can push a workflow change.
-- `[ ]` **Probe: is `%` escaped in the `%3A` substitution?** Create two environments in a scratch
-  repository, one named `Production:V1` and one named `Production%3AV1`, run a job in each and
-  compare the minted `sub`. If they collide, a trust policy pinned to the first admits the second,
-  and that is a vector (and arguably a GitHub report). Cheap -- no cloud account needed, only a repo
-  and a workflow that prints the token's claims. Blocked on nothing.
+- `[x]` **Probe: is `%` escaped in the `%3A` substitution? NO — the subjects collide. Observed
+  2026-10-08.** Two environments were created through the REST API in a scratch repository
+  (`Dashtid/oidc-claims-probe`): `Production:V1` (id 23809705152) and `Production%3AV1` (id
+  23809705755), listed by GitHub as two distinct environments. One job in each, same run
+  (37824901043): both minted the byte-identical `sub`
+  `repo:Dashtid@47575784/oidc-claims-probe@1410796915:environment:Production%3AV1`. Only the
+  `environment` claim (raw name) and `environment_node_id` differ. Transcripts
+  `observations/2026-10-08/github-oidc-claims-env-colon.json` and `-env-percent.json`. So a trust
+  policy correctly pinned to `Production:V1` admits every job of its twin, and GitHub documents
+  that "anyone that can edit workflows in the repository can create environments via a workflow
+  file" with no protection rules — a required-reviewers bypass with no wildcard in sight. Encoded
+  as `gh-aws-environment-colon-twin-collides` (dangerous); the two existing `%3A` vectors promoted
+  on the same transcript. Mitigation stated in the vector: pin AWS's `environment` condition key
+  alongside `sub`, or keep `:` out of environment names.
+  **DECISION NEEDED (owner): report to GitHub?** It is a documented-rule consequence rather than
+  a bug in the usual sense, but the practical effect is a protection-rule bypass. Not filed from
+  the build session; nothing upstream names this corpus either way.
 - `[x]` **Checkov claims in the corpus were attributed to the wrong check and were uncited.**
   Verified by hand against checkov 3.3.16 / `d8aec9db` and fixed 2026-09-01. `gh-aws-org-wide-wildcard-repo`
   is an AWS vector and named CKV_AZURE_249; the AWS checks are CKV_AWS_358 and CKV_AWS_393, both of
@@ -666,6 +712,44 @@ One new item was opened by this work rather than closed by it — the `%` collis
   "# TODO support conditions"; minimal additive proposal (sub/aud as edge properties). Issue-first.
   Done and advanced: issue #3078 filed, maintainer-requested, now open as PR #3088
   (`feat/iam-trust-conditions`, tier-1); reassess 2026-09-30.
+- `[ ]` **GitLab sub grammar drift — documented, not shipped (2026-10-08).** GitLab's sub may
+  now lead with `job_project_path` / `job_project_id` (claims since 18.4) or `source_project_path`
+  / `source_project_id` (documented for 19.5), and the path-reuse issuance block covers
+  project_path, job_project_path and source_project_path. `gitlab.py` parses the
+  project_path / project_id-led forms only. The default sub is unchanged, so no shipped vector is
+  wrong; extend the grammar only when a vector needs it. Source:
+  <https://docs.gitlab.com/ci/secrets/id_token_authentication/>.
+- `[ ]` **AWS trust-condition semantics the corpus does not model (2026-10-08).**
+  `sts:RoleAuthorizedByIdp` (Bool), evaluated against an `https://aws.amazon.com/roles` claim
+  that STS enforces before the trust policy — documented in the IAM condition-keys reference, no
+  IdP known to mint the claim (GitHub does not). Model it when an issuer mints it. Related and
+  consistent with the creation-guardrail transcripts: IAM's 2026-05-12 release note makes
+  `job_workflow_ref` an accepted alternative to `sub` for the GitHub provider, and the
+  "Identity-provider controls for shared OIDC providers" page lists 17 shared IdPs with their
+  required claim (`sub` for GitHub / GitLab / Terraform Cloud / Buildkite, `aud` for Cognito /
+  Pulumi / Vercel / sandboxes.cloud); existing roles are not re-evaluated until their trust policy
+  is modified.
+- `[i]` **Others are working the seam (2026-09/10), none citing or consuming this corpus.**
+  cloudarq-issuers (PyPI 2026-09-13 / 10-01, Apache-2.0): a vendor-owned machine-readable census
+  of 44 OIDC issuers (aud boundary, immutable-id claims, subject forms, AWS condition keys) by
+  Abdallah Khaldi, who also opened checkov #7710 and prowler issue #12845 and discloses building
+  a commercial product — the nearest thing to the "neutral registry" rethink trigger, and not
+  neutral. harshit3355/gh-oidc-trust-fixtures (2026-10-03): 30 labelled Terraform cases (AWS +
+  Entra flexible FIC, immutable subjects) with a harness grading KICS and Checkov; it reports
+  Checkov 3.3.21 at 8 false positives, all immutable subjects, and that applying checkov PR
+  #7610 as a local patch drops them to 0 — **the first independent validation of that PR** — and
+  it proposes CKV_AZURE_252 (checkov #7714 / #7715). Checkmarx KICS PR #8023 (one approval from
+  merge; GitHub / GitLab / CircleCI / Bitbucket sub checks, no immutable logic). Prowler #12867
+  (AWS GitHub-OIDC subject check, Luchang Jiang; issue #12845's four edge cases are findings this
+  corpus published first, uncited) and #12748 (Entra FIC presence check, no subject grading).
+  OWASP's Workload Identity Federation cheat sheet merged 2026-10-02 (prose; cites no suite).
+  BSides Berlin 2026-11-13: "The GitHub OIDC Trust Problem: When You Trust the Wrong String"
+  (Alejandro Rusell). CVE-2026-82856 (`@hulumi/policies`, `ForAnyValue:StringLike` hiding a
+  wildcard `sub`, CVSS 9.3) is the set-operator class github-aws 0.5.0 grades — advisory
+  2026-05-15, so the corpus encoded a known class, it did not predict it.
+  **DECISION NEEDED (owner): outreach stays parked while the upstream queue is stalled. If that
+  changes, the fixture repository that validated #7610 and the OWASP sheet are the two natural
+  first contacts.**
 - `[ ]` **Consumer-adoption outreach.** Where a tool's matching diverges from the suite (zizmor,
   Prowler, GitHound), offer a vector-derived test PR. This is the adoption signal to watch.
   **First consumer recorded 2026-08-25: [subcheck](https://github.com/Dashtid/subcheck).** It no

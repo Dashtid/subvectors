@@ -11,6 +11,17 @@ requires-python = ">=3.11"
 license = "Apache-2.0"
 dependencies = []
 
+# Found 2026-10-08: nine releases had shipped with no project URLs at all, so the
+# PyPI page carried no way back to the repository, the vectors or the issue
+# tracker. For a corpus whose point is auditability, that is the one link that
+# must not be missing.
+[project.urls]
+Homepage = "https://github.com/Dashtid/subvectors"
+Source = "https://github.com/Dashtid/subvectors"
+Corpus = "https://github.com/Dashtid/subvectors/tree/main/vectors"
+Issues = "https://github.com/Dashtid/subvectors/issues"
+Changelog = "https://github.com/Dashtid/subvectors/releases"
+
 # The reference matcher has ZERO runtime dependencies on purpose: it is a
 # correctness oracle a consumer can vendor or read, not a package they must
 # trust at runtime. jsonschema/pytest are needed only to exercise the corpus.

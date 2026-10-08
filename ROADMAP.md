@@ -7,6 +7,70 @@ shipping an overlapping feature must ADD a consumer of this corpus, never obsole
 **Cadence discipline:** every slice is weeknight-sized and independently shippable. Ship the
 slice, update this file, stop.
 
+## Where this actually stands (2026-10-08)
+
+Five weeks after the last corpus change, the owner asked whether continuing makes sense. Measured
+against this file's own scoreboard, the answer is **finish, then freeze** — recorded here so it is
+decided once. Everything below was read from GitHub, PyPI and this tree on 2026-10-08.
+
+**The scoreboard.** Primary metric: 0 merged. Four PRs open with zero human reviews — Checkov #7610
+(86 days), #7627 (73), #7665 (38), cartography #3088 (70). Secondary metric: 0 external — 0 stars,
+0 forks, 0 watchers, 0 page views in 14 days, every dependents source names only `subcheck`, and no
+organic PyPI install is identifiable. The PyPI page carried no link back to this repository through
+nine releases (`pyproject.toml` had no `[project.urls]`; fixed in 0.7.0).
+
+**What that silence means, measured.** At Checkov, 98 of 104 open external PRs have zero reviews
+(median age 79 days); the last 20 external merges took a median of 50 days (range 6-522) and were
+picked one by one by three staff. No maintainer has touched the OIDC family since June: six OIDC
+PRs from four authors sit unreviewed, the three defects are still on `main` at 3.3.26 (2026-10-07),
+and others have started working the same seam — #7710 cites #7665 and touches the same files, #7715
+adds the flexible-FIC check #7627's notes called the open gap, and a third-party fixture repository
+reports that applying #7610 drops Checkov's immutable-subject false positives from 8 to 0. None of
+them cites this corpus. The landscape read is in BACKLOG.md under "Others are working the seam".
+
+**Cartography #3088**, the one thread with a maintainer's design approval, went CONFLICTING on
+2026-10-07 (three upstream commits to `iam.py`, including the GetAccountAuthorizationDetails
+refactor) and carries two P1 bot findings unanswered since 07-30. The tracker's "fixes prepared
+locally 10-01" had no file behind it anywhere.
+
+**The corpus itself had drifted in one place.** Microsoft revised the GitLab flexible-FIC rule
+(expressions must now match `sub` and `project_id`; a second Microsoft page says `sub` plus one of
+three ids), which falsified gitlab-azure-flexible 0.1.0's "sub only" premise. Corrected in 0.2.0
+with the contradiction encoded. Two GCP vectors claimed an error-free rejection; corrected, with a
+standing guard this time. GitHub's immutable subject claims shipped on schedule and Azure flexible
+FIC is still preview (ms.date 2026-09-18), so nothing else was stale.
+
+**Observed moved: 11 -> 16.** The two GitHub-only probes queued here since September ran in a
+scratch repository on 2026-10-08, with committed transcripts: `%` is NOT escaped in the `%3A`
+substitution, so the environments `Production:V1` and `Production%3AV1` mint one subject (new
+vector, dangerous — a required-reviewers bypass with no wildcard in it); `job_workflow_ref`
+carries no `@id` suffixes next to an immutable `sub` (new vector, caution); and a repository
+created that day minted the immutable format with no opt-in (promotion). See
+`docs/OBSERVED-PROMOTION.md`, experiment 6.
+
+**Decisions, 2026-10-08:**
+
+1. **Checkov PRs stay open past 2026-10-15.** The close-by assumed silence meant rejection; the
+   measured base rate says it means queue, and the defects are still live. Closing a mergeable PR
+   into that queue throws away free option value. No nudges, no fourth PR; the stale bot (~2027-03)
+   is the clock. The tracker is updated from an `oss-contributions` session.
+2. **Cartography #3088 gets one honest attempt, then stale beats closed.** The rebase onto current
+   master and the answers to the two P1 findings were prepared in a scratch clone for the owner to
+   review and push from a `C:\Code\oss\cartography` session, never from here. Closing it unmerged
+   re-gates every future cartography PR, so if it is not pushed it is left to go stale.
+3. **No new vectors, no new tranches.** The matrix is complete. The findings above earned their
+   vectors by the standing rule — a verified finding, not a gap in a table — and that rule is the
+   only door left open.
+4. **Releases:** 0.7.0 cut 2026-10-08 under the owner's go-ahead, five Sunday cuts late. The
+   Sunday rule stands for anything after; a release is owed only when a consumer can act on it.
+5. **Maintenance from here:** CI green, Dependabot, answer a review if one lands. The next
+   scheduled decision is the end-of-2026 rethink trigger below. Note for it: the Prowler fallback
+   is being approached by third parties at presence level (#12748) and on the AWS side (#12867);
+   subject-string grading on Azure is still unrepresented in any shipping tool, and no neutral
+   home has started a registry (the nearest artifact, cloudarq-issuers, is vendor-owned).
+
+The 2026-09-03 reading below is kept as the prior state.
+
 ## Where this actually stands (2026-09-03)
 
 **14 suites / 160 vectors** — 149 `documented`, 11 `observed` — 403 tests, CI green on 3.11-3.13,
@@ -121,8 +185,11 @@ substrate for follow-on work, or is donated to a neutral home.
       mismatch DOES return an error — `AADSTS700213` ("No matching federated identity record found
       for presented assertion subject ... matching is done using a case-sensitive comparison");
       `AADSTS700211` is the issuer-mismatch variant and `AADSTS70021` the generic no-match.
-      The defect to claim is "unvalidated at write time", not "fails silently". This wording still
-      needs fixing in `matcher.py` and the Azure vector suites — see ARCHITECTURE.md known issues.
+      The defect to claim is "unvalidated at write time", not "fails silently". Fixed 2026-08-25 in
+      `matcher.py` and the Azure suites (ARCHITECTURE.md, known issues); this line kept saying
+      "still needs fixing" for six weeks after that. On 2026-10-08 the same claim turned up in two
+      `github-gcp` vectors the one-off sweep never saw — fixed, and `tests/test_vectors.py` now
+      holds the line for every suite.
 
 ## v0.2 — breadth and consumers
 

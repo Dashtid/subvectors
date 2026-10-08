@@ -2,8 +2,8 @@
 
 [![PyPI](https://img.shields.io/pypi/v/subvectors)](https://pypi.org/project/subvectors/)
 [![CI](https://github.com/Dashtid/subvectors/actions/workflows/ci.yml/badge.svg)](https://github.com/Dashtid/subvectors/actions/workflows/ci.yml)
-[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](LICENSE)
-[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](pyproject.toml)
+[![License: Apache-2.0](https://img.shields.io/badge/license-Apache--2.0-blue.svg)](https://github.com/Dashtid/subvectors/blob/main/LICENSE)
+[![Python](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)](https://github.com/Dashtid/subvectors/blob/main/pyproject.toml)
 
 **Conformance vectors for OIDC trust subjects — the answer key for CI/CD OIDC trust decisions: a
 cited, versioned test-vector suite answering "does subject S satisfy trust condition C, and is C
@@ -18,15 +18,18 @@ it wrong.
 
 > Status: v0.6.0 on PyPI - the corpus ships inside the wheel. An independent personal
 > project, built on personal time and personal equipment. Every vector is source-cited, and
-> **11 of the 160 vectors are `observed` against live AWS** - all 11 of them in the
-> `github-aws` suite (54 vectors), all recorded by a single method,
-> `aws-iam-policy-simulator` (`iam:SimulateCustomPolicy`), with five `iam:CreateRole` probes
-> recorded behind one of them. **No token exchange has been observed yet, on AWS or on any
-> other cloud** - the simulator evaluates a trust policy against a claim value you hand it; it
-> never mints a token and never presents one. Every other suite is `documented` only. Each
-> observed vector links a committed transcript under [`observations/`](observations/) holding
-> the exact request and the verbatim response, so the claim is auditable without an AWS
-> account. The generated [Coverage](#coverage) block carries the live
+> **16 of the 163 vectors are `observed`**, all of them in the `github-aws` suite (56
+> vectors), by two methods: 11 against the live AWS IAM policy simulator
+> (`aws-iam-policy-simulator`, `iam:SimulateCustomPolicy`, with five `iam:CreateRole` probes
+> recorded behind one of them), and 5 against tokens a real GitHub Actions job minted on
+> 2026-10-08 (`github-actions-oidc-claims`: the issuer side only - what GitHub puts in the
+> token - with the AWS match of that string still `documented`). **No token exchange has been
+> observed yet, on AWS or on any other cloud** - the simulator evaluates a trust policy
+> against a claim value you hand it, and the GitHub probe mints a token nobody presents.
+> Every other suite is `documented` only. Each observed vector links a committed transcript
+> under [`observations/`](https://github.com/Dashtid/subvectors/tree/main/observations)
+> holding the exact request and the verbatim response, so the claim is auditable without an
+> AWS or GitHub account. The generated [Coverage](#coverage) block carries the live
 > `documented`/`observed` split.
 
 ## The proof this is needed (verified 2026-07-04; charset claim re-checked against current source 2026-09-19)
@@ -38,7 +41,15 @@ check anywhere (`CKV_AZURE_249`). Read against its own source:
   `repo:org/repo:pull_request` (unreviewed PR code may) — dangerous patterns waved through.
 - Its repo regex has no `@` in the charset, so it will FAIL every valid immutable-format subject
   (`repo:owner@123456/name@456789:...`) — the format GitHub makes mandatory for repos created
-  after **2026-07-15**.
+  after **2026-07-15** (observed on a repository created 2026-10-08: it minted that format with
+  no opt-in).
+
+It is a bug class, not one tool's slip: another scanner's OIDC guardrail shipped exactly the
+set-operator miss this corpus grades — `ForAnyValue:StringLike` hiding a wildcard `sub` — as
+[CVE-2026-82856](https://github.com/advisories/GHSA-q2f7-m237-v562) (`@hulumi/policies` before
+1.3.2, CVSS 9.3). And a third-party fixture repository reports that applying Checkov PR #7610
+drops Checkov's immutable-subject false positives from 8 to 0, which is the same defect read from
+the other side.
 
 The formats churn (GitHub immutable claims, Azure flexible-FIC expressions in preview, per-issuer
 dialects from GitLab/Bitbucket/CircleCI), and every scanner re-derives the semantics from prose
@@ -70,7 +81,7 @@ Three layers per vector:
 3. **Judgment** — is the condition safe? Graded findings for the patterns that matter:
    `pull_request` subjects, unprotected refs, wildcarded repos/orgs, missing `aud` pinning. The
    graded patterns are a stable, citable vocabulary — see
-   [`docs/JUDGMENT-CATALOG.md`](docs/JUDGMENT-CATALOG.md).
+   [`docs/JUDGMENT-CATALOG.md`](https://github.com/Dashtid/subvectors/blob/main/docs/JUDGMENT-CATALOG.md).
 
 Every vector carries a source citation and a provenance status — `documented` (derived from
 primary documentation) or `observed` (recorded from a live exchange). The current split is
@@ -82,39 +93,39 @@ not a product.
 
 <!-- COVERAGE:START (generated by scripts/coverage.py -- run `python scripts/coverage.py --write`) -->
 
-**14 suites - 160 vectors** across 5 issuers and 6 consumer semantics.
+**14 suites - 163 vectors** across 5 issuers and 6 consumer semantics.
 
 Vectors by issuer x cloud-consumer semantics:
 
 | Issuer | aws-stringlike | aws-stringequals | aws-all | azure-fic-exact | azure-fic-flexible | gcp-cel | Total |
 | --- | --- | --- | --- | --- | --- | --- | --- |
-| `github` | 18 | 29 | 7 | 10 | 12 | 12 | **88** |
-| `gitlab` | 5 | 5 | 6 | 6 | 5 | 6 | **33** |
+| `github` | 18 | 31 | 7 | 10 | 12 | 12 | **90** |
+| `gitlab` | 5 | 5 | 6 | 6 | 6 | 6 | **34** |
 | `bitbucket` | 1 | 2 | 3 | - | - | - | **6** |
 | `circleci` | 4 | - | 4 | - | - | 6 | **14** |
 | `terraform-cloud` | 3 | 3 | 1 | - | 6 | 6 | **19** |
-| **Total** | **31** | **39** | **21** | **16** | **23** | **30** | **160** |
+| **Total** | **31** | **41** | **21** | **16** | **24** | **30** | **163** |
 
 Suites:
 
 - `bitbucket-aws` 0.1.0 - 6 vectors
 - `circleci-aws` 0.2.0 - 8 vectors
 - `circleci-gcp` 0.1.0 - 6 vectors
-- `github-aws` 0.8.0 - 54 vectors
+- `github-aws` 0.9.0 - 56 vectors
 - `github-azure-flexible` 0.2.0 - 12 vectors
 - `github-azure` 0.1.0 - 10 vectors
-- `github-gcp` 0.1.0 - 12 vectors
+- `github-gcp` 0.1.1 - 12 vectors
 - `gitlab-aws` 0.2.0 - 16 vectors
-- `gitlab-azure-flexible` 0.1.0 - 5 vectors
+- `gitlab-azure-flexible` 0.2.0 - 6 vectors
 - `gitlab-azure` 0.1.0 - 6 vectors
 - `gitlab-gcp` 0.1.0 - 6 vectors
 - `terraform-aws` 0.1.0 - 7 vectors
 - `terraform-azure-flexible` 0.1.0 - 6 vectors
 - `terraform-gcp` 0.1.0 - 6 vectors
 
-Judgments: 33 safe - 52 caution - 51 dangerous - 24 ungraded (mechanical no-match / contrast vectors carry no safety grade).
+Judgments: 34 safe - 53 caution - 52 dangerous - 24 ungraded (mechanical no-match / contrast vectors carry no safety grade).
 
-Provenance: 149 `documented` - 11 `observed`.
+Provenance: 147 `documented` - 16 `observed`.
 
 <!-- COVERAGE:END -->
 
@@ -149,8 +160,8 @@ everyone's validators. Consumers keep their own matching code (no runtime depend
 import the vectors at test time.
 
 The intended distribution channel is upstream PRs against the tools the vectors grade — the
-channel and the proof in one. Four are open and **none has been merged** (PR state checked
-2026-09-14): Checkov
+channel and the proof in one. Four are open and **none has been merged or reviewed by a
+maintainer** (PR state checked 2026-10-08): Checkov
 [#7610](https://github.com/bridgecrewio/checkov/pull/7610) (opened 2026-07-14),
 [#7627](https://github.com/bridgecrewio/checkov/pull/7627) (2026-07-27) and
 [#7665](https://github.com/bridgecrewio/checkov/pull/7665) (2026-08-31) against the OIDC check
@@ -176,6 +187,6 @@ Dual-licensed to maximize adoptability:
 
 - **Vector data (`vectors/`) — CC0-1.0** (public-domain dedication). Embed the vectors in your
   tool's test suite with zero attribution or licensing friction — that frictionlessness is the
-  point. See [`vectors/LICENSE`](vectors/LICENSE).
+  point. See [`vectors/LICENSE`](https://github.com/Dashtid/subvectors/blob/main/vectors/LICENSE).
 - **Everything else** (the reference matcher, schema, docs) **— Apache-2.0**. See
-  [`LICENSE`](LICENSE).
+  [`LICENSE`](https://github.com/Dashtid/subvectors/blob/main/LICENSE).

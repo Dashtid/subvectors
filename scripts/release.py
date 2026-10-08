@@ -214,7 +214,12 @@ def main(argv: list[str] | None = None) -> int:
         )
         run("git", "commit", "-m", f"chore(release): {version}")
         run("git", "push", "origin", "main")
-    run("git", "tag", tag)
+    # Annotated, with a message: a lightweight `git tag v0.7.0` died with "no tag
+    # message?" on 2026-10-08 once tag signing was on (a signed tag is annotated and
+    # needs a message, and there is no terminal here to ask for one). The three
+    # files were already committed and pushed at that point, so the cut had to be
+    # finished by hand. An annotated tag is what a release tag should be anyway.
+    run("git", "tag", "-a", tag, "-m", tag)
     run("git", "push", "origin", tag)
 
     create = ["gh", "release", "create", tag, "--title", args.title or tag]

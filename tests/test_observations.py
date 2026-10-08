@@ -51,9 +51,29 @@ def _transcript_files() -> list[Path]:
     return sorted(OBSERVATIONS_DIR.glob("*/*.json"))
 
 
+def _transcript_mode(vector: dict) -> str:
+    path = ROOT / vector["observation"]["transcript"]
+    if not path.is_file():
+        return ""
+    return json.loads(path.read_text(encoding="utf-8")).get("mode", "")
+
+
+def _simulator_backed() -> list[dict]:
+    """Vectors whose transcript is one simulate-custom-policy call: 1:1 with the vector.
+
+    Selected at collection rather than skipped at run time, so the suite reports
+    what it checked instead of ten skips (a creation probe or an issuer-side
+    claims dump backs a vector too, but through its own guard below).
+    """
+    return [
+        v for v in _observed_with_transcript() if _transcript_mode(v) == "simulate-custom-policy"
+    ]
+
+
 def test_at_least_one_observed_vector_is_transcript_backed() -> None:
     """Guards the guard: if this file silently matched nothing it would prove nothing."""
     assert _observed_with_transcript(), "no observed vector carries a transcript"
+    assert _simulator_backed(), "no observed vector is backed by a simulator transcript"
 
 
 @pytest.mark.parametrize("vector", _observed_with_transcript(), ids=lambda v: v["id"])
@@ -62,7 +82,7 @@ def test_transcript_file_exists(vector: dict) -> None:
     assert path.is_file(), f"{vector['id']} cites a transcript that is not in the repo: {path}"
 
 
-@pytest.mark.parametrize("vector", _observed_with_transcript(), ids=lambda v: v["id"])
+@pytest.mark.parametrize("vector", _simulator_backed(), ids=lambda v: v["id"])
 def test_transcript_is_about_this_vector(vector: dict) -> None:
     """The record must describe the same condition and subject the vector asserts.
 
@@ -70,19 +90,15 @@ def test_transcript_is_about_this_vector(vector: dict) -> None:
     an observation that no longer proves what it claims.
     """
     record = json.loads((ROOT / vector["observation"]["transcript"]).read_text(encoding="utf-8"))
-    if record.get("mode") != "simulate-custom-policy":
-        pytest.skip("creation probes are not 1:1 with a single vector")
     assert record["vector_id"] == vector["id"]
     assert record["pattern"] == vector["condition"]["pattern"], "pattern drifted from its evidence"
     assert record["subject"] == vector["subject"], "subject drifted from its evidence"
     assert record["operator"] == _OPERATOR[vector["condition"]["consumer"]]
 
 
-@pytest.mark.parametrize("vector", _observed_with_transcript(), ids=lambda v: v["id"])
+@pytest.mark.parametrize("vector", _simulator_backed(), ids=lambda v: v["id"])
 def test_transcript_verdict_matches_the_vector(vector: dict) -> None:
     record = json.loads((ROOT / vector["observation"]["transcript"]).read_text(encoding="utf-8"))
-    if record.get("mode") != "simulate-custom-policy":
-        pytest.skip("creation probes carry accept/reject, not a match verdict")
     assert record["agrees"] is True, f"{vector['id']} is promoted on a DISAGREE or errored run"
     expected_allowed = vector["expect"] == "match"
     assert (record["decision"] == "allowed") == expected_allowed

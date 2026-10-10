@@ -17,10 +17,10 @@ must re-implement that comparison and judge those rules. They re-figure it out a
 it wrong.
 
 > Status: v0.7.0 on PyPI - the corpus ships inside the wheel. An independent personal
-> project, built on personal time and personal equipment. **In maintenance since
-> 2026-10-08:** the planned matrix is complete, a vector is added only for a verified finding,
-> and upstream reviews are answered when they come (`ROADMAP.md` has the reasoning). Every
-> vector is source-cited, and
+> project, built on personal time and personal equipment. **Archived 2026-10-11:** the
+> repository is read-only and no further work is planned. The corpus stays installable from
+> PyPI and stays CC0, and every vector, citation and transcript remains here (`ROADMAP.md` has
+> the reasoning). Every vector is source-cited, and
 > **16 of the 163 vectors are `observed`**, all of them in the `github-aws` suite (56
 > vectors), by two methods: 11 against the live AWS IAM policy simulator
 > (`aws-iam-policy-simulator`, `iam:SimulateCustomPolicy`, with five `iam:CreateRole` probes

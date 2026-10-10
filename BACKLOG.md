@@ -604,6 +604,7 @@ One new item was opened by this work rather than closed by it — the `%` collis
   The scratch repository `Dashtid/oidc-claims-probe` stays private and unchanged as the
   reproduction until that is decided. Rule for next time: a finding in a vendor's platform goes
   to the vendor before it goes into a release.
+  **Owner decision 2026-10-11: not reported.** The repository was archived the same day.
 - `[x]` **Checkov claims in the corpus were attributed to the wrong check and were uncited.**
   Verified by hand against checkov 3.3.16 / `d8aec9db` and fixed 2026-09-01. `gh-aws-org-wide-wildcard-repo`
   is an AWS vector and named CKV_AZURE_249; the AWS checks are CKV_AWS_358 and CKV_AWS_393, both of

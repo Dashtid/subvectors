@@ -7,6 +7,16 @@ shipping an overlapping feature must ADD a consumer of this corpus, never obsole
 **Cadence discipline:** every slice is weeknight-sized and independently shippable. Ship the
 slice, update this file, stop.
 
+## Archived (2026-10-11)
+
+The owner archived the repository on GitHub three days after the finish-then-freeze decision
+below. Nothing in it is owed any more, and the rethink triggers further down are moot. What stays
+true: 0.7.0 on PyPI is the final release, the vectors are CC0 and anyone may take them, and the
+open upstream PRs (Checkov #7610 / #7627 / #7665, cartography #3088) and the KICS #8023 review are
+tracked in the private `oss-contributions` tracker, not here. The `%3A` environment-collision
+finding was not reported to GitHub (owner decision, 2026-10-11). Unarchiving restores the
+maintenance state described below.
+
 ## Where this actually stands (2026-10-08)
 
 Five weeks after the last corpus change, the owner asked whether continuing makes sense. Measured

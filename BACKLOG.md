@@ -598,6 +598,12 @@ One new item was opened by this work rather than closed by it — the `%` collis
   **DECISION NEEDED (owner): report to GitHub?** It is a documented-rule consequence rather than
   a bug in the usual sense, but the practical effect is a protection-rule bypass. Not filed from
   the build session; nothing upstream names this corpus either way.
+  [!] **Sequencing, recorded 2026-10-10:** the vector and the v0.7.0 release notes made this
+  public on 2026-10-08, before GitHub was told. The reporting channel for the GitHub platform is
+  the bug bounty program (<https://bounty.github.com>), a web submission only the owner can make.
+  The scratch repository `Dashtid/oidc-claims-probe` stays private and unchanged as the
+  reproduction until that is decided. Rule for next time: a finding in a vendor's platform goes
+  to the vendor before it goes into a release.
 - `[x]` **Checkov claims in the corpus were attributed to the wrong check and were uncited.**
   Verified by hand against checkov 3.3.16 / `d8aec9db` and fixed 2026-09-01. `gh-aws-org-wide-wildcard-repo`
   is an AWS vector and named CKV_AZURE_249; the AWS checks are CKV_AWS_358 and CKV_AWS_393, both of
@@ -750,6 +756,16 @@ One new item was opened by this work rather than closed by it — the `%` collis
   **DECISION NEEDED (owner): outreach stays parked while the upstream queue is stalled. If that
   changes, the fixture repository that validated #7610 and the OWASP sheet are the two natural
   first contacts.**
+  **Dispositions 2026-10-10 (owner: "go for it").** KICS #8023: verified false negative at head
+  1a382762. The query's only wildcard test (`query.rego` line 159, `^([^:]+:)?[*?]`) misses an
+  owner-segment wildcard after a literal prefix, e.g. `repo:octo-org*/octo-repo*:...`, the shape
+  `gh-aws-format-tolerant-wildcard-admits-prefix-orgs` grades dangerous. No fixture covers it,
+  and the suggested `^([^:]+:)?[^/:]*[*?]` changes none of the 34 existing fixture verdicts. The
+  comment was handed to the `oss-contributions` session, which owns upstream threads and their
+  snapshots, so exactly one session posts it. Cartography #3088: claimed by that session the same
+  day, so it is not pushed from here. Subcheck: its fixture-drift canary run locally against this
+  repo's `main` on 2026-10-10 passed (13 fixture subjects, 32 upstream, all decode), so Monday's
+  run stays green and no pin bump is owed.
 - `[ ]` **Consumer-adoption outreach.** Where a tool's matching diverges from the suite (zizmor,
   Prowler, GitHound), offer a vector-derived test PR. This is the adoption signal to watch.
   **First consumer recorded 2026-08-25: [subcheck](https://github.com/Dashtid/subcheck).** It no

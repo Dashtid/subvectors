@@ -759,10 +759,21 @@ One new item was opened by this work rather than closed by it — the `%` collis
   **Dispositions 2026-10-10 (owner: "go for it").** KICS #8023: verified false negative at head
   1a382762. The query's only wildcard test (`query.rego` line 159, `^([^:]+:)?[*?]`) misses an
   owner-segment wildcard after a literal prefix, e.g. `repo:octo-org*/octo-repo*:...`, the shape
-  `gh-aws-format-tolerant-wildcard-admits-prefix-orgs` grades dangerous. No fixture covers it,
-  and the suggested `^([^:]+:)?[^/:]*[*?]` changes none of the 34 existing fixture verdicts. The
-  comment was handed to the `oss-contributions` session, which owns upstream threads and their
-  snapshots, so exactly one session posts it. Cartography #3088: claimed by that session the same
+  `gh-aws-format-tolerant-wildcard-admits-prefix-orgs` grades dangerous. No fixture covers it.
+  The comment was handed to the `oss-contributions` session, which owns upstream threads and their
+  snapshots, so exactly one session posts it. **Posted 2026-10-10T19:49:48Z by that session**
+  (<https://github.com/Checkmarx/kics/pull/8023#issuecomment-6101526663>, snapshot in the tracker),
+  after a checker and a refuter, with two changes. First, the suggested regex became
+  `^(([^:]+:)?|(repo|project_path):[^/:@]*)[*?]`. The draft's `^([^:]+:)?[^/:]*[*?]` would have
+  flagged Atlassian's documented Bitbucket conditions (`{REPO_UUID}:{*}`,
+  `{REPO_UUID}*:{ENVIRONMENT_UUID}:*`). It had been checked only against the PR's GitHub and GitLab
+  fixture values. Second, a point was added: `is_oidc_trust` accepts any Federated principal, so the
+  Cognito identity-pool trust policy AWS documents gets the missing-sub finding. Corpus check
+  afterwards: across this corpus's 39 StringLike `sub` values, the posted regex flags the
+  owner-prefix vector and changes nothing else. The query's existing rule also flags
+  `bitbucket-aws-repo-uuid-repo-wide` (`{uuid}:*`, graded caution) as "allows any repository",
+  though it pins one repository by UUID. **Lesson:** run a regex proposed upstream against every
+  vector in this corpus, across all five issuers, before handing it over. That is the corpus's job. Cartography #3088: claimed by that session the same
   day, so it is not pushed from here. Subcheck: its fixture-drift canary run locally against this
   repo's `main` on 2026-10-10 passed (13 fixture subjects, 32 upstream, all decode), so Monday's
   run stays green and no pin bump is owed.

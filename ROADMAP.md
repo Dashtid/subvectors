@@ -17,6 +17,12 @@ tracked in the private `oss-contributions` tracker, not here. The `%3A` environm
 finding was not reported to GitHub (owner decision, 2026-10-11). Unarchiving restores the
 maintenance state described below.
 
+**Since the archive (checked 2026-11-26):** cartography #3088 was merged on 2026-10-26, so the
+scoreboard below now reads one merged PR; the three Checkov PRs are still open with no maintainer
+review. The repository was unarchived on 2026-11-26 for one commit that brought the README up to
+date, then archived again. Its sibling subcheck was archived the same day, after its final
+release, 0.5.3.
+
 ## Where this actually stands (2026-10-08)
 
 Five weeks after the last corpus change, the owner asked whether continuing makes sense. Measured

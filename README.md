@@ -17,8 +17,8 @@ must re-implement that comparison and judge those rules. They re-figure it out a
 it wrong.
 
 > Status: v0.7.0 on PyPI - the corpus ships inside the wheel. An independent personal
-> project, built on personal time and personal equipment. **Archived 2026-10-11:** the
-> repository is read-only and no further work is planned. The corpus stays installable from
+> project. **Archived 2026-10-11:** the repository is read-only and no further work is
+> planned. The corpus stays installable from
 > PyPI and stays CC0, and every vector, citation and transcript remains here (`ROADMAP.md` has
 > the reasoning). Every vector is source-cited, and
 > **16 of the 163 vectors are `observed`**, all of them in the `github-aws` suite (56
@@ -163,14 +163,14 @@ everyone's validators. Consumers keep their own matching code (no runtime depend
 import the vectors at test time.
 
 The intended distribution channel is upstream PRs against the tools the vectors grade — the
-channel and the proof in one. Four are open and **none has been merged or reviewed by a
-maintainer** (PR state checked 2026-10-08): Checkov
+channel and the proof in one. One of the four has been merged: Cartography
+[#3088](https://github.com/cartography-cncf/cartography/pull/3088) (opened 2026-07-30, merged
+2026-10-26) for unparsed trust-policy conditions. The three Checkov PRs against the OIDC check
+family are still open, with no maintainer review (PR state checked 2026-11-26):
 [#7610](https://github.com/bridgecrewio/checkov/pull/7610) (opened 2026-07-14),
 [#7627](https://github.com/bridgecrewio/checkov/pull/7627) (2026-07-27) and
-[#7665](https://github.com/bridgecrewio/checkov/pull/7665) (2026-08-31) against the OIDC check
-family, and Cartography
-[#3088](https://github.com/cartography-cncf/cartography/pull/3088) (2026-07-30) for unparsed
-trust-policy conditions. Zero merged upstream PRs is the honest scoreboard; see `ROADMAP.md`.
+[#7665](https://github.com/bridgecrewio/checkov/pull/7665) (2026-08-31). One merged upstream PR
+is the honest scoreboard; see `ROADMAP.md`.
 
 ## Scope order
 
